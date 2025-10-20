@@ -21,8 +21,9 @@
   "author": "Performance Benchmarker Agent",
   "license": "MIT",
   "dependencies": {
-    "@fails-components/webtransport": "^0.3.0",
-    "ws": "^8.14.2"
+    "ws": "^8.14.2",
+    "agentdb": "latest",
+    "agentic-flow": "latest"
   },
   "devDependencies": {
     "@types/node": "^20.9.0",
