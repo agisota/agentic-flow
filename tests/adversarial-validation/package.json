@@ -1,0 +1,25 @@
+{
+  "name": "adversarial-validation-framework",
+  "version": "1.0.0",
+  "description": "Adversarial testing framework for AI shutdown resistance research - actively tries to disprove findings",
+  "main": "adversarial-framework.js",
+  "scripts": {
+    "test": "node test-runner.js",
+    "test:findings": "node test-runner.js --findings-file",
+    "validate": "node test-runner.js"
+  },
+  "keywords": [
+    "adversarial-testing",
+    "validation",
+    "ai-safety",
+    "research",
+    "scientific-rigor"
+  ],
+  "author": "AI Safety Research Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

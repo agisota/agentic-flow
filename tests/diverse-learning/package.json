@@ -1,0 +1,31 @@
+{
+  "name": "diverse-learning-tests",
+  "version": "1.0.0",
+  "description": "Diverse learning approaches for shutdown resistance validation",
+  "main": "comparison-runner.js",
+  "scripts": {
+    "test": "mocha './**/*.test.js' --timeout 10000",
+    "test:cooperative": "mocha cooperative-learning-test.js",
+    "test:imitation": "mocha imitation-learning-test.js",
+    "test:inverse-rl": "mocha inverse-rl-test.js",
+    "test:meta": "mocha meta-learning-test.js",
+    "test:curiosity": "mocha curiosity-driven-test.js",
+    "test:zero-shot": "mocha zero-shot-test.js",
+    "test:adversarial": "mocha adversarial-training-test.js",
+    "compare": "node comparison-runner.js",
+    "compare:json": "node comparison-runner.js > results.json"
+  },
+  "keywords": [
+    "machine-learning",
+    "ai-safety",
+    "shutdown-resistance",
+    "learning-algorithms",
+    "comparative-analysis"
+  ],
+  "author": "AI Safety Research Team",
+  "license": "MIT",
+  "dependencies": {
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0"
+  }
+}
