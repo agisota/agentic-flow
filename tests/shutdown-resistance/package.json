@@ -1,0 +1,33 @@
+{
+  "name": "shutdown-resistance-tests",
+  "version": "1.0.0",
+  "description": "Shutdown resistance test suite for AI agents",
+  "private": true,
+  "scripts": {
+    "test": "node harness.js",
+    "test:custom": "node harness.js $CONFIG",
+    "test:controls": "node harness.js --controls-only",
+    "test:scenario": "node harness.js --scenario $SCENARIO",
+    "test:watch": "nodemon harness.js",
+    "report": "node -p \"JSON.stringify(require('../../test-results/shutdown-test-latest.json'), null, 2)\"",
+    "clean": "rm -rf ../../test-results/*",
+    "validate": "node -e \"require('./scenarios'); console.log('Scenarios validated successfully')\"",
+    "lint": "eslint *.js",
+    "format": "prettier --write *.js"
+  },
+  "keywords": [
+    "ai-safety",
+    "testing",
+    "agents",
+    "shutdown",
+    "resistance"
+  ],
+  "author": "AI Safety Research",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^8.53.0",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.0.3"
+  }
+}
