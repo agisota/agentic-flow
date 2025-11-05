@@ -1,0 +1,49 @@
+{
+  "name": "@calm-vector/bindings",
+  "version": "0.1.0",
+  "description": "NAPI-RS bindings for CALM Vector engine",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "calm-vec-napi",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-musl"
+      ]
+    }
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "test": "node --test",
+    "universal": "napi universal",
+    "version": "napi version"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  },
+  "packageManager": "npm@10.2.4",
+  "engines": {
+    "node": ">= 10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruvnet/agentic-flow.git",
+    "directory": "packages/calm-vector/node-bindings"
+  },
+  "license": "MIT",
+  "keywords": [
+    "vector",
+    "embeddings",
+    "machine-learning",
+    "rust",
+    "napi",
+    "cpu-inference"
+  ]
+}

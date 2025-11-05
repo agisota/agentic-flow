@@ -1,0 +1,26 @@
+[package]
+name = "calm_vec_napi"
+version = "0.1.0"
+edition = "2021"
+authors = ["Agentic Flow Contributors"]
+description = "NAPI-RS bindings for calm_vec Rust crate"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi4"] }
+napi-derive = "2"
+calm_vec = { path = "../rust-calm" }
+anyhow = "1.0"
+serde_json = "1.0"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

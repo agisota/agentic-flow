@@ -1,0 +1,7 @@
+Machine learning is a subset of artificial intelligence that focuses on the development of algorithms and statistical models that enable computer systems to improve their performance on a specific task through experience.
+
+Deep learning is a subfield of machine learning that uses neural networks with multiple layers (deep neural networks) to learn hierarchical representations of data.
+
+Natural language processing is a branch of artificial intelligence that helps computers understand, interpret, and manipulate human language.
+
+Computer vision is a field of artificial intelligence that enables computers and systems to derive meaningful information from digital images, videos and other visual inputs.

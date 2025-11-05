@@ -1,0 +1,36 @@
+[package]
+name = "calm_vec"
+version = "0.1.0"
+edition = "2021"
+authors = ["Agentic Flow Contributors"]
+description = "Vector-only CPU inference engine with CALM-style continuous reasoning"
+license = "MIT"
+repository = "https://github.com/ruvnet/agentic-flow"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+candle-core = "0.7.2"
+candle-nn = "0.7.2"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.12"
+
+[[bench]]
+name = "infer"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.bench]
+inherits = "release"

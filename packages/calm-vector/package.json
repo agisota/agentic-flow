@@ -1,0 +1,35 @@
+{
+  "name": "calm-vector-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vector-only inference monorepo",
+  "scripts": {
+    "build:rust": "cd rust-calm && cargo build --release",
+    "build:bindings": "cd node-bindings && npm run build",
+    "build:cli": "cd cli && npm run build",
+    "build": "npm run build:rust && npm run build:bindings && npm run build:cli",
+    "test:rust": "cd rust-calm && cargo test",
+    "test:cli": "cd cli && npm test",
+    "test": "npm run test:rust && npm run test:cli",
+    "bench": "cd rust-calm && cargo bench",
+    "clean": "rm -rf rust-calm/target node-bindings/dist node-bindings/*.node cli/dist"
+  },
+  "workspaces": [
+    "node-bindings",
+    "cli"
+  ],
+  "keywords": [
+    "vector",
+    "embeddings",
+    "rust",
+    "cpu-inference",
+    "calm"
+  ],
+  "author": "Agentic Flow Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ruvnet/agentic-flow.git",
+    "directory": "packages/calm-vector"
+  }
+}
