@@ -9,7 +9,6 @@ use crate::{
 use chrono::Utc;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "native")]
 use crate::native::execute_jj_command;
@@ -26,8 +25,8 @@ pub struct JJWrapper {
 
 impl JJWrapper {
     /// Create a new JJWrapper with default configuration
-    pub fn new() -> Result<JJWrapper> {
-        Self::with_config(JJConfig::default())
+    pub fn new(config: JJConfig) -> Result<JJWrapper> {
+        Self::with_config(config)
     }
 
     /// Create a new JJWrapper with custom configuration
@@ -64,7 +63,7 @@ impl JJWrapper {
         #[cfg(feature = "native")]
         let result = {
             let timeout = std::time::Duration::from_millis(self.config.timeout_ms);
-            match execute_jj_command(&self.config.jj_path, args, timeout).await {
+            match execute_jj_command(self.config.get_jj_path(), args, timeout).await {
                 Ok(output) => JJResult::new(
                     output,
                     String::new(),
@@ -258,7 +257,7 @@ impl JJWrapper {
     }
 
     /// Create a new commit
-    pub async fn new(&self, message: Option<&str>) -> Result<JJResult> {
+    pub async fn new_commit(&self, message: Option<&str>) -> Result<JJResult> {
         let mut args = vec!["new"];
         if let Some(msg) = message {
             args.extend(&["-m", msg]);
@@ -425,7 +424,7 @@ impl JJWrapper {
 
 impl Default for JJWrapper {
     fn default() -> Self {
-        Self::new().unwrap()
+        Self::new(JJConfig::default()).unwrap()
     }
 }
 

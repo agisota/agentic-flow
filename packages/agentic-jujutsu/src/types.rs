@@ -25,7 +25,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use wasm_bindgen::prelude::*;
 
 use crate::error::{JJError, Result};
 
@@ -43,7 +42,6 @@ use crate::error::{JJError, Result};
 /// assert!(result.success());
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
 pub struct JJResult {
     /// Standard output from the command
     pub stdout: String,
@@ -58,10 +56,8 @@ pub struct JJResult {
     pub execution_time_ms: u64,
 }
 
-#[wasm_bindgen]
 impl JJResult {
     /// Create a new JJResult
-    #[wasm_bindgen(constructor)]
     pub fn new(stdout: String, stderr: String, exit_code: i32, execution_time_ms: u64) -> Self {
         Self {
             stdout,
@@ -115,7 +111,6 @@ impl JJResult {
 /// assert_eq!(commit.message, "Add new feature");
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
 pub struct JJCommit {
     /// Commit ID (revision hash)
     pub id: String,
@@ -133,23 +128,18 @@ pub struct JJCommit {
     pub author_email: String,
 
     /// Timestamp
-    #[wasm_bindgen(skip)]
     pub timestamp: DateTime<Utc>,
 
     /// Parent commit IDs
-    #[wasm_bindgen(skip)]
     pub parents: Vec<String>,
 
     /// Child commit IDs
-    #[wasm_bindgen(skip)]
     pub children: Vec<String>,
 
     /// Branches pointing to this commit
-    #[wasm_bindgen(skip)]
     pub branches: Vec<String>,
 
     /// Tags associated with this commit
-    #[wasm_bindgen(skip)]
     pub tags: Vec<String>,
 
     /// Whether this is a merge commit
@@ -162,10 +152,8 @@ pub struct JJCommit {
     pub is_empty: bool,
 }
 
-#[wasm_bindgen]
 impl JJCommit {
     /// Create a new commit with minimal fields
-    #[wasm_bindgen(constructor)]
     pub fn new(
         id: String,
         change_id: String,
@@ -210,14 +198,12 @@ impl JJCommit {
         self.change_id.chars().take(12).collect()
     }
 
-    /// Get parents as JSON string (for WASM)
-    #[wasm_bindgen(getter)]
+    /// Get parents as JSON string
     pub fn parents_json(&self) -> String {
         serde_json::to_string(&self.parents).unwrap_or_else(|_| "[]".to_string())
     }
 
-    /// Get branches as JSON string (for WASM)
-    #[wasm_bindgen(getter)]
+    /// Get branches as JSON string
     pub fn branches_json(&self) -> String {
         serde_json::to_string(&self.branches).unwrap_or_else(|_| "[]".to_string())
     }
@@ -402,7 +388,6 @@ impl JJCommitBuilder {
 /// assert_eq!(branch.name, "feature/new-api");
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
 pub struct JJBranch {
     /// Branch name
     pub name: String,
@@ -423,14 +408,11 @@ pub struct JJBranch {
     pub is_current: bool,
 
     /// Creation timestamp
-    #[wasm_bindgen(skip)]
     pub created_at: DateTime<Utc>,
 }
 
-#[wasm_bindgen]
 impl JJBranch {
     /// Create a new branch
-    #[wasm_bindgen(constructor)]
     pub fn new(name: String, target: String, is_remote: bool) -> Self {
         Self {
             name,
@@ -462,8 +444,7 @@ impl JJBranch {
         self.target.chars().take(12).collect()
     }
 
-    /// Get creation timestamp as ISO 8601 string (for WASM)
-    #[wasm_bindgen(getter)]
+    /// Get creation timestamp as ISO 8601 string
     pub fn created_at_iso(&self) -> String {
         self.created_at.to_rfc3339()
     }
@@ -485,7 +466,6 @@ impl JJBranch {
 ///     .build();
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
 pub struct JJConflict {
     /// Unique conflict identifier
     pub id: String,
@@ -497,7 +477,6 @@ pub struct JJConflict {
     pub num_conflicts: usize,
 
     /// Sides involved in the conflict
-    #[wasm_bindgen(skip)]
     pub sides: Vec<String>,
 
     /// Conflict type (e.g., "content", "modify/delete")
@@ -513,10 +492,8 @@ pub struct JJConflict {
     pub resolution_strategy: Option<String>,
 }
 
-#[wasm_bindgen]
 impl JJConflict {
     /// Create a new conflict
-    #[wasm_bindgen(constructor)]
     pub fn new(path: String, num_conflicts: usize, conflict_type: String) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
@@ -540,8 +517,7 @@ impl JJConflict {
         self.sides.len()
     }
 
-    /// Get sides as JSON string (for WASM)
-    #[wasm_bindgen(getter)]
+    /// Get sides as JSON string
     pub fn sides_json(&self) -> String {
         serde_json::to_string(&self.sides).unwrap_or_else(|_| "[]".to_string())
     }
@@ -733,7 +709,10 @@ pub enum ChangeStatus {
     /// File deleted
     Deleted,
     /// File renamed
-    Renamed { old_path: String },
+    Renamed {
+        /// Original path before rename
+        old_path: String
+    },
     /// File conflicted
     Conflicted,
     /// File type changed
@@ -810,7 +789,7 @@ mod tests {
 
     #[test]
     fn test_change_creation() {
-        let change = JJChange::new("test.rs".to_string(), ChangeStatus::Modified);
+        let change = JJChange::new("test.rs".to_string());
         assert_eq!(change.file_path, "test.rs");
         assert!(matches!(change.status, ChangeStatus::Modified));
         assert!(!change.is_staged);

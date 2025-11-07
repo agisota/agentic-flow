@@ -13,8 +13,6 @@
 #![warn(missing_docs)]
 #![deny(unsafe_code)]
 
-use wasm_bindgen::prelude::*;
-
 pub mod config;
 pub mod error;
 pub mod operations;
@@ -40,7 +38,6 @@ pub use agentdb_sync::{AgentDBSync, AgentDBEpisode, TaskStatistics};
 
 /// Initialize panic hook for better error messages in WASM
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
 pub fn init() {
     console_error_panic_hook::set_once();
 }

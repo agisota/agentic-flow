@@ -40,7 +40,7 @@ impl AgentDBEpisode {
     pub fn from_operation(op: &JJOperation, session_id: String, agent_id: String) -> Self {
         Self {
             session_id,
-            task: op.description.clone(),
+            task: op.command.clone(),
             agent_id,
             input: None,
             output: None,
@@ -50,7 +50,7 @@ impl AgentDBEpisode {
             latency_ms: None,
             tokens_used: None,
             operation: Some(op.clone()),
-            timestamp: op.timestamp,
+            timestamp: op.timestamp.timestamp(),
         }
     }
 
@@ -277,12 +277,18 @@ mod tests {
     fn test_episode_creation() {
         let op = JJOperation {
             id: "test-op".to_string(),
+            operation_id: "op-123".to_string(),
             operation_type: OperationType::Describe,
-            description: "Test operation".to_string(),
-            timestamp: 1234567890,
-            user: Some("test-user".to_string()),
-            args: vec![],
-            metadata: None,
+            command: "Test operation".to_string(),
+            user: "test-user".to_string(),
+            hostname: "localhost".to_string(),
+            timestamp: chrono::DateTime::from_timestamp(1234567890, 0).unwrap_or_else(|| chrono::Utc::now()),
+            tags: vec![],
+            metadata: std::collections::HashMap::new(),
+            parent_id: None,
+            duration_ms: 0,
+            success: true,
+            error: None,
         };
 
         let episode = AgentDBEpisode::from_operation(&op, "session-001".to_string(), "agent-001".to_string());
@@ -298,12 +304,18 @@ mod tests {
     fn test_episode_builder() {
         let op = JJOperation {
             id: "test-op".to_string(),
+            operation_id: "op-123".to_string(),
             operation_type: OperationType::Describe,
-            description: "Test operation".to_string(),
-            timestamp: 1234567890,
-            user: Some("test-user".to_string()),
-            args: vec![],
-            metadata: None,
+            command: "Test operation".to_string(),
+            user: "test-user".to_string(),
+            hostname: "localhost".to_string(),
+            timestamp: chrono::DateTime::from_timestamp(1234567890, 0).unwrap_or_else(|| chrono::Utc::now()),
+            tags: vec![],
+            metadata: std::collections::HashMap::new(),
+            parent_id: None,
+            duration_ms: 0,
+            success: true,
+            error: None,
         };
 
         let episode = AgentDBEpisode::from_operation(&op, "session-001".to_string(), "agent-001".to_string())
@@ -351,12 +363,18 @@ mod tests {
         let sync = AgentDBSync::new(false);
         let op = JJOperation {
             id: "test-op".to_string(),
+            operation_id: "op-123".to_string(),
             operation_type: OperationType::Describe,
-            description: "Test operation".to_string(),
-            timestamp: 1234567890,
-            user: Some("test-user".to_string()),
-            args: vec![],
-            metadata: None,
+            command: "Test operation".to_string(),
+            user: "test-user".to_string(),
+            hostname: "localhost".to_string(),
+            timestamp: chrono::DateTime::from_timestamp(1234567890, 0).unwrap_or_else(|| chrono::Utc::now()),
+            tags: vec![],
+            metadata: std::collections::HashMap::new(),
+            parent_id: None,
+            duration_ms: 0,
+            success: true,
+            error: None,
         };
 
         let result = sync.sync_operation(&op, "session-001", "agent-001").await;

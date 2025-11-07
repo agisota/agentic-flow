@@ -77,7 +77,7 @@ export class HTTP2MultiplexingManager {
   ): void {
     if (!this.config.enabled) return;
 
-    const streamId = stream.id;
+    const streamId = stream.id || 0;
     const streamPriority = priority?.weight || this.config.defaultPriority;
 
     const info: StreamInfo = {
@@ -111,12 +111,15 @@ export class HTTP2MultiplexingManager {
     try {
       stream.priority(priority);
 
-      const info = this.activeStreams.get(stream.id);
+      const streamId = stream.id || 0;
+      const info = this.activeStreams.get(streamId);
       if (info) {
         // Move to new priority queue
-        this.priorityQueues.get(info.priority)?.delete(stream.id);
-        info.priority = priority.weight;
-        this.priorityQueues.get(priority.weight)?.add(stream.id);
+        const oldPriority = info.priority;
+        const newPriority = priority.weight;
+        this.priorityQueues.get(oldPriority)?.delete(streamId);
+        info.priority = newPriority;
+        this.priorityQueues.get(newPriority)?.add(streamId);
         this.stats.priorityChanges++;
       }
     } catch (error) {
@@ -146,10 +149,12 @@ export class HTTP2MultiplexingManager {
     for (let priority = 256; priority >= 1; priority--) {
       const queue = this.priorityQueues.get(priority);
       if (queue && queue.size > 0) {
-        const streamId = queue.values().next().value;
-        const info = this.activeStreams.get(streamId);
-        if (info && info.state === 'open') {
-          return info.stream;
+        const streamId = queue.values().next().value as number;
+        if (streamId !== undefined) {
+          const info = this.activeStreams.get(streamId);
+          if (info && info.state === 'open') {
+            return info.stream;
+          }
         }
       }
     }

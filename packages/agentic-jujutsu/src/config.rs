@@ -1,17 +1,15 @@
 //! Configuration for agentic-jujutsu
 
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 
 /// Configuration for JJWrapper
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[wasm_bindgen]
 pub struct JJConfig {
     /// Path to jj executable (default: "jj")
-    pub jj_path: String,
+    jj_path: String,
 
     /// Repository path (default: current directory)
-    pub repo_path: String,
+    repo_path: String,
 
     /// Timeout for operations in milliseconds
     pub timeout_ms: u64,
@@ -26,10 +24,8 @@ pub struct JJConfig {
     pub enable_agentdb_sync: bool,
 }
 
-#[wasm_bindgen]
 impl JJConfig {
     /// Create new configuration with defaults
-    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self::default()
     }
@@ -86,6 +82,19 @@ impl Default for JJConfig {
             max_log_entries: 1000,
             enable_agentdb_sync: false,
         }
+    }
+}
+
+// Non-WASM accessor methods for Rust API
+impl JJConfig {
+    /// Get jj_path (non-WASM)
+    pub fn get_jj_path(&self) -> &str {
+        &self.jj_path
+    }
+
+    /// Get repo_path (non-WASM)
+    pub fn get_repo_path(&self) -> &str {
+        &self.repo_path
     }
 }
 

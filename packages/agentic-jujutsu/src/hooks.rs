@@ -4,7 +4,7 @@
 //! agentic-flow hooks system, enabling automatic operation tracking, memory sync,
 //! and multi-agent coordination.
 
-use crate::{JJWrapper, JJOperation, OperationType, Result, JJError};
+use crate::{JJWrapper, JJOperation, OperationType, Result};
 use serde::{Deserialize, Serialize};
 
 /// Context information for hook execution
@@ -99,6 +99,7 @@ impl JJHookEvent {
 /// Integration layer for agentic-flow hooks
 pub struct JJHooksIntegration {
     /// Underlying JJ wrapper
+    #[allow(dead_code)]
     wrapper: JJWrapper,
     /// Whether AgentDB sync is enabled
     agentdb_enabled: bool,
@@ -159,17 +160,26 @@ impl JJHooksIntegration {
         // Create a jj operation for this edit
         let operation = JJOperation {
             id: uuid::Uuid::new_v4().to_string(),
+            operation_id: format!("hook-{}", uuid::Uuid::new_v4()),
             operation_type: OperationType::Describe,
-            description: description.clone(),
-            timestamp: ctx.timestamp,
-            user: Some(ctx.agent_id.clone()),
-            args: vec![],
-            metadata: Some(serde_json::json!({
-                "file": file,
-                "session_id": ctx.session_id,
-                "agent_id": ctx.agent_id,
-                "hook": "post-edit",
-            })),
+            command: description.clone(),
+            user: ctx.agent_id.clone(),
+            hostname: "localhost".to_string(),
+            timestamp: chrono::DateTime::from_timestamp(ctx.timestamp, 0)
+                .unwrap_or_else(|| chrono::Utc::now()),
+            tags: vec![],
+            metadata: {
+                let mut map = std::collections::HashMap::new();
+                map.insert("file".to_string(), file.to_string());
+                map.insert("session_id".to_string(), ctx.session_id.clone());
+                map.insert("agent_id".to_string(), ctx.agent_id.clone());
+                map.insert("hook".to_string(), "post-edit".to_string());
+                map
+            },
+            parent_id: None,
+            duration_ms: 0,
+            success: true,
+            error: None,
         };
 
         // Create hook event
@@ -247,7 +257,7 @@ impl JJHooksIntegration {
     }
 
     /// Get operations for a specific session
-    async fn get_session_operations(&self, session_id: &str) -> Result<Vec<JJOperation>> {
+    async fn get_session_operations(&self, _session_id: &str) -> Result<Vec<JJOperation>> {
         // This would query the operation log for operations matching the session ID
         // For now, return empty vec as placeholder
         Ok(vec![])
@@ -396,6 +406,6 @@ mod tests {
         let operation = integration.on_post_edit("test.rs", ctx).await.unwrap();
 
         assert_eq!(operation.operation_type, OperationType::Describe);
-        assert!(operation.description.contains("test.rs"));
+        assert!(operation.command.contains("test.rs"));
     }
 }
