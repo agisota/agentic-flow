@@ -1,6 +1,6 @@
 {
   "name": "agentic-flow",
-  "version": "1.9.1",
+  "version": "1.10.1",
   "description": "Multi-agent coordination framework with QUIC transport",
   "main": "dist/index.js",
   "scripts": {

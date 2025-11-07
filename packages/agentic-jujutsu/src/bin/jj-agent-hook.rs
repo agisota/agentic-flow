@@ -206,7 +206,7 @@ async fn run_command(cli: Cli) -> Result<()> {
             println!("✅ Post-edit hook executed successfully");
             println!("📄 File: {}", file);
             println!("🆔 Operation ID: {}", operation.id);
-            println!("📝 Description: {}", operation.description);
+            println!("📝 Description: {}", operation.command);
 
             if cli.verbose {
                 println!("\n🔍 Operation details:");
@@ -230,7 +230,7 @@ async fn run_command(cli: Cli) -> Result<()> {
             if !operations.is_empty() && cli.verbose {
                 println!("\n🔍 Operations:");
                 for op in &operations {
-                    println!("  - {} | {}", op.id, op.description);
+                    println!("  - {} | {}", op.id, op.command);
                 }
             }
         }

@@ -9,11 +9,11 @@ async fn test_episode_creation() -> Result<()> {
     let op = JJOperation {
         id: "test-op".to_string(),
         operation_type: OperationType::Describe,
-        description: "Test operation".to_string(),
+        command: "Test operation".to_string(),
         timestamp: 1234567890,
         user: Some("test-user".to_string()),
         args: vec![],
-        metadata: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let episode = AgentDBEpisode::from_operation(
@@ -36,11 +36,11 @@ async fn test_episode_builder() -> Result<()> {
     let op = JJOperation {
         id: "test-op".to_string(),
         operation_type: OperationType::Describe,
-        description: "Test operation".to_string(),
+        command: "Test operation".to_string(),
         timestamp: 1234567890,
         user: Some("test-user".to_string()),
         args: vec![],
-        metadata: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let episode = AgentDBEpisode::from_operation(
@@ -72,11 +72,11 @@ async fn test_sync_disabled() -> Result<()> {
     let op = JJOperation {
         id: "test-op".to_string(),
         operation_type: OperationType::Describe,
-        description: "Test operation".to_string(),
+        command: "Test operation".to_string(),
         timestamp: 1234567890,
         user: Some("test-user".to_string()),
         args: vec![],
-        metadata: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     // Should succeed but do nothing
@@ -94,11 +94,11 @@ async fn test_sync_enabled() -> Result<()> {
     let op = JJOperation {
         id: "test-op".to_string(),
         operation_type: OperationType::Describe,
-        description: "Test operation".to_string(),
+        command: "Test operation".to_string(),
         timestamp: 1234567890,
         user: Some("test-user".to_string()),
         args: vec![],
-        metadata: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     // Should log but not fail
@@ -117,11 +117,11 @@ async fn test_batch_sync() -> Result<()> {
             JJOperation {
                 id: "op-1".to_string(),
                 operation_type: OperationType::Describe,
-                description: "Op 1".to_string(),
+                command: "Op 1".to_string(),
                 timestamp: 1234567890,
                 user: Some("agent".to_string()),
                 args: vec![],
-                metadata: None,
+                metadata: std::collections::HashMap::new(),
             },
             "session-001".to_string(),
             "agent-001".to_string(),
@@ -130,11 +130,11 @@ async fn test_batch_sync() -> Result<()> {
             JJOperation {
                 id: "op-2".to_string(),
                 operation_type: OperationType::Describe,
-                description: "Op 2".to_string(),
+                command: "Op 2".to_string(),
                 timestamp: 1234567891,
                 user: Some("agent".to_string()),
                 args: vec![],
-                metadata: None,
+                metadata: std::collections::HashMap::new(),
             },
             "session-001".to_string(),
             "agent-001".to_string(),
@@ -179,11 +179,11 @@ async fn test_episode_serialization() -> Result<()> {
     let op = JJOperation {
         id: "test-op".to_string(),
         operation_type: OperationType::Describe,
-        description: "Test operation".to_string(),
+        command: "Test operation".to_string(),
         timestamp: 1234567890,
         user: Some("test-user".to_string()),
         args: vec![],
-        metadata: None,
+        metadata: std::collections::HashMap::new(),
     };
 
     let episode = AgentDBEpisode::from_operation(

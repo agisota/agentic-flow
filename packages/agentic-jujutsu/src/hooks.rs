@@ -166,7 +166,7 @@ impl JJHooksIntegration {
             user: ctx.agent_id.clone(),
             hostname: "localhost".to_string(),
             timestamp: chrono::DateTime::from_timestamp(ctx.timestamp, 0)
-                .unwrap_or_else(|| chrono::Utc::now()),
+                .unwrap_or_else(chrono::Utc::now),
             tags: vec![],
             metadata: {
                 let mut map = std::collections::HashMap::new();

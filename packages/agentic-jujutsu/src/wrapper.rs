@@ -335,7 +335,7 @@ impl JJWrapper {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() >= 2 {
                 let name = parts[0].trim().to_string();
-                let target = parts[1].trim().split_whitespace().next().unwrap_or("").to_string();
+                let target = parts[1].split_whitespace().next().unwrap_or("").to_string();
 
                 let is_remote = name.contains('/');
                 let mut branch = JJBranch::new(name.clone(), target, is_remote);
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn test_wrapper_creation() {
-        let wrapper = JJWrapper::new();
+        let wrapper = JJWrapper::new(JJConfig::default());
         assert!(wrapper.is_ok());
 
         let config = JJConfig::default().with_verbose(true);

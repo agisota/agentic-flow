@@ -720,7 +720,7 @@ impl Default for JJOperationLog {
 }
 
 /// Statistics about operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OperationStatistics {
     /// Total number of operations
     pub total: usize,
@@ -744,19 +744,6 @@ pub struct OperationStatistics {
     pub max_duration_ms: u64,
 }
 
-impl Default for OperationStatistics {
-    fn default() -> Self {
-        Self {
-            total: 0,
-            successful: 0,
-            failed: 0,
-            by_type: HashMap::new(),
-            total_duration_ms: 0,
-            avg_duration_ms: 0,
-            max_duration_ms: 0,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

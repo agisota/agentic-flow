@@ -148,12 +148,10 @@ fn benchmark_operation_parse_from_log(c: &mut Criterion) {
         "◉  sqpuoqvx test@example.com 2024-01-01 11:00:00.000 -08:00 def456 rebase operation",
         "@  xyzabc12 user@test.org 2024-01-02 10:30:00.000 -08:00 ghijkl merge branches",
     ];
-
-    c.bench_function("parse_operation_from_log", |b| {
+    c.bench_function("serialize_operation", |b| {
+        let op = JJOperation::new("op_id".to_string(), "log".to_string(), "user@test.com".to_string(), "localhost".to_string());
         b.iter(|| {
-            for line in &log_lines {
-                JJOperation::parse_from_log(black_box(line));
-            }
+            serde_json::to_string(black_box(&op))
         });
     });
 }
