@@ -389,13 +389,14 @@ export class ConsensusProtocol {
       return false;
     }
 
-    // Verify signature
+    // Verify signature - SECURITY: Must reject if public key or signature missing
     const publicKey = this.publicKeys.get(nodeId);
-    if (publicKey && signature) {
-      return MessageCrypto.verifySignature(prePrepare, signature, publicKey);
+    if (!publicKey || !signature) {
+      console.warn(`[ConsensusProtocol] Missing public key or signature for node ${nodeId}`);
+      return false;
     }
 
-    return true;
+    return MessageCrypto.verifySignature(prePrepare, signature, publicKey);
   }
 
   /**
@@ -409,13 +410,14 @@ export class ConsensusProtocol {
       return false;
     }
 
-    // Verify signature
+    // Verify signature - SECURITY: Must reject if public key or signature missing
     const publicKey = this.publicKeys.get(nodeId);
-    if (publicKey && signature) {
-      return MessageCrypto.verifySignature(prepare, signature, publicKey);
+    if (!publicKey || !signature) {
+      console.warn(`[ConsensusProtocol] Missing public key or signature for node ${nodeId}`);
+      return false;
     }
 
-    return true;
+    return MessageCrypto.verifySignature(prepare, signature, publicKey);
   }
 
   /**
@@ -429,13 +431,14 @@ export class ConsensusProtocol {
       return false;
     }
 
-    // Verify signature
+    // Verify signature - SECURITY: Must reject if public key or signature missing
     const publicKey = this.publicKeys.get(nodeId);
-    if (publicKey && signature) {
-      return MessageCrypto.verifySignature(commit, signature, publicKey);
+    if (!publicKey || !signature) {
+      console.warn(`[ConsensusProtocol] Missing public key or signature for node ${nodeId}`);
+      return false;
     }
 
-    return true;
+    return MessageCrypto.verifySignature(commit, signature, publicKey);
   }
 
   /**

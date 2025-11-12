@@ -24,7 +24,7 @@
   "author": "Agentic Flow Team",
   "license": "MIT",
   "dependencies": {
-    "@agentic-flow/shared": "workspace:*"
+    "@agentic-flow/shared": "file:../shared"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
