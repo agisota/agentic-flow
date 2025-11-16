@@ -20,6 +20,7 @@ import { EmbeddingService } from '../controllers/EmbeddingService.js';
 import { MMRDiversityRanker } from '../controllers/MMRDiversityRanker.js';
 import { ContextSynthesizer } from '../controllers/ContextSynthesizer.js';
 import { MetadataFilter } from '../controllers/MetadataFilter.js';
+import { handleDSPyCommands } from './dspy-handler.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -1069,6 +1070,8 @@ async function main() {
       await handleDbCommands(cli, subcommand, args.slice(2));
     } else if (command === 'sync') {
       await handleSyncCommands(cli, subcommand, args.slice(2));
+    } else if (command === 'dspy') {
+      await handleDSPyCommands(cli.db, cli.embedder!, subcommand, args.slice(2));
     } else if (command === 'query') {
       await handleQueryCommand(cli, args.slice(1));
     } else if (command === 'store-pattern') {

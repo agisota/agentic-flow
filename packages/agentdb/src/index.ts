@@ -44,5 +44,16 @@ export {
   ValidationError
 } from './security/input-validation.js';
 
+// DSPy integration
+export { DSPyController } from './dspy/DSPyController.js';
+export type {
+  DSPyConfig,
+  OptimizedQuery,
+  TrajectoryVerdict,
+  DistilledInsight,
+  CausalHypothesis,
+  SynthesizedSkill,
+} from './dspy/DSPyController.js';
+
 // Re-export all controllers for convenience
 export * from './controllers/index.js';
