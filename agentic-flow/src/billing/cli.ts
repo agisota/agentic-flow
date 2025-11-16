@@ -222,7 +222,7 @@ class BillingCLI {
       console.log('\nMetrics:');
 
       summary.metrics.forEach((value: number, metric: UsageMetric) => {
-        const limit = summary.limits[this.getLimit KeyForMetric(metric)];
+        const limit = summary.limits[this.getLimitKeyForMetric(metric)];
         const percent = summary.percentUsed.get(metric) || 0;
 
         console.log(`  ${metric}:`);
