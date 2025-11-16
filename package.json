@@ -7,7 +7,8 @@
   "types": "agentic-flow/dist/index.d.ts",
   "bin": {
     "agentic-flow": "agentic-flow/dist/cli-proxy.js",
-    "agentdb": "agentic-flow/dist/agentdb/cli/agentdb-cli.js"
+    "agentdb": "agentic-flow/dist/agentdb/cli/agentdb-cli.js",
+    "ajj-billing": "agentic-flow/dist/billing/cli.js"
   },
   "exports": {
     ".": "./agentic-flow/dist/index.js",
@@ -21,7 +22,8 @@
     "./router": "./agentic-flow/dist/router/index.js",
     "./agent-booster": "./agentic-flow/dist/agent-booster/index.js",
     "./transport/quic": "./agentic-flow/dist/transport/quic.js",
-    "./agentdb": "./agentic-flow/dist/agentdb/index.js"
+    "./agentdb": "./agentic-flow/dist/agentdb/index.js",
+    "./billing": "./agentic-flow/dist/billing/index.js"
   },
   "scripts": {
     "postinstall": "cd agentic-flow && node scripts/postinstall.js || true",
@@ -30,6 +32,7 @@
     "build:packages": "cd agent-booster && npm run build && cd ../reasoningbank && npm run build",
     "test": "npm run test:main && npm run test:parallel",
     "test:main": "cd agentic-flow && npm test",
+    "test:billing": "npx tsx test/billing/billing-system.test.ts",
     "test:parallel": "node tests/parallel/benchmark-suite.js",
     "test:mesh": "node tests/parallel/mesh-swarm-test.js",
     "test:hierarchical": "node tests/parallel/hierarchical-swarm-test.js",
