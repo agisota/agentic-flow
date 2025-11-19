@@ -15,9 +15,21 @@ if (!GOOGLE_GEMINI_API_KEY) {
   process.exit(1);
 }
 
-// Gemini models to test
+// Gemini models to test (Updated November 2025)
 const GEMINI_MODELS = [
+  // Gemini 3 Series (Latest - Nov 18, 2025)
+  'gemini-3-pro-preview-11-2025',
+
+  // Gemini 2.5 Series (Production)
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+
+  // Gemini 2.0 Series (Experimental)
+  'gemini-2.0-flash-thinking-exp-01-21',
   'gemini-2.0-flash-exp',
+
+  // Legacy (Deprecated - Retired April 29, 2025)
   'gemini-1.5-pro',
   'gemini-1.5-flash',
   'gemini-1.5-flash-8b',
