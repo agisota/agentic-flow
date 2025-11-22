@@ -1,6 +1,6 @@
 {
   "name": "@agentic-jujutsu/cicd",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Intelligent CI/CD orchestration with 5 coordination topologies (7.7x faster), self-learning optimization, and optional AST code analysis",
   "main": "src/index.js",
   "types": "src/index.d.ts",
