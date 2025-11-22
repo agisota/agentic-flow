@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique user identifier"
+    },
+    "name": {
+      "type": "string",
+      "description": "Full name of the user"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "User email address"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 18,
+      "maximum": 100,
+      "description": "User age"
+    },
+    "role": {
+      "type": "string",
+      "enum": ["admin", "user", "moderator"],
+      "description": "User role in the system"
+    }
+  },
+  "required": ["id", "name", "email"]
+}
