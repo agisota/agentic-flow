@@ -7,8 +7,12 @@
   "scripts": {
     "test": "node tests/run-all-tests.js",
     "test:unit": "node tests/unit/vectordb.test.js",
+    "test:unit:topologies": "node tests/unit/topologies.test.js",
+    "test:unit:ast": "node tests/unit/ast-analyzer.test.js",
     "test:integration": "node tests/integration/workflow.test.js",
     "test:benchmark": "node tests/benchmarks/performance.bench.js",
+    "test:benchmark:topologies": "node tests/benchmarks/topology-benchmark.js",
+    "test:all": "npm run test:unit && npm run test:unit:topologies && npm run test:unit:ast && npm run test:integration && npm run test:benchmark",
     "build": "echo 'No build step required'",
     "lint": "echo 'Linting...'",
     "optimize": "node src/optimizer.js",

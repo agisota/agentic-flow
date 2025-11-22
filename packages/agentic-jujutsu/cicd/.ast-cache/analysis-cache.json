@@ -1,0 +1,51 @@
+{
+  "src/example.js:929": {
+    "file": "src/example.js",
+    "lines": 79,
+    "complexity": 5,
+    "patterns": [
+      {
+        "type": "long-function",
+        "priority": "medium",
+        "message": "Function has 79 lines (max 50)"
+      },
+      {
+        "type": "complex-conditions",
+        "priority": "high",
+        "message": "Max nesting level: 5 (max 3)"
+      }
+    ],
+    "analysisTime": 1,
+    "method": "fallback"
+  },
+  "good.js:34": {
+    "file": "good.js",
+    "lines": 1,
+    "complexity": 1,
+    "patterns": [],
+    "analysisTime": 0,
+    "method": "fallback"
+  },
+  "bad.js:1631": {
+    "file": "bad.js",
+    "lines": 75,
+    "complexity": 6,
+    "patterns": [
+      {
+        "type": "long-function",
+        "priority": "medium",
+        "message": "Function has 75 lines (max 50)"
+      }
+    ],
+    "analysisTime": 0,
+    "method": "fallback"
+  },
+  "cached.js:30": {
+    "file": "cached.js",
+    "lines": 1,
+    "complexity": 1,
+    "patterns": [],
+    "analysisTime": 0,
+    "method": "fallback"
+  }
+}
