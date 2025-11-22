@@ -5,6 +5,7 @@
  */
 
 const assert = require('assert');
+const path = require('path');
 const ASTAnalyzer = require('../../src/ast-analyzer');
 
 console.log('\n🧪 Testing AST Analyzer\n');
@@ -254,7 +255,12 @@ function bad() {
   // Test 8: Statistics Tracking
   try {
     console.log('\nTest 8: Statistics Tracking');
-    const analyzer = new ASTAnalyzer({ enabled: true });
+    // Use a unique cache path to avoid pre-loaded cache affecting timing
+    const testCachePath = path.join(__dirname, '../.test-ast-cache-stats');
+    const analyzer = new ASTAnalyzer({
+      enabled: true,
+      cachePath: testCachePath
+    });
     await analyzer.initialize();
 
     const workflow = {
@@ -270,8 +276,13 @@ function bad() {
 
     const stats = analyzer.getStats();
 
+    // Debug output
+    if (stats.avgAnalysisTime <= 0) {
+      console.log('  DEBUG: stats =', JSON.stringify(stats, null, 2));
+    }
+
     assert.strictEqual(stats.totalAnalyses, 3, 'Should track total analyses');
-    assert(stats.avgAnalysisTime > 0, 'Should track average time');
+    assert(stats.avgAnalysisTime > 0, `Should track average time (got ${stats.avgAnalysisTime})`);
     assert(stats.cacheHitRate >= 0 && stats.cacheHitRate <= 1, 'Should calculate hit rate');
 
     console.log('  ✅ Statistics tracking works correctly');

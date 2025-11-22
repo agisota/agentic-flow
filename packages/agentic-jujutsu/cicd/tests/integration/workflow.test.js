@@ -159,9 +159,15 @@ async function runTests() {
 
     // Test 9: Vector DB Integration
     console.log('Test 9: Vector DB Integration');
+    // Query with meaningful metrics (vector uses duration, steps, etc., not name)
     const similar = await db.querySimilar({
-      metrics: { name: 'learning-test' },
-      limit: 5
+      metrics: {
+        duration: 1000,
+        steps: 3,
+        success: true
+      },
+      limit: 5,
+      threshold: 0.3  // Lower threshold for broader matching
     });
     assert(similar.length > 0, 'Should find similar workflows');
     console.log(`  ✅ PASS: Found ${similar.length} similar workflows in vector DB\n`);

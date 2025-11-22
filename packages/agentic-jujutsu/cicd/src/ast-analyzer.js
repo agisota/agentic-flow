@@ -44,7 +44,7 @@ class ASTAnalyzer {
       complexConditions: { maxNesting: 3, priority: 'high' },
       duplicateCode: { minSimilarity: 0.8, priority: 'medium' },
       largeClass: { maxMethods: 20, priority: 'low' },
-      magicNumbers: { pattern: /\b\d{2,}\b/, priority: 'low' }
+      magicNumbers: { pattern: /\b\d{2,}\b/g, priority: 'low' }  // Added 'g' flag for global matching
     };
 
     this.stats = {
@@ -317,9 +317,9 @@ class ASTAnalyzer {
       });
     }
 
-    // Magic numbers detection
+    // Magic numbers detection (trigger with 3+ occurrences)
     const magicNumbers = content.match(this.templates.magicNumbers.pattern);
-    if (magicNumbers && magicNumbers.length > 5) {
+    if (magicNumbers && magicNumbers.length >= 3) {
       patterns.push({
         type: 'magic-numbers',
         priority: this.templates.magicNumbers.priority,
