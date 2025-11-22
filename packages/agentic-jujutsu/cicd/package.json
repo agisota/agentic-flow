@@ -1,0 +1,37 @@
+{
+  "name": "@agentic-jujutsu/cicd",
+  "version": "1.0.0",
+  "description": "CI/CD orchestration module with vector DB learning for agentic-jujutsu",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "test": "node tests/run-all-tests.js",
+    "test:unit": "node tests/unit/vectordb.test.js",
+    "test:integration": "node tests/integration/workflow.test.js",
+    "test:benchmark": "node tests/benchmarks/performance.bench.js",
+    "build": "echo 'No build step required'",
+    "lint": "echo 'Linting...'",
+    "optimize": "node src/optimizer.js",
+    "verify": "node tests/verify-deployment.js"
+  },
+  "keywords": [
+    "cicd",
+    "vector-db",
+    "agentdb",
+    "learning",
+    "orchestration",
+    "github-actions",
+    "agentic-jujutsu"
+  ],
+  "author": "Agentic Flow Team <team@ruv.io>",
+  "license": "MIT",
+  "dependencies": {
+    "agentic-jujutsu": "^2.2.0"
+  },
+  "devDependencies": {
+    "mocha": "^11.7.5"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
