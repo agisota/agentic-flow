@@ -281,11 +281,21 @@ async function runTests() {
   console.log(`📈 Success Rate: ${((passedTests / 10) * 100).toFixed(1)}%`);
   console.log('='.repeat(60) + '\n');
 
-  process.exit(failedTests > 0 ? 1 : 0);
+  // Return result instead of exiting (for use by run-all-tests.js)
+  if (failedTests > 0) {
+    throw new Error(`${failedTests} topology tests failed`);
+  }
 }
 
-// Run tests
-runTests().catch(error => {
-  console.error('Test suite failed:', error);
-  process.exit(1);
-});
+// Run tests if executed directly
+if (require.main === module) {
+  runTests()
+    .then(() => process.exit(0))
+    .catch(error => {
+      console.error('Test suite failed:', error.message);
+      process.exit(1);
+    });
+}
+
+// Export for use by run-all-tests.js
+module.exports = { runTests };

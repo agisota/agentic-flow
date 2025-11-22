@@ -194,8 +194,9 @@ async function runTests() {
   console.log(`   Failed: ${failCount}/10`);
   console.log(`   Success Rate: ${(passCount / 10 * 100).toFixed(1)}%\n`);
 
+  // Return result instead of exiting (for use by run-all-tests.js)
   if (failCount > 0) {
-    process.exit(1);
+    throw new Error(`${failCount} integration tests failed`);
   }
 }
 
@@ -205,10 +206,12 @@ function sleep(ms) {
 }
 
 if (require.main === module) {
-  runTests().catch(error => {
-    console.error('Integration test suite failed:', error);
-    process.exit(1);
-  });
+  runTests()
+    .then(() => process.exit(0))
+    .catch(error => {
+      console.error('Integration test suite failed:', error.message);
+      process.exit(1);
+    });
 }
 
 module.exports = { runTests };

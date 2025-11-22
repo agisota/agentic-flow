@@ -37,6 +37,15 @@ module.exports = {
 
   // Topology management
   TopologyManager,
+
+  // Individual topologies (for direct access)
+  SequentialTopology,
+  MeshTopology,
+  HierarchicalTopology,
+  AdaptiveTopology,
+  GossipTopology,
+
+  // Grouped topologies (for organized access)
   topologies: {
     SequentialTopology,
     MeshTopology,
