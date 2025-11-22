@@ -49,13 +49,27 @@ class CICDVectorDB {
     this.maxEntries = config.maxEntries || 10000;
     this.jj = new JjWrapper();
 
+    // Performance optimization config
+    this.batchSize = config.batchSize || 10; // Write every N workflows
+    this.batchInterval = config.batchInterval || 5000; // Or every X ms
+    this.cacheVectors = config.cacheVectors !== false; // Enable vector caching
+    this.earlyTermination = config.earlyTermination !== false; // Enable early search termination
+
     // In-memory cache for fast access
     this.cache = {
       workflows: new Map(),
       metrics: new Map(),
       patterns: new Map(),
-      trajectories: new Map()
+      trajectories: new Map(),
+      vectors: new Map(), // Cache computed vectors
+      queryResults: new Map() // Cache query results (TTL: 60s)
     };
+
+    // Batch processing queues
+    this.pendingWrites = 0;
+    this.lastSaveTime = Date.now();
+    this.patternQueue = [];
+    this.saveTimer = null;
 
     this.initialized = false;
   }
@@ -106,7 +120,7 @@ class CICDVectorDB {
     const id = workflow.id || this.generateId();
     const timestamp = Date.now();
 
-    // Create workflow vector from metrics
+    // Create workflow vector from metrics (with caching)
     const vector = this.createWorkflowVector(workflow);
 
     const entry = {
@@ -120,18 +134,19 @@ class CICDVectorDB {
     // Store in cache
     this.cache.workflows.set(id, entry);
 
-    // Store in AgentDB for persistent tracking
-    await this.storeInAgentDB('workflow', entry);
+    // Store in AgentDB for persistent tracking (non-blocking)
+    this.storeInAgentDB('workflow', entry).catch(() => {}); // Fire and forget
 
-    // Learn from this execution
+    // Queue pattern learning for batch processing (deferred)
     if (workflow.success) {
-      await this.learnFromSuccess(entry);
+      this.queuePatternLearning(entry, 'success');
     } else {
-      await this.learnFromFailure(entry);
+      this.queuePatternLearning(entry, 'failure');
     }
 
-    // Persist to disk
-    await this.saveToDisk();
+    // Batch disk writes (only write every N workflows or X seconds)
+    this.pendingWrites++;
+    await this.maybeFlushToDisk();
 
     console.log(`[CICDVectorDB] Stored workflow ${id}: ${workflow.name} (${workflow.duration}ms)`);
     return id;
@@ -150,13 +165,20 @@ class CICDVectorDB {
       await this.initialize();
     }
 
+    // Check cache first (60s TTL)
+    const cacheKey = JSON.stringify(query);
+    const cached = this.cache.queryResults.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 60000)) {
+      return cached.results;
+    }
+
     const queryVector = this.createWorkflowVector(query.metrics || {});
     const limit = query.limit || 10;
     const threshold = query.threshold || 0.7;
 
     const results = [];
 
-    // Calculate similarity scores
+    // Calculate similarity scores with early termination
     for (const [id, workflow] of this.cache.workflows) {
       const similarity = this.cosineSimilarity(queryVector, workflow.vector);
 
@@ -167,13 +189,26 @@ class CICDVectorDB {
           similarity,
           score: similarity * 100
         });
+
+        // Early termination: if we have enough high-quality results, stop searching
+        if (this.earlyTermination && results.length >= limit * 2 && similarity >= 0.9) {
+          break;
+        }
       }
     }
 
     // Sort by similarity (highest first)
     results.sort((a, b) => b.similarity - a.similarity);
 
-    return results.slice(0, limit);
+    const finalResults = results.slice(0, limit);
+
+    // Cache results
+    this.cache.queryResults.set(cacheKey, {
+      results: finalResults,
+      timestamp: Date.now()
+    });
+
+    return finalResults;
   }
 
   /**
@@ -311,10 +346,19 @@ class CICDVectorDB {
   // ===== Private Methods =====
 
   /**
-   * Create workflow vector from metrics
+   * Create workflow vector from metrics (with caching)
    * @private
    */
   createWorkflowVector(workflow) {
+    // Check cache first
+    if (this.cacheVectors) {
+      const cacheKey = JSON.stringify(workflow);
+      const cached = this.cache.vectors.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    }
+
     // Simple vector representation of workflow
     // In production, use proper embedding model
     const features = [
@@ -334,7 +378,20 @@ class CICDVectorDB {
       features.push(0);
     }
 
-    return features.slice(0, this.vectorDim);
+    const vector = features.slice(0, this.vectorDim);
+
+    // Cache the vector
+    if (this.cacheVectors) {
+      this.cache.vectors.set(JSON.stringify(workflow), vector);
+
+      // LRU eviction: keep only recent 1000 vectors
+      if (this.cache.vectors.size > 1000) {
+        const firstKey = this.cache.vectors.keys().next().value;
+        this.cache.vectors.delete(firstKey);
+      }
+    }
+
+    return vector;
   }
 
   /**
@@ -436,48 +493,50 @@ class CICDVectorDB {
   }
 
   /**
-   * Learn from successful execution
+   * Queue pattern learning for batch processing (deferred)
    * @private
    */
-  async learnFromSuccess(workflow) {
-    const pattern = {
-      id: this.generateId(),
-      type: 'success',
-      timestamp: Date.now(),
-      workflow: workflow.id,
-      duration: workflow.duration,
-      steps: workflow.steps,
-      metrics: workflow.metrics
-    };
+  queuePatternLearning(workflow, type) {
+    this.patternQueue.push({ workflow, type, timestamp: Date.now() });
 
-    this.cache.patterns.set(pattern.id, pattern);
-
-    // Use ReasoningBank for learning (via JjWrapper)
-    try {
-      const trajectoryId = this.jj.startTrajectory(`Successful workflow: ${workflow.name}`);
-      this.jj.addToTrajectory(trajectoryId);
-      this.jj.finalizeTrajectory(0.95, `Success pattern: ${workflow.duration}ms`);
-    } catch (error) {
-      // ReasoningBank might not be available, continue anyway
-      console.log('[CICDVectorDB] ReasoningBank learning skipped:', error.message);
+    // Process queue in batches
+    if (this.patternQueue.length >= this.batchSize) {
+      this.processPatternQueue();
     }
   }
 
   /**
-   * Learn from failed execution
+   * Process queued pattern learning in batch
    * @private
    */
-  async learnFromFailure(workflow) {
-    const pattern = {
-      id: this.generateId(),
-      type: 'failure',
-      timestamp: Date.now(),
-      workflow: workflow.id,
-      error: workflow.error,
-      steps: workflow.steps
-    };
+  processPatternQueue() {
+    const batch = this.patternQueue.splice(0, this.batchSize);
 
-    this.cache.patterns.set(pattern.id, pattern);
+    for (const { workflow, type } of batch) {
+      const pattern = {
+        id: this.generateId(),
+        type,
+        timestamp: Date.now(),
+        workflow: workflow.id,
+        duration: workflow.duration,
+        steps: workflow.steps,
+        metrics: workflow.metrics,
+        error: workflow.error
+      };
+
+      this.cache.patterns.set(pattern.id, pattern);
+
+      // Use ReasoningBank for learning (non-blocking)
+      if (type === 'success') {
+        try {
+          const trajectoryId = this.jj.startTrajectory(`Successful workflow: ${workflow.name}`);
+          this.jj.addToTrajectory(trajectoryId);
+          this.jj.finalizeTrajectory(0.95, `Success pattern: ${workflow.duration}ms`);
+        } catch (error) {
+          // ReasoningBank might not be available
+        }
+      }
+    }
   }
 
   /**
@@ -528,6 +587,52 @@ class CICDVectorDB {
   }
 
   /**
+   * Maybe flush to disk (batch writes)
+   * @private
+   */
+  async maybeFlushToDisk() {
+    const timeSinceLastSave = Date.now() - this.lastSaveTime;
+
+    // Flush if we've accumulated enough writes OR enough time has passed
+    if (this.pendingWrites >= this.batchSize || timeSinceLastSave >= this.batchInterval) {
+      await this.flushToDisk();
+    } else {
+      // Schedule a flush if not already scheduled
+      if (!this.saveTimer) {
+        this.saveTimer = setTimeout(() => {
+          this.flushToDisk();
+        }, this.batchInterval - timeSinceLastSave);
+      }
+    }
+  }
+
+  /**
+   * Flush pending writes to disk
+   * @private
+   */
+  async flushToDisk() {
+    if (this.pendingWrites === 0) {
+      return;
+    }
+
+    // Clear timer
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
+    // Process any queued patterns first
+    if (this.patternQueue.length > 0) {
+      this.processPatternQueue();
+    }
+
+    await this.saveToDisk();
+
+    this.pendingWrites = 0;
+    this.lastSaveTime = Date.now();
+  }
+
+  /**
    * Save data to disk
    * @private
    */
@@ -573,11 +678,22 @@ class CICDVectorDB {
    * Cleanup resources
    */
   async cleanup() {
-    await this.saveToDisk();
+    // Flush any pending writes
+    await this.flushToDisk();
+
+    // Clear timer
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+
     this.cache.workflows.clear();
     this.cache.metrics.clear();
     this.cache.patterns.clear();
     this.cache.trajectories.clear();
+    this.cache.vectors.clear();
+    this.cache.queryResults.clear();
+    this.patternQueue = [];
     this.initialized = false;
   }
 }
