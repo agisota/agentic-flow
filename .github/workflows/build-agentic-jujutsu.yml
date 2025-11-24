@@ -213,26 +213,28 @@ jobs:
           for platform in darwin-x64 darwin-arm64 linux-x64-gnu linux-x64-musl linux-arm64-gnu linux-arm64-musl linux-arm-gnueabihf win32-x64-msvc; do
             if [ -f "npm/${platform}/agentic-jujutsu.${platform}.node" ]; then
               echo "Creating package for ${platform}"
-              cat > "npm/${platform}/package.json" <<EOF
-{
-  "name": "agentic-jujutsu-${platform}",
-  "version": "${VERSION}",
-  "description": "agentic-jujutsu native binding for ${platform}",
-  "main": "agentic-jujutsu.${platform}.node",
-  "files": [
-    "agentic-jujutsu.${platform}.node"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=16.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ruvnet/agentic-flow.git",
-    "directory": "packages/agentic-jujutsu"
-  }
-}
-EOF
+              cat > "npm/${platform}/package.json" <<'PKGJSON'
+          {
+            "name": "agentic-jujutsu-PLATFORM",
+            "version": "VERSION",
+            "description": "agentic-jujutsu native binding for PLATFORM",
+            "main": "agentic-jujutsu.PLATFORM.node",
+            "files": [
+              "agentic-jujutsu.PLATFORM.node"
+            ],
+            "license": "MIT",
+            "engines": {
+              "node": ">=16.0.0"
+            },
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/ruvnet/agentic-flow.git",
+              "directory": "packages/agentic-jujutsu"
+            }
+          }
+          PKGJSON
+              sed -i "s/PLATFORM/${platform}/g" "npm/${platform}/package.json"
+              sed -i "s/VERSION/${VERSION}/g" "npm/${platform}/package.json"
               cat "npm/${platform}/package.json"
             fi
           done
