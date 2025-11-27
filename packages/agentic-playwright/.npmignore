@@ -1,0 +1,92 @@
+# NPM Ignore File for Agentic Playwright
+#
+# Files and directories to exclude from the npm package
+
+# Source files (only ship compiled dist/)
+src/
+*.ts
+!*.d.ts
+
+# Tests
+tests/
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+vitest.config.ts
+coverage/
+
+# Build and development files
+scripts/
+.claude/
+tsconfig.json
+tsconfig.*.json
+
+# Config files
+config/
+*.config.js
+*.config.ts
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Documentation (keep README.md, exclude others)
+docs/
+*.md
+!README.md
+
+# Development dependencies
+node_modules/
+.npm/
+.yarn/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.node_repl_history
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.tsbuildinfo
+.cache/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Session files
+IMPLEMENTATION_SESSION*.md
+SESSION*.md
+*.session.md
+
+# Temporary files
+tmp/
+temp/
+.tmp/
