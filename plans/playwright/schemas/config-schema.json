@@ -1,0 +1,653 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Playwright MCP Server Configuration",
+  "description": "Comprehensive configuration schema for Playwright MCP server",
+  "version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "browser": {
+      "type": "object",
+      "description": "Browser configuration settings",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["chromium", "firefox", "webkit"],
+          "default": "chromium",
+          "description": "Browser engine to use"
+        },
+        "headless": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run browser in headless mode"
+        },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 320,
+              "maximum": 7680,
+              "default": 1280,
+              "description": "Viewport width in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 240,
+              "maximum": 4320,
+              "default": 720,
+              "description": "Viewport height in pixels"
+            },
+            "deviceScaleFactor": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 5,
+              "default": 1,
+              "description": "Device scale factor (pixel ratio)"
+            },
+            "isMobile": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable mobile viewport"
+            },
+            "hasTouch": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable touch events"
+            }
+          },
+          "additionalProperties": false
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "Custom user agent string",
+          "examples": [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X)"
+          ]
+        },
+        "locale": {
+          "type": "string",
+          "default": "en-US",
+          "description": "Browser locale",
+          "examples": ["en-US", "de-DE", "fr-FR", "ja-JP"]
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Timezone ID",
+          "examples": ["America/New_York", "Europe/London", "Asia/Tokyo"]
+        },
+        "geolocation": {
+          "type": "object",
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90,
+              "description": "Latitude coordinate"
+            },
+            "longitude": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180,
+              "description": "Longitude coordinate"
+            },
+            "accuracy": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Accuracy in meters"
+            }
+          },
+          "required": ["latitude", "longitude"]
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "geolocation",
+              "notifications",
+              "camera",
+              "microphone",
+              "clipboard-read",
+              "clipboard-write"
+            ]
+          },
+          "description": "Granted browser permissions"
+        },
+        "colorScheme": {
+          "type": "string",
+          "enum": ["light", "dark", "no-preference"],
+          "default": "light",
+          "description": "Preferred color scheme"
+        },
+        "reducedMotion": {
+          "type": "string",
+          "enum": ["reduce", "no-preference"],
+          "description": "Prefers-reduced-motion setting"
+        },
+        "proxy": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "Proxy server URL",
+              "examples": ["http://proxy.example.com:8080", "socks5://proxy.example.com:1080"]
+            },
+            "bypass": {
+              "type": "string",
+              "description": "Comma-separated domains to bypass proxy",
+              "examples": ["*.local,localhost,127.0.0.1"]
+            },
+            "username": {
+              "type": "string",
+              "description": "Proxy authentication username"
+            },
+            "password": {
+              "type": "string",
+              "description": "Proxy authentication password"
+            }
+          },
+          "required": ["server"]
+        },
+        "downloadPath": {
+          "type": "string",
+          "description": "Default download directory path",
+          "examples": ["/tmp/downloads", "./downloads"]
+        },
+        "slowMo": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "description": "Slow down operations by specified milliseconds"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional browser launch arguments",
+          "examples": [
+            ["--disable-gpu", "--no-sandbox"],
+            ["--window-size=1920,1080"]
+          ]
+        },
+        "ignoreHTTPSErrors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Ignore HTTPS certificate errors"
+        },
+        "bypassCSP": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bypass Content-Security-Policy"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pool": {
+      "type": "object",
+      "description": "Browser instance pool configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable browser pooling"
+        },
+        "minInstances": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1,
+          "description": "Minimum number of browser instances to maintain"
+        },
+        "maxInstances": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 5,
+          "description": "Maximum number of browser instances"
+        },
+        "idleTimeout": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000,
+          "default": 300000,
+          "description": "Idle timeout in milliseconds before closing instance"
+        },
+        "maxContextsPerInstance": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "description": "Maximum browser contexts per instance"
+        },
+        "warmupInstances": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pre-warm instances on startup"
+        },
+        "recycleAfter": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Recycle instance after N operations (0 = never)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "timeout": {
+      "type": "object",
+      "description": "Default timeout settings",
+      "properties": {
+        "navigation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000,
+          "default": 30000,
+          "description": "Navigation timeout in milliseconds"
+        },
+        "action": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000,
+          "default": 10000,
+          "description": "Action timeout in milliseconds"
+        },
+        "script": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000,
+          "default": 30000,
+          "description": "Script execution timeout in milliseconds"
+        },
+        "expect": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300000,
+          "default": 5000,
+          "description": "Expect assertion timeout in milliseconds"
+        }
+      },
+      "additionalProperties": false
+    },
+    "security": {
+      "type": "object",
+      "description": "Security and access control settings",
+      "properties": {
+        "allowedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "hostname"
+          },
+          "description": "Whitelist of allowed domains (empty = allow all)",
+          "examples": [["example.com", "*.github.com", "localhost"]]
+        },
+        "blockedDomains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "hostname"
+          },
+          "description": "Blacklist of blocked domains",
+          "examples": [["ads.example.com", "tracker.example.com"]]
+        },
+        "blockedResourceTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["image", "stylesheet", "font", "script", "xhr", "fetch", "media", "other"]
+          },
+          "description": "Resource types to block"
+        },
+        "sandboxMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable browser sandbox"
+        },
+        "maxFileUploadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum file upload size in bytes (0 = unlimited)"
+        },
+        "maxDownloadSize": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum download size in bytes (0 = unlimited)"
+        },
+        "allowedProtocols": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["http", "https", "file", "data", "blob"]
+          },
+          "default": ["http", "https"],
+          "description": "Allowed URL protocols"
+        },
+        "validateCertificates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate SSL/TLS certificates"
+        }
+      },
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "description": "Network behavior settings",
+      "properties": {
+        "offline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Start in offline mode"
+        },
+        "extraHeaders": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra HTTP headers for all requests",
+          "examples": [
+            {
+              "X-Custom-Header": "value",
+              "Authorization": "Bearer token"
+            }
+          ]
+        },
+        "interceptPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "URL pattern to intercept"
+              },
+              "action": {
+                "type": "string",
+                "enum": ["block", "mock", "modify"],
+                "description": "Action to take on match"
+              },
+              "response": {
+                "type": "object",
+                "description": "Response data for mock/modify actions"
+              }
+            },
+            "required": ["pattern", "action"]
+          },
+          "description": "Request interception rules"
+        },
+        "harRecording": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "type": "string",
+              "description": "HAR file output path"
+            },
+            "omitContent": {
+              "type": "boolean",
+              "default": false,
+              "description": "Omit response bodies from HAR"
+            }
+          }
+        },
+        "throttling": {
+          "type": "object",
+          "properties": {
+            "downloadThroughput": {
+              "type": "integer",
+              "minimum": -1,
+              "description": "Download speed in bytes/sec (-1 = unlimited)"
+            },
+            "uploadThroughput": {
+              "type": "integer",
+              "minimum": -1,
+              "description": "Upload speed in bytes/sec (-1 = unlimited)"
+            },
+            "latency": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Network latency in milliseconds"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "session": {
+      "type": "object",
+      "description": "Session persistence settings",
+      "properties": {
+        "persistPath": {
+          "type": "string",
+          "description": "Directory path for persistent sessions",
+          "examples": ["./sessions", "/tmp/playwright-sessions"]
+        },
+        "storageState": {
+          "type": "string",
+          "description": "Path to storage state JSON file",
+          "examples": ["./auth.json", "./session-state.json"]
+        },
+        "saveOnExit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save session on exit"
+        },
+        "autoRestore": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically restore session on startup"
+        },
+        "includeCookies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include cookies in session state"
+        },
+        "includeLocalStorage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include localStorage in session state"
+        },
+        "includeSessionStorage": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include sessionStorage in session state"
+        }
+      },
+      "additionalProperties": false
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging configuration",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug", "trace"],
+          "default": "info",
+          "description": "Log level"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "text", "pretty"],
+          "default": "text",
+          "description": "Log output format"
+        },
+        "destination": {
+          "type": "string",
+          "enum": ["stdout", "stderr", "file"],
+          "default": "stdout",
+          "description": "Log output destination"
+        },
+        "filePath": {
+          "type": "string",
+          "description": "Log file path (when destination=file)",
+          "examples": ["./logs/playwright.log", "/var/log/playwright.log"]
+        },
+        "logBrowserConsole": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log browser console messages"
+        },
+        "logNetworkActivity": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log network requests and responses"
+        },
+        "logScreenshots": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log screenshot capture events"
+        },
+        "maxFileSize": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum log file size in bytes (0 = unlimited)"
+        },
+        "maxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Maximum number of rotated log files"
+        }
+      },
+      "additionalProperties": false
+    },
+    "plugins": {
+      "type": "object",
+      "description": "Plugin system configuration",
+      "properties": {
+        "enabledPlugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of enabled plugin names",
+          "examples": [["screenshot-optimizer", "auto-retry", "performance-monitor"]]
+        },
+        "pluginConfig": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "description": "Plugin-specific configuration",
+          "examples": [
+            {
+              "auto-retry": {
+                "maxRetries": 3,
+                "retryDelay": 1000
+              },
+              "screenshot-optimizer": {
+                "quality": 80,
+                "format": "jpeg"
+              }
+            }
+          ]
+        },
+        "pluginPath": {
+          "type": "string",
+          "description": "Directory path for custom plugins",
+          "examples": ["./plugins", "/usr/local/lib/playwright-plugins"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "performance": {
+      "type": "object",
+      "description": "Performance optimization settings",
+      "properties": {
+        "enableCache": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable browser cache"
+        },
+        "enableJavaScript": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable JavaScript execution"
+        },
+        "enableImages": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable image loading"
+        },
+        "enableCSS": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CSS loading"
+        },
+        "enableFonts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable font loading"
+        },
+        "cpuThrottling": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "CPU throttling rate multiplier"
+        },
+        "screenshotCompression": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "quality": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 80
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "mcp": {
+      "type": "object",
+      "description": "MCP server-specific settings",
+      "properties": {
+        "serverName": {
+          "type": "string",
+          "default": "playwright-mcp",
+          "description": "MCP server name"
+        },
+        "serverVersion": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "MCP server version"
+        },
+        "maxConcurrentRequests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50,
+          "description": "Maximum concurrent MCP requests"
+        },
+        "requestTimeout": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 120000,
+          "description": "MCP request timeout in milliseconds"
+        },
+        "enableMetrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable performance metrics collection"
+        },
+        "enableTracing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable request tracing"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,2034 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Playwright MCP Tool Schemas",
+  "description": "Comprehensive JSON Schema definitions for all Playwright MCP server tools",
+  "version": "1.0.0",
+  "definitions": {
+    "waitUntilOption": {
+      "type": "string",
+      "enum": ["load", "domcontentloaded", "networkidle", "commit"],
+      "default": "load",
+      "description": "When to consider navigation succeeded"
+    },
+    "timeout": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 300000,
+      "default": 30000,
+      "description": "Timeout in milliseconds"
+    },
+    "selector": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CSS selector, XPath, or text selector",
+      "examples": ["#submit-button", "//button[@type='submit']", "text=Submit"]
+    },
+    "mouseButton": {
+      "type": "string",
+      "enum": ["left", "right", "middle"],
+      "default": "left",
+      "description": "Mouse button to use"
+    },
+    "keyModifier": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["Alt", "Control", "Meta", "Shift"]
+      },
+      "description": "Keyboard modifiers to press"
+    },
+    "viewportSize": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7680
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4320
+        }
+      },
+      "required": ["width", "height"]
+    }
+  },
+  "tools": {
+    "navigation": {
+      "playwright_navigate": {
+        "description": "Navigate to a URL",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "URL to navigate to",
+              "examples": ["https://example.com", "https://api.github.com"]
+            },
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            },
+            "referer": {
+              "type": "string",
+              "format": "uri",
+              "description": "Referer header value"
+            }
+          },
+          "required": ["url"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "url": {
+              "type": "string"
+            },
+            "status": {
+              "type": "integer"
+            },
+            "loadTime": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "playwright_back": {
+        "description": "Navigate back in history",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_forward": {
+        "description": "Navigate forward in history",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_reload": {
+        "description": "Reload the current page",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "playwright_goto_frame": {
+        "description": "Switch to a specific frame or iframe",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "frameSelector": {
+              "type": "string",
+              "description": "Frame selector or name",
+              "examples": ["#main-frame", "iframe[name='content']"]
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["frameSelector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "frameName": {
+              "type": "string"
+            },
+            "frameUrl": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_new_tab": {
+        "description": "Open a new browser tab",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "URL to open in the new tab"
+            },
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "tabId": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_close_tab": {
+        "description": "Close a specific tab",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tabId": {
+              "type": "string",
+              "description": "Tab ID to close, or omit to close current tab"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "closedTabId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_switch_tab": {
+        "description": "Switch to a specific tab",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "tabId": {
+              "type": "string",
+              "description": "Tab ID to switch to"
+            }
+          },
+          "required": ["tabId"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "currentTabId": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_get_url": {
+        "description": "Get the current page URL",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "required": ["url"]
+        }
+      },
+      "playwright_get_title": {
+        "description": "Get the current page title",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": ["title"]
+        }
+      }
+    },
+    "interaction": {
+      "playwright_click": {
+        "description": "Click an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "button": {
+              "$ref": "#/definitions/mouseButton"
+            },
+            "clickCount": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "default": 1,
+              "description": "Number of times to click"
+            },
+            "modifiers": {
+              "$ref": "#/definitions/keyModifier"
+            },
+            "position": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "description": "Click position relative to element"
+            },
+            "force": {
+              "type": "boolean",
+              "default": false,
+              "description": "Force click even if element is not actionable"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_double_click": {
+        "description": "Double-click an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "button": {
+              "$ref": "#/definitions/mouseButton"
+            },
+            "modifiers": {
+              "$ref": "#/definitions/keyModifier"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_right_click": {
+        "description": "Right-click an element (context menu)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "modifiers": {
+              "$ref": "#/definitions/keyModifier"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_type": {
+        "description": "Type text into an element (with key events)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "text": {
+              "type": "string",
+              "description": "Text to type"
+            },
+            "delay": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000,
+              "default": 0,
+              "description": "Delay between keystrokes in milliseconds"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector", "text"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "charactersTyped": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "playwright_fill": {
+        "description": "Fill an input element (fast, no key events)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "value": {
+              "type": "string",
+              "description": "Value to fill"
+            },
+            "force": {
+              "type": "boolean",
+              "default": false
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector", "value"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_clear": {
+        "description": "Clear an input element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_press": {
+        "description": "Press a keyboard key or key combination",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "key": {
+              "type": "string",
+              "description": "Key to press (e.g., Enter, Tab, ArrowDown)",
+              "examples": ["Enter", "Tab", "Escape", "ArrowDown", "Control+A"]
+            },
+            "modifiers": {
+              "$ref": "#/definitions/keyModifier"
+            },
+            "delay": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector", "key"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_select": {
+        "description": "Select option(s) in a <select> element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "Option value(s) to select"
+            },
+            "label": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "Option label(s) to select"
+            },
+            "index": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              ],
+              "description": "Option index(es) to select"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "oneOf": [
+            {
+              "required": ["value"]
+            },
+            {
+              "required": ["label"]
+            },
+            {
+              "required": ["index"]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "selectedValues": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "playwright_check": {
+        "description": "Check a checkbox or radio button",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "force": {
+              "type": "boolean",
+              "default": false
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_uncheck": {
+        "description": "Uncheck a checkbox",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "force": {
+              "type": "boolean",
+              "default": false
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_hover": {
+        "description": "Hover over an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "position": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              }
+            },
+            "force": {
+              "type": "boolean",
+              "default": false
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_focus": {
+        "description": "Focus an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_drag_drop": {
+        "description": "Drag an element and drop it on another element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "$ref": "#/definitions/selector",
+              "description": "Source element to drag"
+            },
+            "target": {
+              "$ref": "#/definitions/selector",
+              "description": "Target element to drop on"
+            },
+            "sourcePosition": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              }
+            },
+            "targetPosition": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              }
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["source", "target"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_upload": {
+        "description": "Upload file(s) to a file input",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "files": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "Single file path"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Multiple file paths"
+                }
+              ]
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector", "files"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "filesUploaded": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "playwright_scroll": {
+        "description": "Scroll the page or an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "type": "string",
+              "description": "Element selector to scroll, or omit to scroll the page"
+            },
+            "direction": {
+              "type": "string",
+              "enum": ["up", "down", "left", "right"],
+              "default": "down"
+            },
+            "amount": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Amount to scroll in pixels"
+            },
+            "toBottom": {
+              "type": "boolean",
+              "default": false,
+              "description": "Scroll to bottom of element/page"
+            },
+            "toTop": {
+              "type": "boolean",
+              "default": false,
+              "description": "Scroll to top of element/page"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "scrollPosition": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "extraction": {
+      "playwright_get_text": {
+        "description": "Get text content of an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "innerText": {
+              "type": "boolean",
+              "default": true,
+              "description": "Get innerText (visible text) vs textContent (all text)"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["text"]
+        }
+      },
+      "playwright_get_attribute": {
+        "description": "Get an attribute value from an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "attribute": {
+              "type": "string",
+              "description": "Attribute name to retrieve",
+              "examples": ["href", "src", "class", "data-id"]
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector", "attribute"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": ["string", "null"]
+            }
+          },
+          "required": ["value"]
+        }
+      },
+      "playwright_get_value": {
+        "description": "Get the value of an input element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": ["value"]
+        }
+      },
+      "playwright_get_inner_html": {
+        "description": "Get the innerHTML of an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "html": {
+              "type": "string"
+            }
+          },
+          "required": ["html"]
+        }
+      },
+      "playwright_get_outer_html": {
+        "description": "Get the outerHTML of an element",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "html": {
+              "type": "string"
+            }
+          },
+          "required": ["html"]
+        }
+      },
+      "playwright_screenshot": {
+        "description": "Take a screenshot",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "type": "string",
+              "description": "Element selector to screenshot, or omit for full page"
+            },
+            "fullPage": {
+              "type": "boolean",
+              "default": false,
+              "description": "Capture full scrollable page"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["png", "jpeg"],
+              "default": "png"
+            },
+            "quality": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "JPEG quality (0-100)"
+            },
+            "path": {
+              "type": "string",
+              "description": "File path to save screenshot"
+            },
+            "omitBackground": {
+              "type": "boolean",
+              "default": false,
+              "description": "Hide default white background"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "base64": {
+              "type": "string",
+              "description": "Base64-encoded screenshot"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "playwright_pdf": {
+        "description": "Generate a PDF of the page",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path to save PDF"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["Letter", "Legal", "Tabloid", "Ledger", "A0", "A1", "A2", "A3", "A4", "A5", "A6"],
+              "default": "Letter"
+            },
+            "width": {
+              "type": "string",
+              "description": "Paper width with unit (e.g., '8.5in')"
+            },
+            "height": {
+              "type": "string",
+              "description": "Paper height with unit (e.g., '11in')"
+            },
+            "margin": {
+              "type": "object",
+              "properties": {
+                "top": {
+                  "type": "string"
+                },
+                "right": {
+                  "type": "string"
+                },
+                "bottom": {
+                  "type": "string"
+                },
+                "left": {
+                  "type": "string"
+                }
+              }
+            },
+            "landscape": {
+              "type": "boolean",
+              "default": false
+            },
+            "printBackground": {
+              "type": "boolean",
+              "default": false
+            },
+            "scale": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 2,
+              "default": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "playwright_get_table": {
+        "description": "Extract data from an HTML table",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "includeHeaders": {
+              "type": "boolean",
+              "default": true
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "headers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_evaluate": {
+        "description": "Execute JavaScript in the page context",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "script": {
+              "type": "string",
+              "description": "JavaScript code to execute"
+            },
+            "args": {
+              "type": "array",
+              "description": "Arguments to pass to the script"
+            }
+          },
+          "required": ["script"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "result": {
+              "description": "Return value of the script"
+            }
+          }
+        }
+      }
+    },
+    "session": {
+      "playwright_get_cookies": {
+        "description": "Get browser cookies",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "description": "Filter cookies by URL"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "cookies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "expires": {
+                    "type": "number"
+                  },
+                  "httpOnly": {
+                    "type": "boolean"
+                  },
+                  "secure": {
+                    "type": "boolean"
+                  },
+                  "sameSite": {
+                    "type": "string",
+                    "enum": ["Strict", "Lax", "None"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_set_cookie": {
+        "description": "Set a browser cookie",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "value": {
+              "type": "string"
+            },
+            "domain": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string",
+              "default": "/"
+            },
+            "expires": {
+              "type": "number",
+              "description": "Unix timestamp in seconds"
+            },
+            "httpOnly": {
+              "type": "boolean",
+              "default": false
+            },
+            "secure": {
+              "type": "boolean",
+              "default": false
+            },
+            "sameSite": {
+              "type": "string",
+              "enum": ["Strict", "Lax", "None"],
+              "default": "Lax"
+            }
+          },
+          "required": ["name", "value"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_delete_cookies": {
+        "description": "Delete browser cookies",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Cookie names to delete, or omit to delete all"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "deletedCount": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "playwright_get_storage": {
+        "description": "Get localStorage or sessionStorage data",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["local", "session"],
+              "default": "local"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "playwright_set_storage": {
+        "description": "Set localStorage or sessionStorage data",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["local", "session"],
+              "default": "local"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Key-value pairs to set"
+            }
+          },
+          "required": ["data"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_save_session": {
+        "description": "Save browser session state (cookies, localStorage, sessionStorage)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path to save session state"
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_restore_session": {
+        "description": "Restore browser session state from file",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path to restore session from"
+            }
+          },
+          "required": ["path"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_new_context": {
+        "description": "Create a new browser context (isolated session)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "viewport": {
+              "$ref": "#/definitions/viewportSize"
+            },
+            "userAgent": {
+              "type": "string"
+            },
+            "locale": {
+              "type": "string",
+              "examples": ["en-US", "de-DE", "fr-FR"]
+            },
+            "timezone": {
+              "type": "string",
+              "examples": ["America/New_York", "Europe/London"]
+            },
+            "permissions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["geolocation", "notifications", "camera", "microphone"]
+              }
+            },
+            "geolocation": {
+              "type": "object",
+              "properties": {
+                "latitude": {
+                  "type": "number",
+                  "minimum": -90,
+                  "maximum": 90
+                },
+                "longitude": {
+                  "type": "number",
+                  "minimum": -180,
+                  "maximum": 180
+                }
+              },
+              "required": ["latitude", "longitude"]
+            },
+            "httpCredentials": {
+              "type": "object",
+              "properties": {
+                "username": {
+                  "type": "string"
+                },
+                "password": {
+                  "type": "string"
+                }
+              },
+              "required": ["username", "password"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "contextId": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "network": {
+      "playwright_intercept_request": {
+        "description": "Intercept and modify network requests",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "URL pattern to intercept (glob or regex)"
+            },
+            "response": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 599
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "body": {
+                  "type": "string"
+                },
+                "contentType": {
+                  "type": "string"
+                }
+              }
+            },
+            "abort": {
+              "type": "boolean",
+              "default": false,
+              "description": "Abort matching requests"
+            }
+          },
+          "required": ["pattern"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "interceptId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_mock_response": {
+        "description": "Mock API responses",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "URL pattern to mock"
+            },
+            "response": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "integer",
+                  "default": 200
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "body": {
+                  "description": "Response body (JSON object or string)"
+                },
+                "contentType": {
+                  "type": "string",
+                  "default": "application/json"
+                }
+              },
+              "required": ["body"]
+            }
+          },
+          "required": ["pattern", "response"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "mockId": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_wait_for_request": {
+        "description": "Wait for a network request matching pattern",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "URL pattern to wait for"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["pattern"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "request": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "headers": {
+                  "type": "object"
+                },
+                "postData": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_wait_for_response": {
+        "description": "Wait for a network response matching pattern",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "URL pattern to wait for"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["pattern"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "response": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "integer"
+                },
+                "headers": {
+                  "type": "object"
+                },
+                "body": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_get_har": {
+        "description": "Get HTTP Archive (HAR) of network activity",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File path to save HAR"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "har": {
+              "type": "object",
+              "description": "HAR data object"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_set_offline": {
+        "description": "Set browser offline mode",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "offline": {
+              "type": "boolean",
+              "description": "Enable or disable offline mode"
+            }
+          },
+          "required": ["offline"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_set_extra_headers": {
+        "description": "Set extra HTTP headers for all requests",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Headers to set"
+            }
+          },
+          "required": ["headers"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "query": {
+      "playwright_find_element": {
+        "description": "Find a single element matching selector",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "element": {
+              "type": "object",
+              "properties": {
+                "tagName": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "attributes": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_find_elements": {
+        "description": "Find all elements matching selector",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "elements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tagName": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "attributes": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "playwright_wait_for_selector": {
+        "description": "Wait for an element to reach a specific state",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "state": {
+              "type": "string",
+              "enum": ["attached", "detached", "visible", "hidden"],
+              "default": "visible"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "playwright_wait_for_navigation": {
+        "description": "Wait for navigation to complete",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "waitUntil": {
+              "$ref": "#/definitions/waitUntilOption"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "playwright_is_visible": {
+        "description": "Check if an element is visible",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "visible": {
+              "type": "boolean"
+            }
+          },
+          "required": ["visible"]
+        }
+      },
+      "playwright_is_enabled": {
+        "description": "Check if an element is enabled",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            },
+            "timeout": {
+              "$ref": "#/definitions/timeout"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": ["enabled"]
+        }
+      },
+      "playwright_count_elements": {
+        "description": "Count elements matching selector",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "selector": {
+              "$ref": "#/definitions/selector"
+            }
+          },
+          "required": ["selector"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["count"]
+        }
+      }
+    }
+  }
+}

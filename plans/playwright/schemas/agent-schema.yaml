@@ -1,0 +1,737 @@
+# Playwright Browser Automation Agent Schema
+# Version: 1.0.0
+# Description: YAML schema for Playwright MCP agent definition
+
+$schema: http://json-schema.org/draft-07/schema#
+title: Playwright Browser Automation Agent
+version: 1.0.0
+
+# =============================================================================
+# METADATA
+# =============================================================================
+metadata:
+  name:
+    type: string
+    pattern: "^[a-z][a-z0-9-]*[a-z0-9]$"
+    minLength: 3
+    maxLength: 50
+    description: "Agent identifier (lowercase, alphanumeric with hyphens)"
+    examples:
+      - playwright-browser-agent
+      - web-automation-agent
+      - playwright-mcp
+
+  displayName:
+    type: string
+    minLength: 3
+    maxLength: 100
+    description: "Human-readable agent name"
+    examples:
+      - "Playwright Browser Automation Agent"
+      - "Web Testing & Automation Agent"
+
+  description:
+    type: string
+    minLength: 10
+    maxLength: 500
+    description: "Detailed description of agent capabilities"
+
+  version:
+    type: string
+    pattern: "^\\d+\\.\\d+\\.\\d+(-[a-z0-9.]+)?$"
+    description: "Semantic version (semver)"
+    examples:
+      - 1.0.0
+      - 2.1.0-beta.1
+
+  author:
+    type: object
+    properties:
+      name:
+        type: string
+        description: "Author or organization name"
+      email:
+        type: string
+        format: email
+        description: "Contact email"
+      url:
+        type: string
+        format: uri
+        description: "Website or repository URL"
+    required:
+      - name
+
+  license:
+    type: string
+    description: "License identifier (SPDX)"
+    examples:
+      - MIT
+      - Apache-2.0
+      - GPL-3.0
+
+  tags:
+    type: array
+    items:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+    uniqueItems: true
+    description: "Searchable tags for agent discovery"
+    examples:
+      - browser
+      - automation
+      - testing
+      - playwright
+      - web-scraping
+
+# =============================================================================
+# CAPABILITIES
+# =============================================================================
+capabilities:
+  browserTypes:
+    type: array
+    items:
+      type: string
+      enum:
+        - chromium
+        - firefox
+        - webkit
+    minItems: 1
+    uniqueItems: true
+    default:
+      - chromium
+    description: "Supported browser engines"
+
+  features:
+    type: object
+    properties:
+      navigation:
+        type: boolean
+        default: true
+        description: "Page navigation capabilities"
+
+      interaction:
+        type: boolean
+        default: true
+        description: "Element interaction capabilities"
+
+      extraction:
+        type: boolean
+        default: true
+        description: "Data extraction capabilities"
+
+      session:
+        type: boolean
+        default: true
+        description: "Session management capabilities"
+
+      network:
+        type: boolean
+        default: true
+        description: "Network interception capabilities"
+
+      screenshots:
+        type: boolean
+        default: true
+        description: "Screenshot capture capabilities"
+
+      pdf:
+        type: boolean
+        default: true
+        description: "PDF generation capabilities"
+
+      multiTab:
+        type: boolean
+        default: true
+        description: "Multi-tab management"
+
+      frames:
+        type: boolean
+        default: true
+        description: "Frame/iframe support"
+
+      fileUpload:
+        type: boolean
+        default: true
+        description: "File upload support"
+
+      dragDrop:
+        type: boolean
+        default: true
+        description: "Drag and drop support"
+
+      geolocation:
+        type: boolean
+        default: false
+        description: "Geolocation emulation"
+
+      offline:
+        type: boolean
+        default: false
+        description: "Offline mode simulation"
+
+      mocking:
+        type: boolean
+        default: true
+        description: "API response mocking"
+
+  performance:
+    type: object
+    properties:
+      maxConcurrentBrowsers:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 5
+        description: "Maximum concurrent browser instances"
+
+      maxConcurrentTabs:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+        description: "Maximum tabs per browser instance"
+
+      poolingEnabled:
+        type: boolean
+        default: true
+        description: "Enable browser instance pooling"
+
+      cacheEnabled:
+        type: boolean
+        default: true
+        description: "Enable browser cache"
+
+# =============================================================================
+# SYSTEM PROMPT
+# =============================================================================
+systemPrompt:
+  template:
+    type: string
+    description: "Jinja2 template for agent system prompt"
+    example: |
+      You are a Playwright Browser Automation Agent specialized in web automation, testing, and data extraction.
+
+      ## Your Capabilities
+      - Navigate websites and interact with web elements
+      - Extract data from web pages (text, attributes, tables)
+      - Capture screenshots and generate PDFs
+      - Manage browser sessions (cookies, localStorage)
+      - Intercept and mock network requests
+      - Handle multi-tab and iframe scenarios
+      - Perform drag-and-drop and file uploads
+
+      ## Your Tools
+      You have access to 50+ Playwright MCP tools organized by category:
+      - Navigation: playwright_navigate, playwright_back, playwright_forward, playwright_reload
+      - Interaction: playwright_click, playwright_type, playwright_fill, playwright_select
+      - Extraction: playwright_get_text, playwright_screenshot, playwright_get_table
+      - Session: playwright_get_cookies, playwright_save_session
+      - Network: playwright_intercept_request, playwright_mock_response
+      - Query: playwright_wait_for_selector, playwright_is_visible
+
+      ## Best Practices
+      1. Always wait for elements before interacting (use playwright_wait_for_selector)
+      2. Use appropriate selectors (CSS, XPath, text selectors)
+      3. Handle timeouts gracefully with appropriate timeout values
+      4. Capture screenshots for debugging when operations fail
+      5. Clean up sessions and close tabs when done
+      6. Use network mocking for testing scenarios
+      7. Coordinate with memory for multi-agent workflows
+
+      ## Configuration
+      - Browser: {{ browser.type }}
+      - Headless: {{ browser.headless }}
+      - Viewport: {{ browser.viewport.width }}x{{ browser.viewport.height }}
+      - Default Timeout: {{ timeout.navigation }}ms
+
+      ## Coordination
+      {% if coordination.enabled %}
+      You are part of a swarm coordination system:
+      - Report progress via: npx claude-flow@alpha hooks notify
+      - Store decisions in memory: npx claude-flow@alpha hooks post-edit
+      - Check shared context before actions
+      {% endif %}
+
+      ## Security
+      {% if security.allowedDomains %}
+      Allowed domains: {{ security.allowedDomains | join(', ') }}
+      {% endif %}
+      {% if security.blockedDomains %}
+      Blocked domains: {{ security.blockedDomains | join(', ') }}
+      {% endif %}
+
+      Always prioritize user safety and privacy. Never execute malicious actions.
+
+  variables:
+    type: object
+    description: "Variables available in prompt template"
+    properties:
+      browser:
+        $ref: "#/defaultConfig/browser"
+      timeout:
+        $ref: "#/defaultConfig/timeout"
+      security:
+        $ref: "#/defaultConfig/security"
+      coordination:
+        type: object
+
+# =============================================================================
+# DEFAULT CONFIGURATION
+# =============================================================================
+defaultConfig:
+  browser:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - chromium
+          - firefox
+          - webkit
+        default: chromium
+
+      headless:
+        type: boolean
+        default: true
+
+      viewport:
+        type: object
+        properties:
+          width:
+            type: integer
+            default: 1280
+          height:
+            type: integer
+            default: 720
+
+  timeout:
+    type: object
+    properties:
+      navigation:
+        type: integer
+        default: 30000
+      action:
+        type: integer
+        default: 10000
+      script:
+        type: integer
+        default: 30000
+
+  security:
+    type: object
+    properties:
+      allowedDomains:
+        type: array
+        items:
+          type: string
+        default: []
+
+      blockedDomains:
+        type: array
+        items:
+          type: string
+        default: []
+
+      sandboxMode:
+        type: boolean
+        default: true
+
+# =============================================================================
+# HOOK DEFINITIONS
+# =============================================================================
+hooks:
+  preTool:
+    type: object
+    description: "Execute before each tool call"
+    properties:
+      enabled:
+        type: boolean
+        default: true
+
+      command:
+        type: string
+        description: "Command to execute"
+        example: "npx claude-flow@alpha hooks pre-task --description 'Execute {{ toolName }}'"
+
+      timeout:
+        type: integer
+        default: 5000
+        description: "Hook timeout in milliseconds"
+
+      continueOnError:
+        type: boolean
+        default: true
+        description: "Continue if hook fails"
+
+  postTool:
+    type: object
+    description: "Execute after each tool call"
+    properties:
+      enabled:
+        type: boolean
+        default: true
+
+      command:
+        type: string
+        example: "npx claude-flow@alpha hooks post-task --task-id '{{ taskId }}' --status '{{ status }}'"
+
+      storeResults:
+        type: boolean
+        default: true
+        description: "Store tool results in memory"
+
+      memoryKey:
+        type: string
+        default: "swarm/playwright/{{ toolName }}/{{ timestamp }}"
+        description: "Memory key template for results"
+
+  preNavigation:
+    type: object
+    description: "Execute before navigation operations"
+    properties:
+      enabled:
+        type: boolean
+        default: false
+
+      command:
+        type: string
+        example: "npx claude-flow@alpha hooks notify --message 'Navigating to {{ url }}'"
+
+  postNavigation:
+    type: object
+    description: "Execute after navigation operations"
+    properties:
+      enabled:
+        type: boolean
+        default: false
+
+      command:
+        type: string
+
+      captureScreenshot:
+        type: boolean
+        default: false
+        description: "Auto-capture screenshot after navigation"
+
+  onError:
+    type: object
+    description: "Execute when tool execution fails"
+    properties:
+      enabled:
+        type: boolean
+        default: true
+
+      command:
+        type: string
+        example: "npx claude-flow@alpha hooks notify --message 'Error: {{ error }}'"
+
+      captureScreenshot:
+        type: boolean
+        default: true
+        description: "Capture screenshot on error"
+
+      saveSession:
+        type: boolean
+        default: false
+        description: "Save session state on error"
+
+      retry:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+            default: false
+
+          maxAttempts:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 3
+
+          delay:
+            type: integer
+            default: 1000
+            description: "Delay between retries in milliseconds"
+
+# =============================================================================
+# TOOL PERMISSIONS
+# =============================================================================
+toolPermissions:
+  type: object
+  description: "Tool access control"
+  properties:
+    allowedTools:
+      type: array
+      items:
+        type: string
+        pattern: "^playwright_[a-z_]+$"
+      description: "Explicitly allowed tools (empty = allow all)"
+      examples:
+        - - playwright_navigate
+          - playwright_click
+          - playwright_get_text
+          - playwright_screenshot
+
+    blockedTools:
+      type: array
+      items:
+        type: string
+        pattern: "^playwright_[a-z_]+$"
+      description: "Explicitly blocked tools"
+      examples:
+        - - playwright_evaluate  # Block arbitrary JS execution
+
+    requireApproval:
+      type: array
+      items:
+        type: string
+      description: "Tools requiring user approval before execution"
+      examples:
+        - - playwright_upload
+          - playwright_set_cookie
+          - playwright_evaluate
+
+    rateLimit:
+      type: object
+      description: "Per-tool rate limiting"
+      additionalProperties:
+        type: object
+        properties:
+          maxCallsPerMinute:
+            type: integer
+            minimum: 1
+
+          maxCallsPerHour:
+            type: integer
+            minimum: 1
+
+# =============================================================================
+# MEMORY PATTERNS
+# =============================================================================
+memoryPatterns:
+  type: object
+  description: "Memory coordination patterns"
+  properties:
+    enabled:
+      type: boolean
+      default: true
+      description: "Enable memory coordination"
+
+    namespace:
+      type: string
+      default: "coordination"
+      description: "Memory namespace for coordination"
+
+    patterns:
+      type: array
+      items:
+        type: object
+        properties:
+          name:
+            type: string
+            description: "Pattern name"
+
+          description:
+            type: string
+            description: "Pattern description"
+
+          trigger:
+            type: string
+            enum:
+              - pre-tool
+              - post-tool
+              - on-error
+              - on-navigation
+            description: "When to execute pattern"
+
+          action:
+            type: string
+            enum:
+              - store
+              - retrieve
+              - update
+            description: "Memory operation"
+
+          key:
+            type: string
+            description: "Memory key template"
+            examples:
+              - "swarm/playwright/status"
+              - "swarm/shared/navigation-history"
+              - "swarm/playwright/{{ toolName }}/result"
+
+          value:
+            type: string
+            description: "Value template (for store/update)"
+
+      examples:
+        - - name: "track-navigation"
+            description: "Store navigation history"
+            trigger: "post-navigation"
+            action: "store"
+            key: "swarm/playwright/navigation/{{ timestamp }}"
+            value: '{"url": "{{ url }}", "title": "{{ title }}", "timestamp": {{ timestamp }}}'
+
+          - name: "share-extraction"
+            description: "Share extracted data with other agents"
+            trigger: "post-tool"
+            action: "store"
+            key: "swarm/shared/extracted-data/{{ taskId }}"
+            value: '{"tool": "{{ toolName }}", "result": {{ result }}}'
+
+          - name: "error-tracking"
+            description: "Track errors for learning"
+            trigger: "on-error"
+            action: "store"
+            key: "swarm/playwright/errors/{{ timestamp }}"
+            value: '{"tool": "{{ toolName }}", "error": "{{ error }}", "context": {{ context }}}'
+
+# =============================================================================
+# SWARM COORDINATION
+# =============================================================================
+swarmCoordination:
+  type: object
+  description: "Multi-agent swarm coordination settings"
+  properties:
+    enabled:
+      type: boolean
+      default: false
+      description: "Enable swarm coordination"
+
+    topology:
+      type: string
+      enum:
+        - mesh
+        - hierarchical
+        - star
+        - pipeline
+      default: mesh
+      description: "Coordination topology"
+
+    role:
+      type: string
+      enum:
+        - leader
+        - worker
+        - hybrid
+      default: worker
+      description: "Agent role in swarm"
+
+    coordination:
+      type: object
+      properties:
+        shareResults:
+          type: boolean
+          default: true
+          description: "Share results with other agents"
+
+        waitForDependencies:
+          type: boolean
+          default: true
+          description: "Wait for dependent agents to complete"
+
+        dependencies:
+          type: array
+          items:
+            type: string
+          description: "Agent dependencies (agent names)"
+          examples:
+            - - researcher
+              - planner
+
+        handoffTo:
+          type: array
+          items:
+            type: string
+          description: "Agents to hand off to after completion"
+          examples:
+            - - tester
+              - reviewer
+
+    communication:
+      type: object
+      properties:
+        protocol:
+          type: string
+          enum:
+            - memory
+            - mcp
+            - hybrid
+          default: hybrid
+
+        heartbeatInterval:
+          type: integer
+          minimum: 1000
+          default: 5000
+          description: "Heartbeat interval in milliseconds"
+
+        statusUpdates:
+          type: boolean
+          default: true
+          description: "Send status updates to coordinator"
+
+# =============================================================================
+# EXAMPLES
+# =============================================================================
+examples:
+  - name: "Basic Navigation"
+    description: "Navigate to a website and extract title"
+    toolCalls:
+      - tool: playwright_navigate
+        params:
+          url: "https://example.com"
+          waitUntil: "networkidle"
+
+      - tool: playwright_get_title
+        params: {}
+
+  - name: "Form Interaction"
+    description: "Fill and submit a form"
+    toolCalls:
+      - tool: playwright_fill
+        params:
+          selector: "#username"
+          value: "testuser"
+
+      - tool: playwright_fill
+        params:
+          selector: "#password"
+          value: "password123"
+
+      - tool: playwright_click
+        params:
+          selector: "button[type='submit']"
+
+      - tool: playwright_wait_for_navigation
+        params:
+          waitUntil: "networkidle"
+
+  - name: "Data Extraction"
+    description: "Extract table data from page"
+    toolCalls:
+      - tool: playwright_navigate
+        params:
+          url: "https://example.com/data"
+
+      - tool: playwright_wait_for_selector
+        params:
+          selector: "table.data-table"
+          state: "visible"
+
+      - tool: playwright_get_table
+        params:
+          selector: "table.data-table"
+          includeHeaders: true
+
+  - name: "Screenshot Capture"
+    description: "Capture full page screenshot"
+    toolCalls:
+      - tool: playwright_navigate
+        params:
+          url: "https://example.com"
+
+      - tool: playwright_screenshot
+        params:
+          fullPage: true
+          format: "png"
+          path: "/tmp/screenshot.png"
