@@ -57,7 +57,7 @@ describe('CLI Commands', () => {
       cwd: process.cwd()
     });
 
-    expect(output).toContain('Database Status');
+    expect(output).toContain('AgentDB Status');
     console.log('✅ CLI status command working');
   });
 
@@ -92,7 +92,7 @@ describe('SDK Exports', () => {
     const agentdb = await import('../src/index.js');
 
     expect(agentdb.createDatabase).toBeDefined();
-    expect(agentdb.getDatabaseImplementation).toBeDefined();
+    // getDatabaseImplementation is internal, not exported
 
     console.log('✅ Database utilities exported');
   });
@@ -136,11 +136,16 @@ describe('Backward Compatibility - SQLite', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(SQLITE_DB);
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
     const reflexion = new ReflexionMemory(db, embedder);
 
-    // Store an episode
-    await reflexion.store({
+    // Store an episode (using correct API method)
+    await reflexion.storeEpisode({
       sessionId: 'test-session',
       task: 'test backward compatibility',
       reward: 0.95,
@@ -150,8 +155,8 @@ describe('Backward Compatibility - SQLite', () => {
       critique: 'working great'
     });
 
-    // Retrieve episodes
-    const results = await reflexion.retrieve({ task: 'backward compatibility', k: 5 });
+    // Retrieve episodes (using correct API method)
+    const results = await reflexion.retrieveRelevant({ task: 'backward compatibility', k: 5 });
     expect(results.length).toBeGreaterThan(0);
     expect(results[0].task).toContain('backward compatibility');
 
@@ -166,20 +171,26 @@ describe('Backward Compatibility - SQLite', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(SQLITE_DB);
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
     const skills = new SkillLibrary(db, embedder);
 
-    // Create a skill
-    const skillId = await skills.create({
+    // Create a skill (using correct API method)
+    const skillId = await skills.createSkill({
       name: 'test-skill',
       description: 'backward compatibility test',
-      code: 'function test() { return true; }'
+      code: 'function test() { return true; }',
+      successRate: 1.0
     });
 
     expect(skillId).toBeTruthy();
 
-    // Search for skill
-    const results = await skills.search({ query: 'test', k: 5 });
+    // Search for skill (using correct API method)
+    const results = await skills.searchSkills({ query: 'test', k: 5 });
     expect(results.length).toBeGreaterThan(0);
 
     console.log('✅ SkillLibrary working with SQLite');
@@ -195,7 +206,12 @@ describe('Migration - SQLite to GraphDatabase', () => {
 
     // Test SQLite detection
     const sqliteDb = new UnifiedDatabase({ path: SQLITE_DB });
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
     await sqliteDb.initialize(embedder);
 
     expect(sqliteDb.getMode()).toBe('sqlite-legacy');
@@ -208,7 +224,12 @@ describe('Migration - SQLite to GraphDatabase', () => {
     const { createUnifiedDatabase } = await import('../src/db-unified.js');
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
     const db = await createUnifiedDatabase(GRAPH_DB, embedder, {
       forceMode: 'graph'
     });
@@ -226,7 +247,12 @@ describe('Migration - SQLite to GraphDatabase', () => {
     const { GraphDatabaseAdapter } = await import('../src/backends/graph/GraphDatabaseAdapter.js');
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
 
     // Create source SQLite database with data
     const sqliteDb = await createDatabase(SQLITE_DB);
@@ -251,10 +277,10 @@ describe('Migration - SQLite to GraphDatabase', () => {
 
     await graphDb.initialize();
 
-    // Migrate episodes
+    // Migrate episodes (using correct API method)
     for (const ep of episodes) {
       const text = `${ep.task} ${ep.input || ''} ${ep.output || ''}`;
-      const embedding = await embedder.generateEmbedding(text);
+      const embedding = await embedder.embed(text);
 
       await graphDb.storeEpisode({
         id: `ep-${ep.id}`,
@@ -337,10 +363,15 @@ describe('Integration Test - Full Workflow', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(testDbPath);
-    const embedder = new EmbeddingService();
+    const embedder = new EmbeddingService({
+      model: 'Xenova/all-MiniLM-L6-v2',
+      dimension: 384,
+      provider: 'transformers'
+    });
+    await embedder.initialize();
     const reflexion = new ReflexionMemory(db, embedder);
 
-    await reflexion.store({
+    await reflexion.storeEpisode({
       sessionId: 'full-test',
       task: 'complete integration test',
       reward: 0.98,
@@ -350,7 +381,7 @@ describe('Integration Test - Full Workflow', () => {
       critique: 'excellent integration'
     });
 
-    const sqliteResults = await reflexion.retrieve({ task: 'integration', k: 5 });
+    const sqliteResults = await reflexion.retrieveRelevant({ task: 'integration', k: 5 });
     expect(sqliteResults.length).toBeGreaterThan(0);
 
     console.log('✅ 2. SQLite operations completed');

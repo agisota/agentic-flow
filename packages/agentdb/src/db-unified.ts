@@ -128,8 +128,8 @@ export class UnifiedDatabase {
       console.log('   - 131K+ ops/sec batch inserts');
     } else {
       // Use legacy SQLite
-      const impl = await getDatabaseImplementation();
-      this.sqliteDb = await require('./db-fallback.js').createDatabase(this.config.path);
+      const { createDatabase } = await import('./db-fallback.js');
+      this.sqliteDb = await createDatabase(this.config.path);
 
       console.log('⚠️  Using legacy SQLite mode');
       console.log('   - Limited to SQL queries');
