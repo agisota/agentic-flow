@@ -82,8 +82,12 @@
     "@ruvector/router": "^0.1.15",
     "@xenova/transformers": "^2.17.2",
     "chalk": "^5.3.0",
+    "cli-table3": "^0.6.0",
     "commander": "^12.1.0",
     "hnswlib-node": "^3.0.0",
+    "inquirer": "^9.0.0",
+    "marked-terminal": "^6.0.0",
+    "ora": "^7.0.0",
     "ruvector": "^0.1.24",
     "sql.js": "^1.13.0",
     "zod": "^3.25.76"
