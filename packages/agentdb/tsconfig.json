@@ -29,7 +29,8 @@
     "types": ["node"]
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "simulation/**/*"
   ],
   "exclude": [
     "node_modules",
