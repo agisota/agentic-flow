@@ -30,7 +30,8 @@
   },
   "include": [
     "src/**/*",
-    "simulation/**/*"
+    "simulation/**/*",
+    "simulation/scenarios/**/*"
   ],
   "exclude": [
     "node_modules",
