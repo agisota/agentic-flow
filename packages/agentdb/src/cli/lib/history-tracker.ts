@@ -272,7 +272,13 @@ export class HistoryTracker {
 
       baseline = {
         ...currentRun,
-        metrics: avgMetrics
+        metrics: {
+          recall: 0,
+          latency: 0,
+          throughput: 0,
+          memoryUsage: 0,
+          ...avgMetrics
+        }
       };
     }
 
