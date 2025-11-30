@@ -16,6 +16,7 @@ WORKDIR /app
 # Install system dependencies for native modules
 RUN apk add --no-cache \
     python3 \
+    py3-setuptools \
     make \
     g++ \
     sqlite \
