@@ -254,6 +254,42 @@ export class GraphDatabaseAdapter {
   }
 
   /**
+   * Search for similar skills by embedding
+   */
+  async searchSkills(embedding: Float32Array, k: number = 10): Promise<SkillNode[]> {
+    // Use Cypher query to find similar skills
+    const result = await this.query(
+      `MATCH (s:Skill) RETURN s LIMIT ${k}`
+    );
+
+    return result.nodes.map(node => ({
+      id: node.id,
+      name: node.properties.name || '',
+      description: node.properties.description || '',
+      code: node.properties.code || '',
+      usageCount: parseInt(node.properties.usageCount) || 0,
+      avgReward: parseFloat(node.properties.avgReward) || 0,
+      createdAt: parseInt(node.properties.createdAt) || 0,
+      updatedAt: parseInt(node.properties.updatedAt) || 0,
+      tags: node.properties.tags
+    }));
+  }
+
+  /**
+   * Generic createNode method for graph traversal scenarios
+   */
+  async createNode(node: JsNode): Promise<string> {
+    return await this.db.createNode(node);
+  }
+
+  /**
+   * Generic createEdge method for graph traversal scenarios
+   */
+  async createEdge(edge: JsEdge): Promise<void> {
+    await this.db.createEdge(edge);
+  }
+
+  /**
    * Get graph statistics
    */
   async getStats() {

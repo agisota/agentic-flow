@@ -14,6 +14,8 @@ import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
 import type { LearningBackend } from '../backends/LearningBackend.js';
 import type { GraphBackend, GraphNode } from '../backends/GraphBackend.js';
+import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
+import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 
 export interface Episode {
   id?: number;
@@ -71,6 +73,81 @@ export class ReflexionMemory {
    * Store a new episode with its critique and outcome
    */
   async storeEpisode(episode: Episode): Promise<number> {
+    // Use GraphDatabaseAdapter if available (AgentDB v2)
+    if (this.graphBackend && 'storeEpisode' in this.graphBackend) {
+      // GraphDatabaseAdapter has specialized storeEpisode method
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
+
+      // Generate embedding for the task
+      const taskEmbedding = await this.embedder.embed(episode.task);
+
+      // Create episode node using GraphDatabaseAdapter
+      const nodeId = await graphAdapter.storeEpisode({
+        id: episode.id ? `episode-${episode.id}` : undefined,
+        sessionId: episode.sessionId,
+        task: episode.task,
+        reward: episode.reward,
+        success: episode.success,
+        input: episode.input,
+        output: episode.output,
+        critique: episode.critique,
+        createdAt: episode.ts ? episode.ts * 1000 : Date.now(),
+        tokensUsed: episode.tokensUsed,
+        latencyMs: episode.latencyMs
+      }, taskEmbedding);
+
+      // Return a numeric ID (parse from string ID)
+      const numericId = parseInt(nodeId.split('-').pop() || '0', 36);
+
+      // Register mapping for later use by CausalMemoryGraph
+      NodeIdMapper.getInstance().register(numericId, nodeId);
+
+      return numericId;
+    }
+
+    // Use generic GraphBackend if available
+    if (this.graphBackend) {
+      // Generate embedding for the task
+      const taskEmbedding = await this.embedder.embed(episode.task);
+
+      // Create episode node ID
+      const nodeId = await this.graphBackend.createNode(
+        ['Episode'],
+        {
+          sessionId: episode.sessionId,
+          task: episode.task,
+          input: episode.input || '',
+          output: episode.output || '',
+          critique: episode.critique || '',
+          reward: episode.reward,
+          success: episode.success,
+          latencyMs: episode.latencyMs || 0,
+          tokensUsed: episode.tokensUsed || 0,
+          tags: episode.tags ? JSON.stringify(episode.tags) : '[]',
+          metadata: episode.metadata ? JSON.stringify(episode.metadata) : '{}',
+          createdAt: Date.now()
+        }
+      );
+
+      // Store embedding using vectorBackend if available
+      if (this.vectorBackend && taskEmbedding) {
+        await this.vectorBackend.insert([{
+          id: nodeId,
+          vector: taskEmbedding,
+          metadata: { type: 'episode', sessionId: episode.sessionId }
+        }]);
+      }
+
+      // Return a numeric ID (parse from string ID)
+      const numericId = parseInt(nodeId.split('-').pop() || '0', 36);
+
+      // Register mapping for later use by CausalMemoryGraph
+      NodeIdMapper.getInstance().register(numericId, nodeId);
+
+      return numericId;
+    }
+
+    // Fallback to SQLite (v1 compatibility)
     const stmt = this.db.prepare(`
       INSERT INTO episodes (
         session_id, task, input, output, critique, reward, success,
@@ -153,6 +230,86 @@ export class ReflexionMemory {
     // Enhance query with GNN if learning backend available
     if (this.learningBackend) {
       queryEmbedding = await this.enhanceQueryWithGNN(queryEmbedding, k);
+    }
+
+    // Use GraphDatabaseAdapter if available (AgentDB v2)
+    if (this.graphBackend && 'searchSimilarEpisodes' in this.graphBackend) {
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
+
+      // Search using vector similarity
+      const results = await graphAdapter.searchSimilarEpisodes(queryEmbedding, k * 3);
+
+      // Apply filters
+      const filtered = results.filter((ep: any) => {
+        if (minReward !== undefined && ep.reward < minReward) return false;
+        if (onlyFailures && ep.success) return false;
+        if (onlySuccesses && !ep.success) return false;
+        if (timeWindowDays && ep.createdAt < (Date.now() - timeWindowDays * 86400000)) return false;
+        return true;
+      });
+
+      // Convert to EpisodeWithEmbedding format
+      const episodes: EpisodeWithEmbedding[] = filtered.slice(0, k).map((ep: any) => ({
+        id: parseInt(ep.id.split('-').pop() || '0', 36),
+        sessionId: ep.sessionId,
+        task: ep.task,
+        input: ep.input,
+        output: ep.output,
+        critique: ep.critique,
+        reward: ep.reward,
+        success: ep.success,
+        latencyMs: ep.latencyMs,
+        tokensUsed: ep.tokensUsed,
+        ts: Math.floor(ep.createdAt / 1000)
+      }));
+
+      return episodes;
+    }
+
+    // Use generic GraphBackend if available
+    if (this.graphBackend && 'execute' in this.graphBackend) {
+      // Build Cypher query with filters
+      let cypherQuery = 'MATCH (e:Episode) WHERE 1=1';
+
+      if (minReward !== undefined) {
+        cypherQuery += ` AND e.reward >= ${minReward}`;
+      }
+      if (onlyFailures) {
+        cypherQuery += ` AND e.success = false`;
+      }
+      if (onlySuccesses) {
+        cypherQuery += ` AND e.success = true`;
+      }
+      if (timeWindowDays) {
+        const cutoff = Date.now() - timeWindowDays * 86400000;
+        cypherQuery += ` AND e.createdAt >= ${cutoff}`;
+      }
+
+      cypherQuery += ` RETURN e LIMIT ${k * 3}`;
+
+      const result = await this.graphBackend.execute(cypherQuery);
+
+      // Convert to EpisodeWithEmbedding format
+      const episodes: EpisodeWithEmbedding[] = result.rows.map((row: any) => {
+        const node = row.e;
+        return {
+          id: parseInt(node.id.split('-').pop() || '0', 36),
+          sessionId: node.properties.sessionId,
+          task: node.properties.task,
+          input: node.properties.input,
+          output: node.properties.output,
+          critique: node.properties.critique,
+          reward: typeof node.properties.reward === 'string' ? parseFloat(node.properties.reward) : node.properties.reward,
+          success: typeof node.properties.success === 'string' ? node.properties.success === 'true' : node.properties.success,
+          latencyMs: node.properties.latencyMs,
+          tokensUsed: node.properties.tokensUsed,
+          tags: node.properties.tags ? JSON.parse(node.properties.tags) : [],
+          metadata: node.properties.metadata ? JSON.parse(node.properties.metadata) : {},
+          ts: Math.floor(node.properties.createdAt / 1000)
+        };
+      });
+
+      return episodes.slice(0, k);
     }
 
     // Use optimized vector backend if available (150x faster)

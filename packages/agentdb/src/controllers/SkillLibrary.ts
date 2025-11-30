@@ -12,6 +12,8 @@
 type Database = any;
 import { EmbeddingService } from './EmbeddingService.js';
 import { VectorBackend } from '../backends/VectorBackend.js';
+import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
+import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 
 export interface Skill {
   id?: number;
@@ -52,17 +54,44 @@ export class SkillLibrary {
   private db: Database;
   private embedder: EmbeddingService;
   private vectorBackend: VectorBackend | null;
+  private graphBackend?: any; // GraphBackend or GraphDatabaseAdapter
 
-  constructor(db: Database, embedder: EmbeddingService, vectorBackend?: VectorBackend) {
+  constructor(db: Database, embedder: EmbeddingService, vectorBackend?: VectorBackend, graphBackend?: any) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend || null;
+    this.graphBackend = graphBackend;
   }
 
   /**
    * Create a new skill manually or from an episode
    */
   async createSkill(skill: Skill): Promise<number> {
+    // Use GraphDatabaseAdapter if available (AgentDB v2)
+    if (this.graphBackend && 'storeSkill' in this.graphBackend) {
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
+
+      const text = this.buildSkillText(skill);
+      const embedding = await this.embedder.embed(text);
+
+      const nodeId = await graphAdapter.storeSkill({
+        id: skill.id ? `skill-${skill.id}` : undefined,
+        name: skill.name,
+        description: skill.description || '',
+        code: skill.code || '',
+        usageCount: skill.uses ?? 0,
+        avgReward: skill.avgReward ?? 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        tags: JSON.stringify(skill.metadata || {})
+      }, embedding);
+
+      const numericId = parseInt(nodeId.split('-').pop() || '0', 36);
+      NodeIdMapper.getInstance().register(numericId, nodeId);
+      return numericId;
+    }
+
+    // Fallback to SQLite
     const stmt = this.db.prepare(`
       INSERT INTO skills (
         name, description, signature, code, success_rate, uses,
@@ -149,6 +178,45 @@ export class SkillLibrary {
 
     // Generate query embedding
     const queryEmbedding = await this.embedder.embed(task);
+
+    // Use GraphDatabaseAdapter if available (AgentDB v2)
+    if (this.graphBackend && 'searchSkills' in this.graphBackend) {
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
+
+      const searchResults = await graphAdapter.searchSkills(queryEmbedding, k);
+
+      return searchResults.map(result => {
+        // Handle metadata/tags parsing
+        let metadata: any = undefined;
+        if (result.tags) {
+          if (typeof result.tags === 'string') {
+            // Skip parsing if it's a String object representation
+            if (!result.tags.startsWith('String(')) {
+              try {
+                metadata = JSON.parse(result.tags);
+              } catch (e) {
+                // Invalid JSON, skip
+                metadata = undefined;
+              }
+            }
+          } else {
+            // Already an object
+            metadata = result.tags;
+          }
+        }
+
+        return {
+          id: parseInt(result.id.split('-').pop() || '0', 36),
+          name: result.name,
+          description: result.description,
+          code: result.code,
+          successRate: result.avgReward, // Use avgReward as successRate proxy
+          uses: result.usageCount,
+          avgReward: result.avgReward,
+          metadata
+        };
+      }).filter(skill => skill.successRate >= minSuccessRate);
+    }
 
     // Use VectorBackend for semantic search (if available)
     if (this.vectorBackend) {
