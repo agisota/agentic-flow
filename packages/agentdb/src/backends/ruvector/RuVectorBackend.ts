@@ -38,19 +38,19 @@ export class RuVectorBackend implements VectorBackend {
 
     try {
       // Try main ruvector package first (includes core, gnn, graph)
-      let VectorDb;
+      let VectorDB;
       try {
         const ruvector = await import('ruvector');
-        VectorDb = ruvector.VectorDb || ruvector.default?.VectorDb || ruvector.default?.VectorDB;
+        VectorDB = ruvector.VectorDB || ruvector.default?.VectorDB;
       } catch {
         // Fallback to @ruvector/core for backward compatibility
         const core = await import('@ruvector/core');
-        // ESM exports as VectorDB (capital 'DB'), CommonJS as VectorDb (lowercase 'b')
-        VectorDb = core.VectorDb || core.default?.VectorDb || core.default?.VectorDB;
+        // ESM and CommonJS both export as VectorDB (capital 'DB')
+        VectorDB = core.VectorDB || core.default?.VectorDB;
       }
 
-      if (!VectorDb) {
-        throw new Error('Could not find VectorDb/VectorDB export in @ruvector/core');
+      if (!VectorDB) {
+        throw new Error('Could not find VectorDB export in @ruvector/core');
       }
 
       // Handle both 'dimension' and 'dimensions' for backward compatibility
@@ -59,8 +59,8 @@ export class RuVectorBackend implements VectorBackend {
         throw new Error('Vector dimension is required (use dimension or dimensions)');
       }
 
-      // RuVector VectorDb constructor signature
-      this.db = new VectorDb({
+      // RuVector VectorDB constructor signature
+      this.db = new VectorDB({
         dimensions: dimensions,  // Note: config object, not positional arg
         metric: this.config.metric,
         maxElements: this.config.maxElements || 100000,
