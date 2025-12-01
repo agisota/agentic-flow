@@ -9,6 +9,11 @@
  * - Reinforcement learning (9 algorithms)
  */
 
+// Main AgentDB class
+export { AgentDB } from './core/AgentDB.js';
+import { AgentDB as AgentDBClass } from './core/AgentDB.js';
+export default AgentDBClass;
+
 // Core controllers
 export { CausalMemoryGraph } from './controllers/CausalMemoryGraph.js';
 export { CausalRecall } from './controllers/CausalRecall.js';
