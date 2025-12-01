@@ -38,18 +38,19 @@ export class RuVectorBackend implements VectorBackend {
 
     try {
       // Try main ruvector package first (includes core, gnn, graph)
-      let VectorDb;  // Note: lowercase 'b' - this is the correct export name
+      let VectorDb;
       try {
         const ruvector = await import('ruvector');
-        VectorDb = ruvector.VectorDb || ruvector.default?.VectorDb;
+        VectorDb = ruvector.VectorDb || ruvector.default?.VectorDb || ruvector.default?.VectorDB;
       } catch {
         // Fallback to @ruvector/core for backward compatibility
         const core = await import('@ruvector/core');
-        VectorDb = core.VectorDb || core.default?.VectorDb || core.default;
+        // ESM exports as VectorDB (capital 'DB'), CommonJS as VectorDb (lowercase 'b')
+        VectorDb = core.VectorDb || core.default?.VectorDb || core.default?.VectorDB;
       }
 
       if (!VectorDb) {
-        throw new Error('Could not find VectorDb export in @ruvector/core');
+        throw new Error('Could not find VectorDb/VectorDB export in @ruvector/core');
       }
 
       // Handle both 'dimension' and 'dimensions' for backward compatibility
