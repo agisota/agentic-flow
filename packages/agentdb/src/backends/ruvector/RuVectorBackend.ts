@@ -22,7 +22,12 @@ export class RuVectorBackend implements VectorBackend {
   private initialized = false;
 
   constructor(config: VectorConfig) {
-    this.config = config;
+    // Handle both dimension and dimensions for backward compatibility
+    const dimension = config.dimension ?? config.dimensions;
+    if (!dimension) {
+      throw new Error('Vector dimension is required (use dimension or dimensions)');
+    }
+    this.config = { ...config, dimension };
   }
 
   /**
