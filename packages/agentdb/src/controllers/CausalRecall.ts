@@ -149,7 +149,7 @@ export class CausalRecall {
     k: number
   ): Promise<Array<{ id: string; type: string; content: string; similarity: number; latencyMs: number }>> {
     // Use optimized vector backend if available (100x faster)
-    if (this.vectorBackend) {
+    if (this.vectorBackend && typeof this.vectorBackend.search === 'function') {
       const searchResults = this.vectorBackend.search(queryEmbedding, k, {
         threshold: 0.0
       });
