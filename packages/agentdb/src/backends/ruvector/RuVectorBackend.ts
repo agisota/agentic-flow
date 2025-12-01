@@ -27,7 +27,8 @@ export class RuVectorBackend implements VectorBackend {
     if (!dimension) {
       throw new Error('Vector dimension is required (use dimension or dimensions)');
     }
-    this.config = { ...config, dimension };
+    // Store both forms for compatibility with different backends
+    this.config = { ...config, dimension, dimensions: dimension };
   }
 
   /**
