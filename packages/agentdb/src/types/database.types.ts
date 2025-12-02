@@ -59,26 +59,6 @@ export interface IRunResult {
 }
 
 /**
- * Transaction interface for atomic operations
- */
-export interface ITransaction {
-  /**
-   * Begin a transaction
-   */
-  begin(): void;
-
-  /**
-   * Commit the transaction
-   */
-  commit(): void;
-
-  /**
-   * Rollback the transaction
-   */
-  rollback(): void;
-}
-
-/**
  * Database connection interface
  *
  * Abstracts over both better-sqlite3 and sql.js backends
@@ -148,9 +128,11 @@ export interface IDatabaseConnection {
   close(): void;
 
   /**
-   * Transaction support (if available)
+   * Transaction support (better-sqlite3 style)
+   * Creates a transaction wrapper function
+   * Note: Exact signature depends on database backend
    */
-  transaction?: ITransaction;
+  transaction?: any;
 
   /**
    * Check if database is in-memory (sql.js)
