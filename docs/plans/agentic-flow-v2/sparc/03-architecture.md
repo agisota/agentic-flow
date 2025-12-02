@@ -41,6 +41,16 @@ Agentic-Flow v2.0 is designed as a modular, distributed, self-learning AI agent 
 │  │  Causal        │  │  Pattern       │  │  Transfer      │       │
 │  │  Reasoning     │  │  Recognition   │  │  Learning      │       │
 │  └────────────────┘  └────────────────┘  └────────────────┘       │
+│                                                                      │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐       │
+│  │  Reflexion     │  │  Skill         │  │  Nightly       │       │
+│  │  Memory        │  │  Library       │  │  Learner       │       │
+│  └────────────────┘  └────────────────┘  └────────────────┘       │
+│                                                                      │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐       │
+│  │  MMR Diversity │  │  Context       │  │  Enhanced      │       │
+│  │  Ranker        │  │  Synthesizer   │  │  Embeddings    │       │
+│  └────────────────┘  └────────────────┘  └────────────────┘       │
 └─────────────────────────────────────────────────────────────────────┘
            │                 │                 │
            ▼                 ▼                 ▼
@@ -48,13 +58,18 @@ Agentic-Flow v2.0 is designed as a modular, distributed, self-learning AI agent 
 │                    Memory & Storage Layer                            │
 │                                                                      │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐       │
-│  │  AgentDB       │  │  Graph         │  │  Vector        │       │
-│  │  (Unified)     │  │  Database      │  │  Search        │       │
+│  │  AgentDB v2    │  │  @ruvector/    │  │  Vector        │       │
+│  │  (Unified API) │  │  graph-node    │  │  Search (HNSW) │       │
 │  └────────────────┘  └────────────────┘  └────────────────┘       │
 │                                                                      │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐       │
-│  │  Skill Library │  │  Causal Graph  │  │  Reflexion     │       │
-│  │  Storage       │  │  Memory        │  │  Memory        │       │
+│  │  @ruvector/    │  │  Causal        │  │  Metadata      │       │
+│  │  core (Engine) │  │  Memory Graph  │  │  Filter        │       │
+│  └────────────────┘  └────────────────┘  └────────────────┘       │
+│                                                                      │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐       │
+│  │  IndexedDB     │  │  WASM Vector   │  │  Semantic      │       │
+│  │  (Browser)     │  │  Search        │  │  Router        │       │
 │  └────────────────┘  └────────────────┘  └────────────────┘       │
 └─────────────────────────────────────────────────────────────────────┘
            │                 │                 │
