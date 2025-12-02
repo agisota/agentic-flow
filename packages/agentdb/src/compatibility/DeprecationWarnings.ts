@@ -11,13 +11,13 @@ import * as fs from 'fs';
 export class DeprecationWarnings {
   private warnings: string[] = [];
   private seenAPIs: Set<string> = new Set();
-  private config: Required<DeprecationConfig>;
+  private config: Omit<Required<DeprecationConfig>, 'logToFile'> & { logToFile?: string };
 
   constructor(config: DeprecationConfig = {}) {
     this.config = {
       emitWarnings: config.emitWarnings ?? true,
       throwOnDeprecated: config.throwOnDeprecated ?? false,
-      logToFile: config.logToFile ?? undefined,
+      logToFile: config.logToFile,
       severity: config.severity ?? 'soft'
     };
   }
