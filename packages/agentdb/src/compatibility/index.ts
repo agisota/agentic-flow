@@ -21,7 +21,9 @@ export type {
   VersionDetectionResult
 } from './types';
 
-// Re-export convenience function for quick migration analysis
+// Re-export convenience functions for quick migration analysis
+import { MigrationUtilities } from './MigrationUtilities';
+
 export const analyzeMigration = (code: string) => {
   return MigrationUtilities.analyzeCode(code);
 };
