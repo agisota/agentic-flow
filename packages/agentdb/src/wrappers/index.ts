@@ -48,36 +48,15 @@ export {
   type EpisodeSearchOptions,
 } from './agentdb-fast.js';
 
-// Native attention exports (Rust implementations with TypedArray support)
-export {
-  MultiHeadAttention as NativeMultiHeadAttention,
-  FlashAttention as NativeFlashAttention,
-  LinearAttention as NativeLinearAttention,
-  HyperbolicAttention as NativeHyperbolicAttention,
-  MoEAttention as NativeMoEAttention,
-  scaledDotProductAttention,
-  isNativeAttentionAvailable,
-  createAttention as createNativeAttention,
-} from './attention-native.js';
-
-// Attention fallbacks exports (JavaScript implementations)
-export {
-  MultiHeadAttention as FallbackMultiHeadAttention,
-  FlashAttention as FallbackFlashAttention,
-  LinearAttention as FallbackLinearAttention,
-  HyperbolicAttention as FallbackHyperbolicAttention,
-  MoEAttention as FallbackMoEAttention,
-  type AttentionConfig,
-} from './attention-fallbacks.js';
-
-// Default exports (try native first, fall back to JS)
+// Attention fallbacks exports
 export {
   MultiHeadAttention,
   FlashAttention,
   LinearAttention,
   HyperbolicAttention,
   MoEAttention,
-} from './attention-native.js';
+  type AttentionConfig,
+} from './attention-fallbacks.js';
 
 // Embedding service exports
 export {
@@ -130,9 +109,9 @@ export function getWrapperPerformance(wrapper: string): {
       status: 'verified',
     },
     attention: {
-      speedup: 'Native Rust (fixed)',
-      latency: '0.7-5.4ms (native)',
-      status: 'verified',
+      speedup: 'N/A (native broken)',
+      latency: '10-50ms (JS fallback)',
+      status: 'fallback',
     },
     embedding: {
       speedup: 'N/A',

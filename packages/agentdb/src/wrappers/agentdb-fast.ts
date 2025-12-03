@@ -5,7 +5,7 @@
  * Eliminates 2.3s overhead from process spawning and transformers.js init
  */
 
-import { AgentDB } from 'agentdb';
+import { AgentDB } from '../core/AgentDB.js';
 import { EventEmitter } from 'events';
 
 export interface Episode {
@@ -86,15 +86,14 @@ export class AgentDBFast extends EventEmitter {
     if (this.initialized) return;
 
     try {
-      // Create AgentDB instance
+      // Create AgentDB instance (dimensions are set via vector backend, not constructor)
       this.db = new AgentDB({
-        path: this.config.path,
-        dimensions: this.config.vectorDimensions
+        dbPath: this.config.path
       });
 
       await this.db.initialize();
 
-      // Access the vector backend as a direct property
+      // Access the vector backend directly (it's a property, not a method)
       if (this.db.vectorBackend) {
         this.backend = this.db.vectorBackend;
       } else {

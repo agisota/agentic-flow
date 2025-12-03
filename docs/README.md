@@ -21,6 +21,8 @@ Detailed documentation for each major feature:
 - **[Multi-Model Router](features/router/README.md)** - Intelligent model selection
 
 ### 📖 User Guides
+- **[Quick Start](guides/getting-started/quick-start.md)** - Get started quickly with agentic-flow
+- **[Migration Guide](guides/getting-started/migration-guide.md)** - Migrate from previous versions
 - **[MCP Integration](guides/mcp/README.md)** - Model Context Protocol setup and usage
 - **[Deployment](deployment/README.md)** - Production deployment guides
 - **[Implementation](implementation/README.md)** - Technical implementation guides
@@ -35,20 +37,24 @@ System architecture and design documentation:
 - [Integration Status](architecture/INTEGRATION-STATUS.md)
 
 ### 🔧 API Reference
+- **[API Reference](api/api-reference.md)** - Complete API documentation
 - **[MCP Tools](api/mcp-tools/README.md)** - Available MCP tools and usage
 - **[CLI Reference](api/cli/README.md)** - Command-line interface documentation
 
 ### 👨‍💻 Development
 Resources for contributors and integrators:
 
+- **[Contributing](development/CONTRIBUTING.md)** - Contribution guidelines
+- **[Fixes](fixes/README.md)** - Bug fixes and issue resolutions
+- **[Training](training/README.md)** - SONA training guides and best practices
 - **[Integrations](development/integrations/README.md)** - Third-party integrations
 - **[Testing](development/testing/README.md)** - Testing guides and frameworks
-- **[Contributing](development/contributing/README.md)** - Contribution guidelines
 - **[Healthcare](healthcare/README.md)** - Medical system implementations
 - **[Economics](economics/README.md)** - Economic system design
 - **[Optimization](optimization/README.md)** - Performance optimization
 
 ### 📦 Releases & Publications
+- **[Publishing](publishing/README.md)** - Package publishing and distribution documentation
 - **[Publications](releases/publications/README.md)** - Alpha/production release summaries
 - **[Current Releases](releases/current/README.md)** - Active release documentation
 - **[Release Archive](releases/archive/README.md)** - Historical releases
@@ -66,6 +72,8 @@ Resources for contributors and integrators:
 - **[SONA Integration](integration/sona/README.md)** - Self-Optimizing Neural Architecture
 
 ### ⚡ Optimization & Performance
+- **[Performance](performance/README.md)** - Benchmark results and verification reports
+- **[Benchmarks](performance/benchmarks.md)** - Comprehensive benchmark documentation
 - **[Performance Benchmarks](optimization/benchmarks/README.md)** - Benchmark results and reports
 - **[Optimization Reports](optimization/performance/README.md)** - Performance optimization
 
@@ -84,6 +92,7 @@ Resources for contributors and integrators:
 
 ### 📋 Archive
 - **[Archived Documentation](archived/README.md)** - Historical and deprecated docs
+- **[Reorganization History](archived/REORGANIZATION_2025.md)** - Documentation reorganization records
 
 ## 🔍 Quick Reference
 
@@ -99,12 +108,13 @@ Resources for contributors and integrators:
 4. **Model selection**: [Multi-Model Router](features/router/README.md)
 
 ## 📊 Statistics
-- **Total Files**: 241 markdown files
-- **Size**: 3.9MB of documentation
-- **Last Updated**: 2025-10-31
+- **Total Files**: 241+ markdown files
+- **Size**: 3.9MB+ of documentation
+- **Last Updated**: 2025-12-03
+- **New Organization**: 4 new subdirectories (fixes, performance, training, publishing)
 
 ## 🤝 Contributing
-See [Contributing Guide](development/contributing/README.md) for information on:
+See [Contributing Guide](development/CONTRIBUTING.md) for information on:
 - Documentation standards
 - How to update docs
 - Creating new guides

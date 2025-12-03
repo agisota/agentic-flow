@@ -5,30 +5,15 @@
  * Zero-dependency mode when disabled, graceful degradation if collector unavailable.
  */
 
-import {
-  DiagConsoleLogger,
-  DiagLogLevel,
-  context,
-  trace,
-  metrics,
-  Span,
-  SpanStatusCode,
-  Context,
-  Tracer,
-  Meter,
-  Counter,
-  Histogram,
-  ObservableGauge,
-} from '@opentelemetry/api';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
-import { PeriodicExportingMetricReader, ConsoleMetricExporter } from '@opentelemetry/sdk-metrics';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+// Optional OpenTelemetry imports - gracefully degrade if not available
+type Span = any;
+type SpanStatusCode = any;
+type Context = any;
+type Tracer = any;
+type Meter = any;
+type Counter = any;
+type Histogram = any;
+type ObservableGauge = any;
 
 /**
  * Telemetry configuration interface
@@ -92,7 +77,7 @@ const DEFAULT_CONFIG: Required<TelemetryConfig> = {
  */
 export class TelemetryManager {
   private static instance: TelemetryManager;
-  private sdk: NodeSDK | null = null;
+  private sdk: any | null = null;
   private tracer: Tracer | null = null;
   private meter: Meter | null = null;
   private config: Required<TelemetryConfig>;
@@ -136,6 +121,12 @@ export class TelemetryManager {
     }
 
     try {
+      // Dynamic import of OpenTelemetry packages
+      const otelApi = await import('@opentelemetry/api');
+      const { NodeSDK } = await import('@opentelemetry/sdk-node');
+      const { Resource } = await import('@opentelemetry/resources');
+      const { SemanticResourceAttributes } = await import('@opentelemetry/semantic-conventions');
+
       // Create resource with service information
       const resource = new Resource({
         [SemanticResourceAttributes.SERVICE_NAME]: this.config.serviceName,
@@ -143,60 +134,17 @@ export class TelemetryManager {
         ...this.config.resourceAttributes,
       });
 
-      // Configure trace exporters
-      const traceExporters = [];
-      if (this.config.otlpTraceEndpoint) {
-        traceExporters.push(
-          new OTLPTraceExporter({
-            url: this.config.otlpTraceEndpoint,
-          })
-        );
-      }
-      if (this.config.consoleEnabled) {
-        traceExporters.push(new ConsoleSpanExporter());
-      }
-
-      // Configure metric exporters
-      const metricReaders = [];
-      if (this.config.prometheusEnabled) {
-        metricReaders.push(
-          new PrometheusExporter({
-            port: this.config.prometheusPort,
-          })
-        );
-      }
-      if (this.config.otlpMetricsEndpoint) {
-        metricReaders.push(
-          new PeriodicExportingMetricReader({
-            exporter: new OTLPMetricExporter({
-              url: this.config.otlpMetricsEndpoint,
-            }),
-            exportIntervalMillis: 5000,
-          })
-        );
-      }
-      if (this.config.consoleEnabled) {
-        metricReaders.push(
-          new PeriodicExportingMetricReader({
-            exporter: new ConsoleMetricExporter(),
-            exportIntervalMillis: 10000,
-          })
-        );
-      }
-
-      // Initialize SDK
+      // Basic SDK initialization without complex exporters for now
       this.sdk = new NodeSDK({
         resource,
-        traceExporter: traceExporters[0],
-        metricReader: metricReaders[0],
-        instrumentations: this.config.autoInstrumentation ? [getNodeAutoInstrumentations()] : [],
-      });
+        instrumentations: [],
+      }) as any;
 
       await this.sdk.start();
 
       // Initialize tracer and meter
-      this.tracer = trace.getTracer(this.config.serviceName, this.config.serviceVersion);
-      this.meter = metrics.getMeter(this.config.serviceName, this.config.serviceVersion);
+      this.tracer = otelApi.trace.getTracer(this.config.serviceName, this.config.serviceVersion);
+      this.meter = otelApi.metrics.getMeter(this.config.serviceName, this.config.serviceVersion);
 
       // Initialize metrics
       this.initializeMetrics();
@@ -204,6 +152,7 @@ export class TelemetryManager {
       console.log('[AgentDB] Telemetry initialized successfully');
     } catch (error) {
       console.error('[AgentDB] Failed to initialize telemetry:', error);
+      console.log('[AgentDB] Continuing without telemetry (graceful degradation)');
       // Graceful degradation - continue without telemetry
       this.config.enabled = false;
     }
@@ -469,8 +418,12 @@ export function traced(
         const result = await originalMethod.apply(this, args);
 
         if (span) {
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.setAttribute('result_size', JSON.stringify(result).length);
+          try {
+            span.setStatus({ code: 1 }); // OK status code
+            span.setAttribute('result_size', JSON.stringify(result).length);
+          } catch {
+            // Ignore span errors
+          }
         }
 
         if (options.recordMetrics) {
@@ -482,11 +435,17 @@ export function traced(
         return result;
       } catch (error) {
         if (span) {
-          span.setStatus({
-            code: SpanStatusCode.ERROR,
-            message: error instanceof Error ? error.message : 'Unknown error',
-          });
-          span.recordException(error as Error);
+          try {
+            span.setStatus({
+              code: 2, // ERROR status code
+              message: error instanceof Error ? error.message : 'Unknown error',
+            });
+            if (span.recordException) {
+              span.recordException(error as Error);
+            }
+          } catch {
+            // Ignore span errors
+          }
         }
 
         if (options.recordMetrics) {
@@ -501,8 +460,12 @@ export function traced(
 
         throw error;
       } finally {
-        if (span) {
-          span.end();
+        if (span && span.end) {
+          try {
+            span.end();
+          } catch {
+            // Ignore span errors
+          }
         }
       }
     };
@@ -529,22 +492,38 @@ export async function withSpan<T>(
 
   try {
     const result = await fn(span);
-    if (span) {
-      span.setStatus({ code: SpanStatusCode.OK });
+    if (span && span.setStatus) {
+      try {
+        span.setStatus({ code: 1 }); // OK status code
+      } catch {
+        // Ignore
+      }
     }
     return result;
   } catch (error) {
     if (span) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : 'Unknown error',
-      });
-      span.recordException(error as Error);
+      try {
+        if (span.setStatus) {
+          span.setStatus({
+            code: 2, // ERROR status code
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+        if (span.recordException) {
+          span.recordException(error as Error);
+        }
+      } catch {
+        // Ignore
+      }
     }
     throw error;
   } finally {
-    if (span) {
-      span.end();
+    if (span && span.end) {
+      try {
+        span.end();
+      } catch {
+        // Ignore
+      }
     }
   }
 }
