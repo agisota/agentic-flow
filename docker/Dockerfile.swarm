@@ -30,7 +30,7 @@ WORKDIR /app
 # Copy application
 COPY agentic-flow ./agentic-flow
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Create coordination directories
 RUN mkdir -p /app/data/swarm /app/data/memory && \

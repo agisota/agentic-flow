@@ -20,7 +20,7 @@ FROM base AS dependencies
 
 COPY package*.json ./
 COPY agentic-flow/package*.json ./agentic-flow/
-RUN npm ci --only=production --ignore-scripts
+RUN npm install --omit=dev --ignore-scripts
 
 # =============================================================================
 # Production Stage
