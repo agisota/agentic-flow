@@ -93,7 +93,7 @@ jobs:
           npm run benchmark:report
 
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.sha }}
           path: |
@@ -103,7 +103,7 @@ jobs:
           retention-days: 90
 
       - name: Upload HTML Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-report-${{ github.sha }}
           path: benchmarks/reports/benchmark-report.html
@@ -185,7 +185,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download benchmark results
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: benchmark-results-${{ github.sha }}
           path: benchmarks/data
