@@ -9,6 +9,54 @@
 
 import { getOptimizedEmbedder, cosineSimilarity, euclideanDistance } from './optimized-embedder.js';
 
+// ============================================================================
+// Security Constants
+// ============================================================================
+
+const MAX_TEXT_LENGTH = 10000;      // Maximum input text length
+const MAX_MEMORIES = 10000;          // Maximum memories in MemoryPhysics
+const MAX_AGENTS = 1000;             // Maximum agents in swarm
+const MAX_BASELINE_SAMPLES = 1000;   // Maximum calibration samples
+const MAX_HISTORY_SIZE = 100;        // Maximum drift history
+const VALID_ID_PATTERN = /^[a-zA-Z0-9_-]{1,256}$/;
+
+// ============================================================================
+// Security Validation Functions
+// ============================================================================
+
+/**
+ * Validate text input length
+ */
+function validateTextInput(text: string, context: string): void {
+  if (!text || typeof text !== 'string') {
+    throw new Error(`${context}: Input must be a non-empty string`);
+  }
+  if (text.length > MAX_TEXT_LENGTH) {
+    throw new Error(`${context}: Text exceeds maximum length of ${MAX_TEXT_LENGTH} characters`);
+  }
+}
+
+/**
+ * Validate ID format
+ */
+function validateId(id: string, context: string): void {
+  if (!id || typeof id !== 'string') {
+    throw new Error(`${context}: ID must be a non-empty string`);
+  }
+  if (!VALID_ID_PATTERN.test(id)) {
+    throw new Error(`${context}: Invalid ID format. Use 1-256 alphanumeric characters, underscores, or hyphens`);
+  }
+}
+
+/**
+ * Validate array is not null and has expected dimension
+ */
+function validateEmbedding(arr: Float32Array | null, context: string): asserts arr is Float32Array {
+  if (!arr) {
+    throw new Error(`${context}: Not initialized. Call the appropriate setup method first.`);
+  }
+}
+
 // Types matching ruvector's neural-embeddings
 export interface DriftResult {
   distance: number;
@@ -77,6 +125,8 @@ export class SemanticDriftDetector {
   }
 
   async setBaseline(context: string) {
+    validateTextInput(context, 'SemanticDriftDetector.setBaseline');
+
     this.baseline = await this.embedder.embed(context);
     this.history = [{ embedding: this.baseline, timestamp: Date.now() }];
     this.velocity = new Float32Array(this.baseline.length).fill(0);
@@ -84,8 +134,11 @@ export class SemanticDriftDetector {
   }
 
   async detect(input: string): Promise<DriftResult> {
+    validateTextInput(input, 'SemanticDriftDetector.detect');
+    validateEmbedding(this.baseline, 'SemanticDriftDetector.detect');
+
     const current = await this.embedder.embed(input);
-    const distance = 1 - cosineSimilarity(this.baseline!, current);
+    const distance = 1 - cosineSimilarity(this.baseline, current);
 
     // Calculate velocity (change in position)
     const prev = this.history[this.history.length - 1]?.embedding || this.baseline!;
@@ -127,7 +180,9 @@ export class SemanticDriftDetector {
   }
 
   getStats(): { avgDrift: number; maxDrift: number; driftEvents: number } {
-    if (this.history.length < 2) return { avgDrift: 0, maxDrift: 0, driftEvents: 0 };
+    if (!this.baseline || this.history.length < 2) {
+      return { avgDrift: 0, maxDrift: 0, driftEvents: 0 };
+    }
 
     const drifts = this.history.map(h => 1 - cosineSimilarity(this.baseline!, h.embedding));
     const avgDrift = drifts.reduce((a, b) => a + b, 0) / drifts.length;
@@ -158,6 +213,14 @@ export class MemoryPhysics {
   }
 
   async store(id: string, content: string): Promise<{ stored: boolean; interference: string[] }> {
+    validateId(id, 'MemoryPhysics.store');
+    validateTextInput(content, 'MemoryPhysics.store');
+
+    // Security: Enforce memory limit
+    if (this.memories.size >= MAX_MEMORIES && !this.memories.has(id)) {
+      throw new Error(`Memory capacity exceeded (max: ${MAX_MEMORIES}). Call consolidate() to free space.`);
+    }
+
     const embedding = await this.embedder.embed(content);
     const interference: string[] = [];
 
@@ -185,6 +248,8 @@ export class MemoryPhysics {
   }
 
   async recall(query: string, topK = 5): Promise<Array<MemoryEntry & { relevance: number }>> {
+    validateTextInput(query, 'MemoryPhysics.recall');
+
     const queryEmb = await this.embedder.embed(query);
     this.applyDecay();
 
@@ -304,6 +369,14 @@ export class EmbeddingStateMachine {
   }
 
   async registerAgent(id: string, initialRole: string): Promise<AgentState> {
+    validateId(id, 'EmbeddingStateMachine.registerAgent');
+    validateTextInput(initialRole, 'EmbeddingStateMachine.registerAgent');
+
+    // Security: Enforce agent limit
+    if (this.agents.size >= MAX_AGENTS && !this.agents.has(id)) {
+      throw new Error(`Agent capacity exceeded (max: ${MAX_AGENTS})`);
+    }
+
     const position = await this.embedder.embed(initialRole);
     const state: AgentState = {
       id,
@@ -323,8 +396,11 @@ export class EmbeddingStateMachine {
     nearestRegion: string;
     regionProximity: number;
   }> {
+    validateId(agentId, 'EmbeddingStateMachine.updateState');
+    validateTextInput(observation, 'EmbeddingStateMachine.updateState');
+
     const agent = this.agents.get(agentId);
-    if (!agent) throw new Error(`Agent ${agentId} not found`);
+    if (!agent) throw new Error('Agent not found or access denied');
 
     const obsEmb = await this.embedder.embed(observation);
 
@@ -396,6 +472,9 @@ export class SwarmCoordinator {
   }
 
   async addAgent(id: string, role: string) {
+    validateId(id, 'SwarmCoordinator.addAgent');
+    validateTextInput(role, 'SwarmCoordinator.addAgent');
+
     return this.stateMachine.registerAgent(id, role);
   }
 
@@ -508,6 +587,22 @@ export class CoherenceMonitor {
   }
 
   async calibrate(goodOutputs: string[]): Promise<{ calibrated: boolean; sampleCount: number }> {
+    // Security: Validate input array
+    if (!Array.isArray(goodOutputs)) {
+      throw new Error('CoherenceMonitor.calibrate: goodOutputs must be an array');
+    }
+    if (goodOutputs.length === 0) {
+      throw new Error('CoherenceMonitor.calibrate: At least one sample is required');
+    }
+    if (goodOutputs.length > MAX_BASELINE_SAMPLES) {
+      throw new Error(`CoherenceMonitor.calibrate: Sample count exceeds maximum of ${MAX_BASELINE_SAMPLES}`);
+    }
+
+    // Validate each sample
+    for (const output of goodOutputs) {
+      validateTextInput(output, 'CoherenceMonitor.calibrate');
+    }
+
     this.baseline = await this.embedder.embedBatch(goodOutputs);
     const dim = this.baseline[0].length;
 
@@ -531,7 +626,8 @@ export class CoherenceMonitor {
   }
 
   async check(output: string): Promise<CoherenceResult> {
-    if (!this.centroid) throw new Error('Monitor not calibrated');
+    validateTextInput(output, 'CoherenceMonitor.check');
+    validateEmbedding(this.centroid, 'CoherenceMonitor.check (call calibrate() first)');
 
     const outputEmb = await this.embedder.embed(output);
     const warnings: string[] = [];

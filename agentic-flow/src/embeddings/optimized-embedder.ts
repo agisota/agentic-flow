@@ -11,8 +11,17 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve, normalize } from 'path';
 import { homedir } from 'os';
+import { createHash } from 'crypto';
+
+// ============================================================================
+// Security Constants
+// ============================================================================
+
+const MAX_TEXT_LENGTH = 10000; // 10KB limit per text
+const MAX_BATCH_SIZE = 100;   // Maximum batch size
+const VALID_MODEL_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
 
 // ============================================================================
 // Configuration
@@ -34,18 +43,20 @@ export const DEFAULT_CONFIG: EmbedderConfig = {
   autoDownload: true
 };
 
-// Model registry with download URLs
+// Model registry with download URLs and integrity checksums
 const MODEL_REGISTRY: Record<string, {
   url: string;
   dimension: number;
   size: string;
   quantized?: boolean;
+  sha256?: string; // Optional integrity checksum
 }> = {
   'all-MiniLM-L6-v2': {
     url: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model_quantized.onnx',
     dimension: 384,
     size: '23MB',
     quantized: true
+    // sha256: 'to-be-computed-on-first-download'
   },
   'all-MiniLM-L6-v2-full': {
     url: 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx',
@@ -65,6 +76,76 @@ const MODEL_REGISTRY: Record<string, {
     quantized: true
   }
 };
+
+// ============================================================================
+// Security Validation Functions
+// ============================================================================
+
+/**
+ * Validate model ID format and existence in registry
+ * Prevents path traversal attacks
+ */
+function validateModelId(modelId: string): void {
+  if (!modelId || typeof modelId !== 'string') {
+    throw new Error('Model ID must be a non-empty string');
+  }
+  if (!VALID_MODEL_ID_PATTERN.test(modelId)) {
+    throw new Error(`Invalid model ID format: ${modelId}. Only alphanumeric, dots, hyphens, and underscores allowed.`);
+  }
+  if (!(modelId in MODEL_REGISTRY)) {
+    throw new Error(`Unknown model: ${modelId}. Available: ${Object.keys(MODEL_REGISTRY).join(', ')}`);
+  }
+}
+
+/**
+ * Validate text input length
+ * Prevents memory exhaustion attacks
+ */
+function validateTextInput(text: string): void {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Text input must be a non-empty string');
+  }
+  if (text.length > MAX_TEXT_LENGTH) {
+    throw new Error(`Text exceeds maximum length of ${MAX_TEXT_LENGTH} characters`);
+  }
+}
+
+/**
+ * Validate batch size
+ * Prevents CPU exhaustion attacks
+ */
+function validateBatchSize(texts: string[]): void {
+  if (!Array.isArray(texts)) {
+    throw new Error('Batch input must be an array');
+  }
+  if (texts.length > MAX_BATCH_SIZE) {
+    throw new Error(`Batch size ${texts.length} exceeds maximum of ${MAX_BATCH_SIZE}`);
+  }
+}
+
+/**
+ * Validate target directory is safe
+ * Prevents writing outside intended directories
+ */
+function validateTargetDir(targetDir: string, modelId: string): string {
+  const normalizedDir = normalize(resolve(targetDir));
+  const modelPath = join(normalizedDir, `${modelId}.onnx`);
+  const resolvedPath = normalize(resolve(modelPath));
+
+  // Ensure the resolved path starts with the target directory
+  if (!resolvedPath.startsWith(normalizedDir)) {
+    throw new Error('Path traversal detected: model path escapes target directory');
+  }
+
+  return resolvedPath;
+}
+
+/**
+ * Compute SHA256 hash of buffer
+ */
+function computeSha256(buffer: Uint8Array): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
 
 // ============================================================================
 // LRU Cache (FNV-1a hash, optimized for embeddings)
@@ -244,12 +325,13 @@ export async function downloadModel(
   targetDir: string,
   onProgress?: (progress: DownloadProgress) => void
 ): Promise<string> {
-  const modelInfo = MODEL_REGISTRY[modelId];
-  if (!modelInfo) {
-    throw new Error(`Unknown model: ${modelId}. Available: ${Object.keys(MODEL_REGISTRY).join(', ')}`);
-  }
+  // Security: Validate model ID before any file operations
+  validateModelId(modelId);
 
-  const modelPath = join(targetDir, `${modelId}.onnx`);
+  const modelInfo = MODEL_REGISTRY[modelId];
+
+  // Security: Validate target path to prevent path traversal
+  const modelPath = validateTargetDir(targetDir, modelId);
 
   // Check if already downloaded
   if (existsSync(modelPath)) {
@@ -257,12 +339,17 @@ export async function downloadModel(
     return modelPath;
   }
 
-  // Create directory
-  mkdirSync(targetDir, { recursive: true });
+  // Create directory with restricted permissions
+  mkdirSync(targetDir, { recursive: true, mode: 0o700 });
 
   console.log(`Downloading ${modelId} (${modelInfo.size})...`);
 
   try {
+    // Security: Enforce HTTPS for all model downloads
+    if (!modelInfo.url.startsWith('https://')) {
+      throw new Error('Only HTTPS URLs are allowed for model downloads');
+    }
+
     const response = await fetch(modelInfo.url);
     if (!response.ok) {
       throw new Error(`Failed to download: ${response.statusText}`);
@@ -304,19 +391,30 @@ export async function downloadModel(
       offset += chunk.length;
     }
 
-    // Write to file
-    writeFileSync(modelPath, buffer);
+    // Security: Verify integrity if checksum is available
+    const actualHash = computeSha256(buffer);
+    if (modelInfo.sha256 && actualHash !== modelInfo.sha256) {
+      throw new Error(
+        `Integrity check failed for ${modelId}. ` +
+        `Expected: ${modelInfo.sha256}, Got: ${actualHash}. ` +
+        'The downloaded model may be corrupted or tampered with.'
+      );
+    }
+
+    // Write to file with restricted permissions
+    writeFileSync(modelPath, buffer, { mode: 0o600 });
     console.log(`Downloaded ${modelId} to ${modelPath}`);
 
-    // Save metadata
+    // Save metadata including computed hash for future verification
     const metaPath = join(targetDir, `${modelId}.meta.json`);
     writeFileSync(metaPath, JSON.stringify({
       modelId,
       dimension: modelInfo.dimension,
       quantized: modelInfo.quantized || false,
       downloadedAt: new Date().toISOString(),
-      size: totalLength
-    }, null, 2));
+      size: totalLength,
+      sha256: actualHash // Store hash for future integrity checks
+    }, null, 2), { mode: 0o600 });
 
     return modelPath;
   } catch (error) {
@@ -412,6 +510,9 @@ export class OptimizedEmbedder {
    * Embed a single text (with caching)
    */
   async embed(text: string): Promise<Float32Array> {
+    // Security: Validate input before processing
+    validateTextInput(text);
+
     await this.init();
 
     // Check cache
@@ -504,6 +605,14 @@ export class OptimizedEmbedder {
    * Embed multiple texts in batch (optimized)
    */
   async embedBatch(texts: string[]): Promise<Float32Array[]> {
+    // Security: Validate batch size
+    validateBatchSize(texts);
+
+    // Security: Validate each text input
+    for (const text of texts) {
+      validateTextInput(text);
+    }
+
     await this.init();
 
     const results: Float32Array[] = [];
