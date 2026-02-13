@@ -1,7 +1,7 @@
 // CLI argument parsing and help utilities
 
 export interface CliOptions {
-  mode: 'agent' | 'parallel' | 'list' | 'mcp' | 'mcp-manager' | 'config' | 'agent-manager' | 'proxy' | 'quic' | 'claude-code' | 'reasoningbank' | 'federation';
+  mode: 'agent' | 'parallel' | 'list' | 'mcp' | 'mcp-manager' | 'config' | 'agent-manager' | 'proxy' | 'quic' | 'claude-code' | 'reasoningbank' | 'federation' | 'hooks' | 'workers' | 'embeddings' | 'init';
   agent?: string;
   task?: string;
 
@@ -109,6 +109,30 @@ export function parseArgs(): CliOptions {
   // Check for reasoningbank command
   if (args[0] === 'reasoningbank') {
     options.mode = 'reasoningbank';
+    return options;
+  }
+
+  // Check for hooks command
+  if (args[0] === 'hooks') {
+    options.mode = 'hooks';
+    return options;
+  }
+
+  // Check for workers command
+  if (args[0] === 'workers') {
+    options.mode = 'workers';
+    return options;
+  }
+
+  // Check for embeddings command
+  if (args[0] === 'embeddings') {
+    options.mode = 'embeddings';
+    return options;
+  }
+
+  // Check for init command
+  if (args[0] === 'init') {
+    options.mode = 'init';
     return options;
   }
 
@@ -243,6 +267,7 @@ USAGE:
   npx agentic-flow [COMMAND] [OPTIONS]
 
 COMMANDS:
+  init                    Initialize project with .claude/ folder and configuration
   reasoningbank <cmd>     Memory system that learns from experience (demo, test, init)
   claude-code [options]   Spawn Claude Code with proxy + Agent Booster (57x faster edits)
   mcp <command> [server]  Manage MCP servers (start, stop, status, list)

@@ -1,7 +1,7 @@
 // QUIC-enabled Proxy for Anthropic API
 // Optional QUIC transport with automatic HTTP/2 fallback
 
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response as ExpressResponse, NextFunction } from 'express';
 import { QuicClient, QuicConnectionPool, QuicConfig } from '../transport/quic.js';
 import { logger } from '../utils/logger.js';
 import { AnthropicToOpenRouterProxy } from './anthropic-to-openrouter.js';
@@ -143,11 +143,11 @@ export class QuicEnabledProxy extends AnthropicToOpenRouterProxy {
       const headers: Record<string, string> = {};
       if (options.headers) {
         const headerEntries = options.headers instanceof Headers
-          ? Array.from(options.headers.entries())
+          ? Array.from((options.headers as any).entries())
           : Object.entries(options.headers);
 
-        for (const [key, value] of headerEntries) {
-          headers[key] = value;
+        for (const entry of headerEntries as Array<[string, string]>) {
+          headers[entry[0]] = entry[1];
         }
       }
 

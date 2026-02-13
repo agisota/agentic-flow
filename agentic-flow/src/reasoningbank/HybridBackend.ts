@@ -19,10 +19,7 @@
  */
 
 import { SharedMemoryPool } from '../memory/SharedMemoryPool.js';
-import { ReflexionMemory } from 'agentdb/controllers/ReflexionMemory';
-import { SkillLibrary } from 'agentdb/controllers/SkillLibrary';
-import { CausalRecall } from 'agentdb/controllers/CausalRecall';
-import { CausalMemoryGraph } from 'agentdb/controllers/CausalMemoryGraph';
+import { ReflexionMemory, SkillLibrary, CausalRecall, CausalMemoryGraph } from 'agentdb';
 
 export interface PatternData {
   sessionId: string;
@@ -64,19 +61,19 @@ export class HybridReasoningBank {
   constructor(options: { preferWasm?: boolean } = {}) {
     this.memory = SharedMemoryPool.getInstance();
     const db = this.memory.getDatabase();
-    const embedder = this.memory.getEmbedder();
+    const embedder = this.memory.getEmbedder() as any;
 
     this.reflexion = new ReflexionMemory(db, embedder);
     this.skills = new SkillLibrary(db, embedder);
     this.causalGraph = new CausalMemoryGraph(db);
 
-    // CausalRecall with optimized rerank config
+    // CausalRecall with optimized rerank config - use any for extended options
     this.causalRecall = new CausalRecall(db, embedder, {
       alpha: 0.6,  // 60% weight on similarity
       beta: 0.3,   // 30% weight on causal uplift
       gamma: 0.1,  // 10% penalty for latency
       minConfidence: 0.7
-    });
+    } as any);
 
     this.useWasm = options.preferWasm ?? true;
     this.wasmModule = null;

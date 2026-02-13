@@ -41,6 +41,7 @@ import { handleReasoningBankCommand } from "./utils/reasoningbankCommands.js";
 import { handleConfigCommand } from "./cli/config-wizard.js";
 import { handleAgentCommand } from "./cli/agent-manager.js";
 import { handleFederationCommand } from "./cli/federation-cli.js";
+import { handleInitCommand } from "./cli/commands/init.js";
 import { ModelOptimizer } from "./utils/modelOptimizer.js";
 import { detectModelCapabilities } from "./utils/modelCapabilities.js";
 import { AgentBoosterPreprocessor } from "./utils/agentBoosterPreprocessor.js";
@@ -68,8 +69,15 @@ class AgenticFlowCLI {
     }
 
     // If no mode and no agent specified, show help
-    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation'].includes(options.mode)) {
+    if (!options.agent && options.mode !== 'list' && !['init', 'config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'hooks', 'workers', 'embeddings'].includes(options.mode)) {
       this.printHelp();
+      process.exit(0);
+    }
+
+    if (options.mode === 'init') {
+      // Handle init command - creates .claude/ folder and configuration
+      const initArgs = process.argv.slice(3); // Skip 'node', 'cli-proxy.js', 'init'
+      await handleInitCommand(initArgs);
       process.exit(0);
     }
 
@@ -184,6 +192,65 @@ class AgenticFlowCLI {
       // Handle Federation commands
       const federationArgs = process.argv.slice(3); // Skip 'node', 'cli-proxy.js', 'federation'
       await handleFederationCommand(federationArgs);
+      process.exit(0);
+    }
+
+    if (options.mode === 'hooks') {
+      // Handle Hooks commands (intelligence, init, pre-edit, post-edit, etc.)
+      const { spawn } = await import('child_process');
+      const { resolve, dirname } = await import('path');
+      const { fileURLToPath } = await import('url');
+
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      const hooksPath = resolve(__dirname, './cli/commands/hooks.js');
+
+      // Pass all args after 'hooks' to hooks command
+      const hooksArgs = process.argv.slice(3);
+
+      const proc = spawn('node', [hooksPath, ...hooksArgs], {
+        stdio: 'inherit'
+      });
+
+      proc.on('exit', (code) => {
+        process.exit(code || 0);
+      });
+
+      process.on('SIGINT', () => proc.kill('SIGINT'));
+      process.on('SIGTERM', () => proc.kill('SIGTERM'));
+      return;
+    }
+
+    if (options.mode === 'workers') {
+      // Handle Workers commands (status, cleanup, dispatch-prompt, etc.)
+      const { spawn } = await import('child_process');
+      const { resolve, dirname } = await import('path');
+      const { fileURLToPath } = await import('url');
+
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      const workersPath = resolve(__dirname, './cli/commands/workers.js');
+
+      // Pass all args after 'workers' to workers command
+      const workersArgs = process.argv.slice(3);
+
+      const proc = spawn('node', [workersPath, ...workersArgs], {
+        stdio: 'inherit'
+      });
+
+      proc.on('exit', (code) => {
+        process.exit(code || 0);
+      });
+
+      process.on('SIGINT', () => proc.kill('SIGINT'));
+      process.on('SIGTERM', () => proc.kill('SIGTERM'));
+      return;
+    }
+
+    if (options.mode === 'embeddings') {
+      // Handle Embeddings commands (init, download, list, benchmark, status)
+      const { handleEmbeddingsCommand } = await import('./cli/commands/embeddings.js');
+      await handleEmbeddingsCommand(process.argv.slice(3));
       process.exit(0);
     }
 
@@ -1068,6 +1135,7 @@ USAGE:
   npx agentic-flow [COMMAND] [OPTIONS]
 
 COMMANDS:
+  init [options]          Initialize project with .claude/ folder and configuration
   config [subcommand]     Manage environment configuration (interactive wizard)
   mcp <command> [server]  Manage MCP servers (start, stop, status, list)
   agent <command>         Agent management (list, create, info, conflicts)
@@ -1110,6 +1178,40 @@ FEDERATION COMMANDS:
 
   Federation enables ephemeral agents (5s-15min lifetime) with persistent memory.
   Hub stores memories permanently; agents access past learnings from dead agents.
+
+EMBEDDINGS COMMANDS:
+  npx agentic-flow embeddings init       Download and initialize embeddings (default: all-MiniLM-L6-v2)
+  npx agentic-flow embeddings download   Download a specific model
+  npx agentic-flow embeddings list       List available embedding models
+  npx agentic-flow embeddings benchmark  Run embedding performance benchmarks
+  npx agentic-flow embeddings status     Show embeddings system status
+
+  Optimized ONNX embeddings with LRU cache, SIMD operations, and 150x faster search.
+
+HOOKS COMMANDS:
+  npx agentic-flow hooks                 Show all hook commands
+  npx agentic-flow hooks pre-edit        Get context before editing a file
+  npx agentic-flow hooks post-edit       Record edit outcome for learning
+  npx agentic-flow hooks route           Route task to optimal agent
+  npx agentic-flow hooks pretrain        Analyze repository to bootstrap intelligence
+  npx agentic-flow hooks build-agents    Generate optimized agent configurations
+  npx agentic-flow hooks metrics         View learning metrics dashboard
+  npx agentic-flow hooks intelligence    RuVector intelligence commands (SONA + MoE + HNSW)
+  npx agentic-flow hooks init            Initialize hooks in project
+
+  Self-learning hooks for intelligent agent routing and optimization.
+
+WORKERS COMMANDS:
+  npx agentic-flow workers               Show all worker commands
+  npx agentic-flow workers dispatch      Dispatch background workers from triggers
+  npx agentic-flow workers status        Get worker status
+  npx agentic-flow workers triggers      List available trigger keywords
+  npx agentic-flow workers stats         Get worker statistics
+  npx agentic-flow workers results       View worker analysis results
+  npx agentic-flow workers benchmark     Run worker performance benchmarks
+  npx agentic-flow workers native        Run native ruvector workers
+
+  Background workers for non-blocking analysis tasks.
 
 OPTIONS:
   --task, -t <task>           Task description for agent mode
