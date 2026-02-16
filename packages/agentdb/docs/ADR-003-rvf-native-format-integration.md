@@ -36,7 +36,7 @@ dist/
 
 #### @ruvector/rvf-node@0.1.5 -- N-API Bindings (FULLY FUNCTIONAL)
 
-**All 12 operations verified.** Binary: `rvf-node.linux-x64-gnu.node` (1.3 MB). Published for 4 platforms (Windows pending).
+**All 12 operations verified from clean `npm install`.** Published for 4 platforms (Windows not yet on npm).
 
 ```
 index.js       -- napi-rs loader
@@ -44,7 +44,7 @@ index.d.ts     -- RvfDatabase class + types
 *.node         -- native binary (linux-x64-gnu)
 ```
 
-**Test results (128-dim, cosine, 50 vectors):**
+**Test results (128-dim, cosine, 10 vectors with metadata, clean npm install):**
 
 | Operation                    | Result                                           | Notes                                        |
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------- |
@@ -61,13 +61,15 @@ index.d.ts     -- RvfDatabase class + types
 | `db.compact()`               | `{ segmentsCompacted: 3, bytesReclaimed: 1536 }` | Reclaims dead space                          |
 | `db.derive(childPath)`       | OK, child `lineageDepth: 1`                      | Parent-child lineage works                   |
 
-**Platform binaries:**
+**Platform binaries** (all pinned at 0.1.4 by rvf-node@0.1.5 optionalDependencies):
 
-- `@ruvector/rvf-node-linux-x64-gnu` -- published
-- `@ruvector/rvf-node-linux-arm64-gnu` -- published
-- `@ruvector/rvf-node-darwin-arm64` -- published (Apple Silicon)
-- `@ruvector/rvf-node-darwin-x64` -- published (Intel Mac)
-- `@ruvector/rvf-node-win32-x64-msvc` -- pending CI (after PR #177 merge)
+| Package                              | Status                      | Size   |
+| ------------------------------------ | --------------------------- | ------ |
+| `@ruvector/rvf-node-linux-x64-gnu`   | Published                   | 1.2 MB |
+| `@ruvector/rvf-node-linux-arm64-gnu` | Published                   | 1.2 MB |
+| `@ruvector/rvf-node-darwin-arm64`    | Published (Apple Silicon)   | 3.0 MB |
+| `@ruvector/rvf-node-darwin-x64`      | Published (Intel Mac)       | 3.0 MB |
+| `@ruvector/rvf-node-win32-x64-msvc`  | **Not published** (npm 404) | --     |
 
 #### @ruvector/rvf-wasm@0.1.5 -- WASM Microkernel (FULLY FUNCTIONAL)
 
@@ -171,8 +173,8 @@ The `@ruvector/rvf` SDK handles backend selection internally. AgentDB's `RvfBack
 As of 2026-02-16, upstream has published working binaries:
 
 1. **`@ruvector/rvf-node@0.1.5`** -- N-API bindings with platform binaries. All 12 operations verified.
-   - Published: linux-x64-gnu, linux-arm64-gnu, darwin-arm64, darwin-x64
-   - Pending: win32-x64-msvc (after PR #177 merge)
+   - Published: linux-x64-gnu, linux-arm64-gnu, darwin-arm64, darwin-x64 (all at 0.1.4)
+   - Not published: win32-x64-msvc (CI fix in PR #177, commit 54fb864)
    - `index.js` + `index.d.ts` included in base package
    - `build-rvf-node.yml` workflow auto-builds on merge to main
 
@@ -184,7 +186,7 @@ As of 2026-02-16, upstream has published working binaries:
 
 **Remaining upstream work (P2):**
 
-- Publish `@ruvector/rvf-node-win32-x64-msvc` (after PR #177 merge)
+- Publish `@ruvector/rvf-node-win32-x64-msvc` (CI fix in PR #177, not yet on npm)
 - Add linux-x64-musl target for Alpine/Docker
 
 ### Phase 1: Core RVF Backend (Priority: Critical)
@@ -466,16 +468,16 @@ Expose 3-layer HNSW through `SearchOptions.quality` field. Requires N-API backen
 
 ## Upstream Coordination Required
 
-| Item                                                | Priority       | Status                        |
-| --------------------------------------------------- | -------------- | ----------------------------- |
-| Publish `@ruvector/rvf-node` platform binaries      | ~~P0 Blocker~~ | **Done** (0.1.5, 4 platforms) |
-| Publish `@ruvector/rvf-wasm` pre-built binary       | ~~P0 Blocker~~ | **Done** (0.1.5, 42 KB)       |
-| Fix `@ruvector/rvf` -> `rvf-node` version pin       | ~~P1~~         | **Done** (0.1.7)              |
-| Add `index.js`/`index.d.ts` to `@ruvector/rvf-node` | ~~P1~~         | **Done** (0.1.5)              |
-| Build all 5 N-API platform binaries in CI           | ~~P1~~         | **Done** (all pass)           |
-| Publish win32-x64-msvc binary                       | P2             | Pending after PR #177 merge   |
-| Add linux-x64-musl (Alpine/Docker) binary           | P2             | Not planned                   |
-| Document WASM backend capability subset             | P2             | Undocumented                  |
+| Item                                                | Priority       | Status                                     |
+| --------------------------------------------------- | -------------- | ------------------------------------------ |
+| Publish `@ruvector/rvf-node` platform binaries      | ~~P0 Blocker~~ | **Done** (0.1.5, 4 platforms)              |
+| Publish `@ruvector/rvf-wasm` pre-built binary       | ~~P0 Blocker~~ | **Done** (0.1.5, 42 KB)                    |
+| Fix `@ruvector/rvf` -> `rvf-node` version pin       | ~~P1~~         | **Done** (0.1.7)                           |
+| Add `index.js`/`index.d.ts` to `@ruvector/rvf-node` | ~~P1~~         | **Done** (0.1.5)                           |
+| Build all 5 N-API platform binaries in CI           | ~~P1~~         | **Done** (all pass)                        |
+| Publish win32-x64-msvc binary                       | P2             | Not published (npm 404), CI fix in PR #177 |
+| Add linux-x64-musl (Alpine/Docker) binary           | P2             | Not planned                                |
+| Document WASM backend capability subset             | P2             | Undocumented                               |
 
 ## Performance Targets
 
