@@ -215,46 +215,69 @@ export class TemporalCompressor {
   }
 
   private compressVector(vec: Float32Array, tier: CompressionTier): string {
+    const len = vec.length;
     switch (tier) {
       case 'none':
         return JSON.stringify(Array.from(vec));
       case 'half': {
         // Float16 quantization: store as scaled int16
-        const scale = Math.max(...Array.from(vec).map(Math.abs)) || 1;
-        const quantized = Array.from(vec).map((v) => Math.round((v / scale) * 32767));
+        let maxAbs = 0;
+        for (let i = 0; i < len; i++) {
+          const a = vec[i] < 0 ? -vec[i] : vec[i];
+          if (a > maxAbs) maxAbs = a;
+        }
+        const scale = maxAbs || 1;
+        const quantized = new Array(len);
+        const invScale = 32767 / scale;
+        for (let i = 0; i < len; i++) {
+          quantized[i] = Math.round(vec[i] * invScale);
+        }
         return JSON.stringify({ s: scale, d: quantized });
       }
       case 'pq8': {
         // 8-bit scalar quantization
-        const min = Math.min(...vec);
-        const max = Math.max(...vec);
+        let min = vec[0], max = vec[0];
+        for (let i = 1; i < len; i++) {
+          if (vec[i] < min) min = vec[i];
+          if (vec[i] > max) max = vec[i];
+        }
         const range = max - min || 1;
-        const q = Array.from(vec).map((v) => Math.round(((v - min) / range) * 255));
+        const q = new Array(len);
+        const invRange = 255 / range;
+        for (let i = 0; i < len; i++) {
+          q[i] = Math.round((vec[i] - min) * invRange);
+        }
         return JSON.stringify({ mn: min, mx: max, d: q });
       }
       case 'pq4': {
         // 4-bit scalar quantization (two values per byte)
-        const min4 = Math.min(...vec);
-        const max4 = Math.max(...vec);
+        let min4 = vec[0], max4 = vec[0];
+        for (let i = 1; i < len; i++) {
+          if (vec[i] < min4) min4 = vec[i];
+          if (vec[i] > max4) max4 = vec[i];
+        }
         const range4 = max4 - min4 || 1;
-        const packed: number[] = [];
-        for (let i = 0; i < vec.length; i += 2) {
-          const lo = Math.round(((vec[i] - min4) / range4) * 15);
-          const hi = i + 1 < vec.length ? Math.round(((vec[i + 1] - min4) / range4) * 15) : 0;
-          packed.push((hi << 4) | lo);
+        const invRange4 = 15 / range4;
+        const packed = new Array(Math.ceil(len / 2));
+        for (let i = 0, p = 0; i < len; i += 2, p++) {
+          const lo = Math.round((vec[i] - min4) * invRange4);
+          const hi = i + 1 < len ? Math.round((vec[i + 1] - min4) * invRange4) : 0;
+          packed[p] = (hi << 4) | lo;
         }
         return JSON.stringify({ mn: min4, mx: max4, d: packed });
       }
       case 'binary': {
         // 1-bit sign encoding
-        const signs: number[] = [];
-        const mean = vec.reduce((a, b) => a + b, 0) / vec.length;
-        for (let i = 0; i < vec.length; i += 8) {
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += vec[i];
+        const mean = sum / len;
+        const signs = new Array(Math.ceil(len / 8));
+        for (let i = 0, s = 0; i < len; i += 8, s++) {
           let byte = 0;
-          for (let b = 0; b < 8 && i + b < vec.length; b++) {
+          for (let b = 0; b < 8 && i + b < len; b++) {
             if (vec[i + b] >= mean) byte |= (1 << b);
           }
-          signs.push(byte);
+          signs[s] = byte;
         }
         return JSON.stringify({ m: mean, d: signs });
       }
