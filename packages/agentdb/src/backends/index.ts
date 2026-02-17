@@ -93,3 +93,10 @@ export type {
   FederatedStats,
   FederatedPattern,
 } from './rvf/FederatedSessionManager.js';
+
+// Unified Self-Learning RVF Integration (ADR-006)
+export { SelfLearningRvfBackend } from './rvf/SelfLearningRvfBackend.js';
+export type {
+  SelfLearningConfig,
+  LearningStats,
+} from './rvf/SelfLearningRvfBackend.js';
