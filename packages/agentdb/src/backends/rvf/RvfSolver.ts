@@ -110,30 +110,11 @@ export class AgentDBSolver {
   /**
    * Create a new solver instance.
    * Lazy-loads @ruvector/rvf-solver to avoid hard dependency.
-   * Pre-initializes the WASM binary to work around CJS path resolution.
    */
   static async create(): Promise<AgentDBSolver> {
     const instance = new AgentDBSolver();
 
     try {
-      // Pre-initialize the WASM glue to work around CJS __dirname issues.
-      // The glue's init() accepts pre-loaded bytes, bypassing file resolution.
-      try {
-        const pathMod = await import('path');
-        const fsMod = await import('fs');
-        const solverDir = pathMod.dirname(require.resolve('@ruvector/rvf-solver'));
-        const wasmPath = pathMod.join(solverDir, '..', 'pkg', 'rvf_solver_bg.wasm');
-        if (fsMod.existsSync(wasmPath)) {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-          const glueInit = require(pathMod.join(solverDir, '..', 'pkg', 'rvf_solver'));
-          const init = glueInit.default || glueInit;
-          const wasmBytes = fsMod.readFileSync(wasmPath);
-          await init(wasmBytes.buffer);
-        }
-      } catch {
-        // Fall through — RvfSolver.create() will attempt its own WASM loading
-      }
-
       const { RvfSolver } = await import('@ruvector/rvf-solver');
       instance.solver = await RvfSolver.create();
     } catch (error) {
