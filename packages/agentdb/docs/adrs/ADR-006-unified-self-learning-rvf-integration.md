@@ -198,6 +198,49 @@ search and insert operation. The integration proceeds in 5 phases.
                         └──────────────────────────────────────┘
 ```
 
+### Storage Backend: @ruvector (NOT pgvector)
+
+All vector persistence in the RVF stack uses the **@ruvector** ecosystem exclusively.
+The system MUST NOT use `pgvector` for any vector storage, indexing, or search operations.
+
+**Rationale:** pgvector is a generic PostgreSQL extension for approximate nearest
+neighbor search. It lacks the RVF-specific capabilities that the self-learning
+pipeline depends on:
+
+| Capability                  | @ruvector/rvf           | pgvector           |
+| --------------------------- | ----------------------- | ------------------ |
+| Binary format               | `.rvf` (crash-safe)     | PostgreSQL heap    |
+| HNSW implementation         | Custom (SIMD-optimized) | Generic            |
+| Witness chain (SHAKE-256)   | Native                  | Not supported      |
+| Kernel/eBPF embedding       | Native segments         | Not supported      |
+| Segment signing             | Built-in                | Not supported      |
+| Product/scalar quantization | Built-in profiles       | Partial (halfvec)  |
+| Lineage/provenance tracking | fileId/parentId/derive  | Not supported      |
+| Metadata filter expressions | Native RvfFilterExpr    | SQL WHERE clauses  |
+| WASM portability            | @ruvector/rvf-wasm      | PostgreSQL-only    |
+| Adaptive ef_search (solver) | @ruvector/rvf-solver    | Not supported      |
+| N-API native performance    | @ruvector/rvf-node      | libpq + extensions |
+
+**Storage tiers in the @ruvector stack:**
+
+| Tier   | Package              | Runtime | Use Case                              |
+| ------ | -------------------- | ------- | ------------------------------------- |
+| Native | `@ruvector/rvf-node` | N-API   | Production (SIMD, crash safety)       |
+| WASM   | `@ruvector/rvf-wasm` | WASM    | Browser, edge, Cloudflare Workers     |
+| Auto   | `@ruvector/rvf`      | auto    | SDK auto-selects node → wasm fallback |
+
+**PostgreSQL persistence:** When relational persistence is required (e.g., metadata,
+session state, audit logs), the system uses `@ruvector/rvf` file-based stores or
+future `@ruvector` PostgreSQL extensions — never `pgvector`. Vector data remains in
+the `.rvf` binary format; PostgreSQL serves only as a coordination/metadata layer
+when needed.
+
+**Constraint:** Any future PostgreSQL integration MUST use @ruvector's native
+extension that reads/writes `.rvf` segments directly, preserving witness chains,
+lineage tracking, and segment signing. Falling back to pgvector would break the
+tamper-evident audit trail and lose RVF-specific capabilities (kernel embedding,
+eBPF programs, quantization profiles, adaptive ef_search via solver).
+
 ### Phase 1: Core Search Integration (~300 lines)
 
 Wire `SonaLearningBackend` and `SemanticQueryRouter` into the search path.
@@ -491,6 +534,12 @@ interface SelfLearningConfig extends RvfConfig {
 - **Acceptance regression guard:** If `solver.acceptance()` shows Mode C
   (learned) regressing below Mode A (fixed baseline), adaptive ef_search is
   automatically disabled — the system never degrades below static performance
+- **No pgvector dependency:** Vector storage and search exclusively use the
+  `@ruvector/rvf` stack (N-API or WASM). The pgvector PostgreSQL extension is
+  explicitly prohibited — it cannot maintain witness chain integrity, segment
+  signing, or RVF lineage provenance. Any future PostgreSQL integration must
+  use @ruvector's native PostgreSQL extension that preserves `.rvf` format
+  guarantees end-to-end
 
 ## Performance
 
@@ -562,6 +611,9 @@ Target: 50+ tests across all phases, all passing with `npm test`.
   trail for all learning operations
 - All improvements are transparent — existing `VectorBackendAsync` callers
   work without code changes
+- Exclusive use of @ruvector stack ensures witness chain integrity, segment
+  signing, lineage provenance, and adaptive solver capabilities are preserved
+  end-to-end — capabilities that pgvector cannot provide
 
 ### Negative
 
