@@ -367,17 +367,23 @@ export class TemporalCompressor {
    *
    * Truncation ratios: none=100%, half=100%, pq8=75%, pq4=50%, binary=25%
    */
+  /**
+   * Matryoshka-style dimensional truncation ratios (SOTA: MRL).
+   *
+   * Only the most aggressive tier (binary) gets truncation. pq8/pq4 keep full
+   * dimensions because their quantization error alone is already significant
+   * and truncation on non-MRL-trained embeddings compounds error too aggressively.
+   * Binary tier has a generous tolerance (1.0) so truncation to 50% is safe.
+   */
   private matryoshkaDim(originalDim: number, tier: CompressionTier): number {
     switch (tier) {
       case 'none':
       case 'half':
-        return originalDim; // Hot/warm data: keep full dimensionality
       case 'pq8':
-        return Math.max(8, Math.floor(originalDim * 0.75)); // 75%
       case 'pq4':
-        return Math.max(8, Math.floor(originalDim * 0.5));  // 50%
+        return originalDim; // Keep full dimensionality for quantized tiers
       case 'binary':
-        return Math.max(8, Math.floor(originalDim * 0.25)); // 25%
+        return Math.max(8, Math.floor(originalDim * 0.5)); // 50% for frozen data
       default:
         return originalDim;
     }
