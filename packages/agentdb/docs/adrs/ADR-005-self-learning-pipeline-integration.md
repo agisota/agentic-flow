@@ -102,12 +102,19 @@ Integrate the self-learning pipeline across 4 phases:
 - Note: @ruvector/attention N-API loss/miner have binding issues; built-in impl used
 - Actual: 2 files, ~520 lines, 23 tests passing
 
-### Phase 4: Federated Cross-Session Learning (Future)
+### Phase 4: Federated Cross-Session Learning (COMPLETE)
 
-- Wrap sessions in `EphemeralAgent`
-- Aggregate via `FederatedCoordinator`
-- Export/import trajectory state across sessions
-- Estimated: 2-3 files, ~300 lines
+- Created `FederatedSessionManager` wrapping `@ruvector/ruvllm` FederatedCoordinator + LoraManager
+- Created `SessionHandle` for per-session trajectory recording with dimension validation
+- Session lifecycle: beginSession → recordTrajectory → end → aggregate into coordinator
+- Warm-start pattern loading from coordinator for new sessions
+- LoRA adapter management: create, activate, list, forward (default + task-specific)
+- Session export for state persistence across restarts
+- Auto-consolidation after configurable interval
+- Pattern discovery: findPatterns() by query embedding, getInitialPatterns()
+- Security: agent IDs validated (length 1-256, no null bytes), dimension bounded (1-4096),
+  quality clamped [0,1], LoRA rank bounded (1-64), max agents bounded (1-1000)
+- Actual: 1 file, ~527 lines, 30 tests passing
 
 ## Security
 
@@ -118,17 +125,22 @@ Integrate the self-learning pipeline across 4 phases:
 - Trajectory capacity has a configurable upper bound (max 100000)
 - ContrastiveTrainer: temperature bounded (0.01-1.0), batch size bounded (max 256)
 - SemanticQueryRouter: intent names validated, max intents bounded (max 10000)
+- FederatedSessionManager: agent IDs validated (1-256 chars, no null bytes)
+- FederatedSessionManager: max agents bounded (1-1000), LoRA rank bounded (1-64)
+- FederatedSessionManager: operates on embeddings only (no user text in trajectories)
 - All vector dimensions validated on insert/query (max 4096)
 
 ## Performance
 
-| Operation                     | Expected Latency        |
-| ----------------------------- | ----------------------- |
-| `SonaEngine.applyMicroLora()` | <1ms (N-API native)     |
-| `SonaEngine.tick()`           | <5ms (background batch) |
-| `TensorCompress.compress()`   | <100us per vector       |
-| `InfoNceLoss.forward()`       | <1ms per batch          |
-| `SemanticRouter.route()`      | <500us (HNSW + SIMD)    |
+| Operation                          | Expected Latency        |
+| ---------------------------------- | ----------------------- |
+| `SonaEngine.applyMicroLora()`      | <1ms (N-API native)     |
+| `SonaEngine.tick()`                | <5ms (background batch) |
+| `TensorCompress.compress()`        | <100us per vector       |
+| `InfoNceLoss.forward()`            | <1ms per batch          |
+| `SemanticRouter.route()`           | <500us (HNSW + SIMD)    |
+| `FederatedCoordinator.aggregate()` | <2ms per session        |
+| `LoraManager.forward()`            | <1ms per embedding      |
 
 ## Consequences
 

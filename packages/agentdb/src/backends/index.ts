@@ -82,3 +82,14 @@ export type {
   RouterConfig,
   RouterStats,
 } from './rvf/SemanticQueryRouter.js';
+
+// Federated Cross-Session Learning (ADR-005 Phase 4)
+export { FederatedSessionManager, SessionHandle } from './rvf/FederatedSessionManager.js';
+export type {
+  FederatedConfig,
+  SessionState,
+  TrajectoryRecord,
+  SessionStats,
+  FederatedStats,
+  FederatedPattern,
+} from './rvf/FederatedSessionManager.js';
