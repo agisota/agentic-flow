@@ -32,4 +32,16 @@ export {
 
 export type { BackendType, BackendDetection, RvfDetection } from './factory.js';
 export type { LearningConfig, EnhancementOptions } from './ruvector/RuVectorLearning.js';
-export type { RvfConfig } from './rvf/RvfBackend.js';
+export type { RvfConfig, IndexStats, WitnessVerification } from './rvf/RvfBackend.js';
+
+// RVF Solver (AGI capabilities - ADR-004)
+export { AgentDBSolver } from './rvf/RvfSolver.js';
+export type {
+  SolverTrainOptions,
+  SolverTrainResult,
+  SolverCycleMetrics,
+  SolverModeResult,
+  SolverAcceptanceManifest,
+  SolverAcceptanceOptions,
+  SolverPolicyState,
+} from './rvf/RvfSolver.js';

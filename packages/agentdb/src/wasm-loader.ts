@@ -162,4 +162,16 @@ export {
 
 export type { BackendType, BackendDetection, RvfDetection } from './backends/factory.js';
 export type { VectorBackendAsync } from './backends/VectorBackend.js';
-export type { RvfConfig } from './backends/rvf/RvfBackend.js';
+export type { RvfConfig, IndexStats, WitnessVerification } from './backends/rvf/RvfBackend.js';
+
+// RVF Solver (AGI capabilities - ADR-004)
+export { AgentDBSolver } from './backends/rvf/RvfSolver.js';
+export type {
+  SolverTrainOptions,
+  SolverTrainResult,
+  SolverCycleMetrics,
+  SolverModeResult,
+  SolverAcceptanceManifest,
+  SolverAcceptanceOptions,
+  SolverPolicyState,
+} from './backends/rvf/RvfSolver.js';

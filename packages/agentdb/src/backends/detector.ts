@@ -39,6 +39,7 @@ export interface RvfAvailability {
   available: boolean;
   node: boolean;
   wasm: boolean;
+  solver: boolean;
   version?: string;
 }
 
@@ -249,9 +250,18 @@ async function checkRvf(): Promise<RvfAvailability> {
       // WASM backend not available
     }
 
-    return { available: true, node, wasm, version: String(version) };
+    // Check for solver
+    let solver = false;
+    try {
+      await import('@ruvector/rvf-solver');
+      solver = true;
+    } catch {
+      // Solver not available
+    }
+
+    return { available: true, node, wasm, solver, version: String(version) };
   } catch {
-    return { available: false, node: false, wasm: false };
+    return { available: false, node: false, wasm: false, solver: false };
   }
 }
 

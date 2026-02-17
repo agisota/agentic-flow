@@ -76,6 +76,22 @@ export interface RvfConfig extends VectorConfig {
   enableStats?: boolean;
 }
 
+/** HNSW index statistics (AGI introspection) */
+export interface IndexStats {
+  indexedVectors: number;
+  layers: number;
+  m: number;
+  efConstruction: number;
+  needsRebuild: boolean;
+}
+
+/** Witness chain verification result */
+export interface WitnessVerification {
+  valid: boolean;
+  entries: number;
+  error?: string;
+}
+
 /** Performance statistics */
 interface PerfStats {
   insertCount: number;
@@ -508,6 +524,66 @@ export class RvfBackend implements VectorBackendAsync {
         ? this.stats.searchTotalMs / this.stats.searchCount
         : 0,
     };
+  }
+
+  // ─── AGI Capability Extensions (ADR-004) ───
+
+  /** Get the distance metric name from the RVF store */
+  metric(): string {
+    this.ensureInitialized();
+    try {
+      return this.db.metric();
+    } catch {
+      return this.metricType;
+    }
+  }
+
+  /** Get HNSW index statistics */
+  indexStats(): IndexStats {
+    this.ensureInitialized();
+    try {
+      const raw = this.db.indexStats();
+      return {
+        indexedVectors: raw.indexedVectors ?? 0,
+        layers: raw.layers ?? 0,
+        m: raw.m ?? 16,
+        efConstruction: raw.efConstruction ?? 200,
+        needsRebuild: raw.needsRebuild ?? false,
+      };
+    } catch {
+      return {
+        indexedVectors: this.cachedCount,
+        layers: 0,
+        m: 16,
+        efConstruction: 200,
+        needsRebuild: false,
+      };
+    }
+  }
+
+  /** Verify SHAKE-256 witness chain integrity */
+  verifyWitness(): WitnessVerification {
+    this.ensureInitialized();
+    try {
+      const raw = this.db.verifyWitness();
+      return {
+        valid: raw.valid ?? false,
+        entries: raw.entries ?? 0,
+        error: raw.error,
+      };
+    } catch (err) {
+      return {
+        valid: false,
+        entries: 0,
+        error: (err as Error).message,
+      };
+    }
+  }
+
+  /** Snapshot-freeze state, returns epoch number */
+  freeze(): number {
+    this.ensureInitialized();
+    return this.db.freeze();
   }
 
   // ─── Private helpers ───

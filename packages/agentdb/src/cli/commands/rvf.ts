@@ -1,5 +1,5 @@
 /**
- * RVF CLI Command - Manage RVF vector stores
+ * RVF CLI Command - Manage RVF vector stores and AGI capabilities
  *
  * Provides subcommands for:
  * - status: Show RVF store status and statistics
@@ -7,7 +7,11 @@
  * - derive: Create a COW branch from an existing store
  * - segments: List store segments and their metadata
  * - detect: Detect RVF SDK and backend availability
- * - convert: Convert between RVF and other formats
+ * - witness: Verify SHAKE-256 witness chain integrity
+ * - freeze: Snapshot-freeze store state
+ * - index-stats: Show HNSW index statistics
+ * - solver train: Train the self-learning solver
+ * - solver test: Run A/B/C acceptance test
  */
 
 import { Command } from 'commander';
@@ -252,4 +256,196 @@ export const rvfCommand = new Command('rvf')
           log('');
         }
       })
+  )
+  .addCommand(
+    new Command('witness')
+      .description('Verify SHAKE-256 witness chain integrity')
+      .argument('<store>', 'Path to .rvf store file')
+      .option('--json', 'Output as JSON')
+      .action(async (store: string, opts: { json?: boolean }) => {
+        try {
+          const backend = await loadRvfBackend(store);
+          const witness = backend.verifyWitness();
+
+          if (opts.json) {
+            console.log(JSON.stringify(witness, null, 2));
+          } else {
+            log(`\n${colors.bright}${colors.cyan}Witness Chain Verification${colors.reset}\n`);
+            log(`  Store:     ${colors.blue}${store}${colors.reset}`);
+            log(`  Valid:     ${witness.valid ? `${colors.green}Yes${colors.reset}` : `${colors.red}No${colors.reset}`}`);
+            log(`  Entries:   ${colors.blue}${witness.entries}${colors.reset}`);
+            if (witness.error) {
+              log(`  Error:     ${colors.red}${witness.error}${colors.reset}`);
+            }
+            log('');
+          }
+
+          backend.close();
+        } catch (error) {
+          console.error(`${colors.red}Error: ${(error as Error).message}${colors.reset}`);
+          process.exit(1);
+        }
+      })
+  )
+  .addCommand(
+    new Command('freeze')
+      .description('Snapshot-freeze store state and return epoch')
+      .argument('<store>', 'Path to .rvf store file')
+      .option('--json', 'Output as JSON')
+      .action(async (store: string, opts: { json?: boolean }) => {
+        try {
+          const backend = await loadRvfBackend(store);
+          const epoch = backend.freeze();
+
+          if (opts.json) {
+            console.log(JSON.stringify({ store, epoch }, null, 2));
+          } else {
+            log(`\n${colors.bright}${colors.cyan}State Frozen${colors.reset}\n`);
+            log(`  Store:  ${colors.blue}${store}${colors.reset}`);
+            log(`  Epoch:  ${colors.green}${epoch}${colors.reset}`);
+            log('');
+          }
+
+          backend.close();
+        } catch (error) {
+          console.error(`${colors.red}Error: ${(error as Error).message}${colors.reset}`);
+          process.exit(1);
+        }
+      })
+  )
+  .addCommand(
+    new Command('index-stats')
+      .description('Show HNSW index statistics')
+      .argument('<store>', 'Path to .rvf store file')
+      .option('--json', 'Output as JSON')
+      .action(async (store: string, opts: { json?: boolean }) => {
+        try {
+          const backend = await loadRvfBackend(store);
+          const stats = backend.indexStats();
+          const metric = backend.metric();
+
+          if (opts.json) {
+            console.log(JSON.stringify({ store, metric, ...stats }, null, 2));
+          } else {
+            log(`\n${colors.bright}${colors.cyan}HNSW Index Statistics${colors.reset}\n`);
+            log(`  Store:            ${colors.blue}${store}${colors.reset}`);
+            log(`  Metric:           ${colors.blue}${metric}${colors.reset}`);
+            log(`  Indexed Vectors:  ${colors.green}${stats.indexedVectors}${colors.reset}`);
+            log(`  Layers:           ${colors.blue}${stats.layers}${colors.reset}`);
+            log(`  M:                ${colors.blue}${stats.m}${colors.reset}`);
+            log(`  efConstruction:   ${colors.blue}${stats.efConstruction}${colors.reset}`);
+            log(`  Needs Rebuild:    ${stats.needsRebuild ? `${colors.yellow}Yes${colors.reset}` : `${colors.green}No${colors.reset}`}`);
+            log('');
+          }
+
+          backend.close();
+        } catch (error) {
+          console.error(`${colors.red}Error: ${(error as Error).message}${colors.reset}`);
+          process.exit(1);
+        }
+      })
+  )
+  .addCommand(
+    new Command('solver')
+      .description('Self-learning temporal solver')
+      .addCommand(
+        new Command('train')
+          .description('Train the solver on generated puzzles')
+          .option('-n, --count <n>', 'Number of puzzles', '100')
+          .option('--min-difficulty <n>', 'Minimum difficulty (1-10)', '1')
+          .option('--max-difficulty <n>', 'Maximum difficulty (1-10)', '10')
+          .option('--seed <n>', 'RNG seed for reproducibility')
+          .option('--json', 'Output as JSON')
+          .action(async (opts: {
+            count: string;
+            minDifficulty: string;
+            maxDifficulty: string;
+            seed?: string;
+            json?: boolean;
+          }) => {
+            try {
+              const { AgentDBSolver } = await import('../../backends/rvf/RvfSolver.js');
+              const solver = await AgentDBSolver.create();
+
+              const result = solver.train({
+                count: parseInt(opts.count, 10),
+                minDifficulty: parseInt(opts.minDifficulty, 10),
+                maxDifficulty: parseInt(opts.maxDifficulty, 10),
+                seed: opts.seed ? parseInt(opts.seed, 10) : undefined,
+              });
+
+              if (opts.json) {
+                console.log(JSON.stringify(result, null, 2));
+              } else {
+                log(`\n${colors.bright}${colors.cyan}Solver Training Results${colors.reset}\n`);
+                log(`  Trained:          ${colors.green}${result.trained}${colors.reset} puzzles`);
+                log(`  Correct:          ${colors.green}${result.correct}${colors.reset}`);
+                log(`  Accuracy:         ${colors.green}${(result.accuracy * 100).toFixed(1)}%${colors.reset}`);
+                log(`  Patterns Learned: ${colors.blue}${result.patternsLearned}${colors.reset}`);
+                log('');
+              }
+
+              solver.destroy();
+            } catch (error) {
+              console.error(`${colors.red}Error: ${(error as Error).message}${colors.reset}`);
+              process.exit(1);
+            }
+          })
+      )
+      .addCommand(
+        new Command('test')
+          .description('Run A/B/C acceptance test')
+          .option('--cycles <n>', 'Number of train/test cycles', '5')
+          .option('--holdout <n>', 'Holdout puzzles per cycle', '50')
+          .option('--training <n>', 'Training puzzles per cycle', '200')
+          .option('--seed <n>', 'RNG seed for reproducibility')
+          .option('--json', 'Output as JSON')
+          .action(async (opts: {
+            cycles: string;
+            holdout: string;
+            training: string;
+            seed?: string;
+            json?: boolean;
+          }) => {
+            try {
+              const { AgentDBSolver } = await import('../../backends/rvf/RvfSolver.js');
+              const solver = await AgentDBSolver.create();
+
+              const manifest = solver.acceptance({
+                cycles: parseInt(opts.cycles, 10),
+                holdoutSize: parseInt(opts.holdout, 10),
+                trainingPerCycle: parseInt(opts.training, 10),
+                seed: opts.seed ? parseInt(opts.seed, 10) : undefined,
+              });
+
+              if (opts.json) {
+                console.log(JSON.stringify(manifest, null, 2));
+              } else {
+                log(`\n${colors.bright}${colors.cyan}A/B/C Acceptance Test${colors.reset}\n`);
+
+                const showMode = (name: string, mode: typeof manifest.modeA) => {
+                  const status = mode.passed ? `${colors.green}PASS${colors.reset}` : `${colors.red}FAIL${colors.reset}`;
+                  log(`  Mode ${name}: ${status}  (accuracy: ${(mode.finalAccuracy * 100).toFixed(1)}%)`);
+                  for (const c of mode.cycles) {
+                    log(`    Cycle ${c.cycle}: ${(c.accuracy * 100).toFixed(1)}% accuracy, cost=${c.costPerSolve.toFixed(1)}`);
+                  }
+                };
+
+                showMode('A (Heuristic)', manifest.modeA);
+                showMode('B (Compiler)', manifest.modeB);
+                showMode('C (Learned)', manifest.modeC);
+
+                log('');
+                log(`  ${colors.bright}Overall:${colors.reset}  ${manifest.allPassed ? `${colors.green}ALL PASSED${colors.reset}` : `${colors.red}SOME FAILED${colors.reset}`}`);
+                log(`  Witness:  ${manifest.witnessEntries} entries (${manifest.witnessChainBytes} bytes)`);
+                log('');
+              }
+
+              solver.destroy();
+            } catch (error) {
+              console.error(`${colors.red}Error: ${(error as Error).message}${colors.reset}`);
+              process.exit(1);
+            }
+          })
+      )
   );
