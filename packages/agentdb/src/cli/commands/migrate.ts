@@ -24,9 +24,66 @@ const colors = {
 interface MigrationOptions {
   sourceDb: string;
   targetDb?: string;
+  to?: 'v2' | 'rvf';
+  rvfPath?: string;
   optimize?: boolean;
   dryRun?: boolean;
   verbose?: boolean;
+}
+
+interface MigrationAnalysis {
+  sourceType: string;
+  tables: number;
+  records: Record<string, number | string>;
+}
+
+interface MemoryEntry {
+  id: number;
+  key: string;
+  namespace: string;
+  value: string;
+  access_count: number;
+  created_at: number;
+}
+
+interface PatternRow {
+  id: number;
+  type: string;
+  confidence: number;
+  pattern_data: string;
+  usage_count: number;
+  created_at: string;
+}
+
+interface TrajectoryRow {
+  task_id: string;
+  agent_id: string;
+  query: string;
+  trajectory_json: string;
+}
+
+interface EpisodeRow {
+  id: number;
+  session_id: string;
+  reward: number;
+  created_at: number;
+}
+
+interface SkillRow {
+  id: number;
+  success_rate: number;
+}
+
+interface EmbeddingRow {
+  id: number;
+  embedding: string;
+}
+
+// Database-like interface for the target database returned by createDatabase
+interface TargetDatabase {
+  prepare(sql: string): Database.Statement;
+  exec(sql: string): void;
+  close(): void;
 }
 
 interface MigrationStats {
@@ -89,7 +146,7 @@ export async function migrateCommand(options: MigrationOptions): Promise<void> {
     // Get source statistics
     const sourceTables = source.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).all().map((row: any) => row.name);
+    ).all().map((row: unknown) => (row as { name: string }).name);
 
     console.log(`${colors.cyan}📁 Source tables found:${colors.reset} ${sourceTables.length}`);
     if (verbose) {
@@ -107,7 +164,7 @@ export async function migrateCommand(options: MigrationOptions): Promise<void> {
 
     // Initialize target database with v2 schema
     console.log(`${colors.cyan}🔨 Initializing target database...${colors.reset}`);
-    const target = await createDatabase(targetDb);
+    const target = await createDatabase(targetDb) as unknown as TargetDatabase;
 
     // Load v2 schemas
     const schemaPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../../schemas/schema.sql');
@@ -170,6 +227,54 @@ export async function migrateCommand(options: MigrationOptions): Promise<void> {
       stats.performance.optimizationTime = Date.now() - optimizationStart;
     }
 
+    // RVF export: export vectors to RVF format if --to rvf
+    if (options.to === 'rvf') {
+      const rvfOutputPath = options.rvfPath || sourceDb.replace(/\.db$/, '.rvf');
+      console.log(`\n${colors.cyan}Exporting to RVF format: ${rvfOutputPath}${colors.reset}`);
+
+      try {
+        const { RvfBackend } = await import('../../backends/rvf/RvfBackend.js');
+        const rvfBackend = new RvfBackend({
+          dimension: 384,
+          metric: 'cosine',
+          storagePath: rvfOutputPath,
+        });
+        await (rvfBackend as unknown as { initialize(): Promise<void> }).initialize();
+
+        // Export episode embeddings to RVF
+        const embeddingRows = target.prepare(`
+          SELECT id, embedding FROM episode_embeddings WHERE embedding IS NOT NULL
+        `).all();
+
+        if (embeddingRows.length > 0) {
+          const batch = embeddingRows.map((row: unknown) => {
+            const r = row as EmbeddingRow;
+            return {
+              id: String(r.id),
+              embedding: new Float32Array(JSON.parse(r.embedding)),
+              metadata: { source: 'migration', originalDb: sourceDb },
+            };
+          });
+
+          // Insert in sub-batches of 1000
+          for (let i = 0; i < batch.length; i += 1000) {
+            const chunk = batch.slice(i, i + 1000);
+            await rvfBackend.insertBatchAsync(chunk);
+          }
+
+          await rvfBackend.flush();
+          console.log(`${colors.green}Exported ${embeddingRows.length} vectors to ${rvfOutputPath}${colors.reset}`);
+        } else {
+          console.log(`${colors.yellow}No embeddings found to export${colors.reset}`);
+        }
+
+        rvfBackend.close();
+      } catch (rvfError) {
+        console.error(`${colors.yellow}RVF export failed: ${(rvfError as Error).message}${colors.reset}`);
+        console.error(`   Install: npm install @ruvector/rvf @ruvector/rvf-node`);
+      }
+    }
+
     // Calculate final statistics
     stats.performance.totalRecords = Object.values(stats.recordsMigrated).reduce((a, b) => a + b, 0);
     const totalTime = Date.now() - startTime;
@@ -196,7 +301,7 @@ export async function migrateCommand(options: MigrationOptions): Promise<void> {
 function detectSourceType(db: Database.Database): 'v1-agentdb' | 'claude-flow-memory' | 'unknown' {
   const tables = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table'"
-  ).all().map((row: any) => row.name);
+  ).all().map((row: unknown) => (row as { name: string }).name);
 
   // Check for claude-flow memory tables
   if (tables.includes('memory_entries') && tables.includes('patterns') && tables.includes('task_trajectories')) {
@@ -215,8 +320,8 @@ function analyzeMigration(
   db: Database.Database,
   sourceType: string,
   tables: string[]
-): any {
-  const analysis: any = {
+): MigrationAnalysis {
+  const analysis: MigrationAnalysis = {
     sourceType,
     tables: tables.length,
     records: {}
@@ -226,8 +331,8 @@ function analyzeMigration(
   for (const table of tables) {
     if (table === 'sqlite_sequence') continue;
     try {
-      const result = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as any;
-      analysis.records[table] = result.count;
+      const result = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get() as { count: number } | undefined;
+      analysis.records[table] = result?.count ?? 0;
     } catch (e) {
       analysis.records[table] = 'Error counting';
     }
@@ -236,7 +341,7 @@ function analyzeMigration(
   return analysis;
 }
 
-function printMigrationAnalysis(analysis: any): void {
+function printMigrationAnalysis(analysis: MigrationAnalysis): void {
   console.log(`${colors.bright}${colors.cyan}Migration Analysis:${colors.reset}\n`);
   console.log(`  Source Type: ${colors.blue}${analysis.sourceType}${colors.reset}`);
   console.log(`  Tables: ${colors.blue}${analysis.tables}${colors.reset}\n`);
@@ -250,7 +355,7 @@ function printMigrationAnalysis(analysis: any): void {
 
 async function migrateClaudeFlowMemory(
   source: Database.Database,
-  target: any,
+  target: TargetDatabase,
   stats: MigrationStats,
   verbose: boolean
 ): Promise<void> {
@@ -267,7 +372,8 @@ async function migrateClaudeFlowMemory(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  for (const entry of memoryEntries as any[]) {
+  for (const raw of memoryEntries) {
+    const entry = raw as unknown as MemoryEntry;
     try {
       const task = entry.key || 'Migrated memory entry';
       const input = `Namespace: ${entry.namespace}`;
@@ -296,7 +402,8 @@ async function migrateClaudeFlowMemory(
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  for (const pattern of patterns as any[]) {
+  for (const raw of patterns) {
+    const pattern = raw as unknown as PatternRow;
     try {
       const name = pattern.type || `Pattern ${pattern.id}`;
       const description = `Migrated pattern (confidence: ${pattern.confidence})`;
@@ -324,7 +431,8 @@ async function migrateClaudeFlowMemory(
     ) VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  for (const traj of trajectories as any[]) {
+  for (const raw of trajectories) {
+    const traj = raw as unknown as TrajectoryRow;
     try {
       const sessionId = traj.task_id || 'migration';
       const step = 0;
@@ -347,7 +455,7 @@ async function migrateClaudeFlowMemory(
 
 async function migrateV1AgentDB(
   source: Database.Database,
-  target: any,
+  target: TargetDatabase,
   stats: MigrationStats,
   verbose: boolean
 ): Promise<void> {
@@ -374,23 +482,24 @@ async function migrateV1AgentDB(
       }
 
       // Get column names from first row
-      const columns = Object.keys(rows[0] as any);
+      const columns = Object.keys(rows[0] as Record<string, unknown>);
       const placeholders = columns.map(() => '?').join(', ');
       const columnNames = columns.join(', ');
 
       const insert = target.prepare(`INSERT INTO ${table} (${columnNames}) VALUES (${placeholders})`);
 
-      for (const row of rows as any[]) {
+      for (const row of rows) {
         try {
-          const values = columns.map(col => row[col]);
+          const record = row as Record<string, unknown>;
+          const values = columns.map(col => record[col]);
           insert.run(...values);
-          (stats.recordsMigrated as any)[table]++;
+          stats.recordsMigrated[table as keyof typeof stats.recordsMigrated]++;
         } catch (e) {
           if (verbose) console.log(`    ${colors.yellow}⚠${colors.reset} Failed to migrate row: ${(e as Error).message}`);
         }
       }
 
-      console.log(`  ${colors.green}✅${colors.reset} Migrated ${(stats.recordsMigrated as any)[table]} records from ${table}`);
+      console.log(`  ${colors.green}✅${colors.reset} Migrated ${stats.recordsMigrated[table as keyof typeof stats.recordsMigrated]} records from ${table}`);
     } catch (e) {
       console.log(`  ${colors.yellow}⚠${colors.reset} Error migrating ${table}: ${(e as Error).message}`);
     }
@@ -399,14 +508,14 @@ async function migrateV1AgentDB(
 }
 
 async function performGNNOptimization(
-  db: any,
+  db: TargetDatabase,
   stats: MigrationStats,
   verbose: boolean
 ): Promise<void> {
   // Create episode embeddings for GNN training
   if (verbose) console.log(`  ${colors.blue}→${colors.reset} Generating episode embeddings...`);
 
-  const episodes = db.prepare('SELECT id, task, output FROM episodes LIMIT 1000').all();
+  const episodes = db.prepare('SELECT id, task, output FROM episodes LIMIT 1000').all() as unknown as { id: number; task: string; output: string }[];
   const insertEmbedding = db.prepare(`
     INSERT OR IGNORE INTO episode_embeddings (episode_id, embedding, embedding_model)
     VALUES (?, ?, ?)
@@ -433,7 +542,7 @@ async function performGNNOptimization(
     FROM episodes
     WHERE session_id IS NOT NULL
     ORDER BY session_id, created_at
-  `).all();
+  `).all() as unknown as EpisodeRow[];
 
   const insertCausalEdge = db.prepare(`
     INSERT OR IGNORE INTO causal_edges (
@@ -443,7 +552,7 @@ async function performGNNOptimization(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  let prevEpisode: any = null;
+  let prevEpisode: EpisodeRow | null = null;
   for (const ep of sessionEpisodes) {
     if (prevEpisode && prevEpisode.session_id === ep.session_id) {
       try {
@@ -468,7 +577,7 @@ async function performGNNOptimization(
   // Create skill links from success patterns
   if (verbose) console.log(`  ${colors.blue}→${colors.reset} Linking skills...`);
 
-  const skills = db.prepare('SELECT id, success_rate FROM skills').all();
+  const skills = db.prepare('SELECT id, success_rate FROM skills').all() as unknown as SkillRow[];
   const insertSkillLink = db.prepare(`
     INSERT OR IGNORE INTO skill_links (
       parent_skill_id, child_skill_id, relationship, weight

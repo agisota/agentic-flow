@@ -149,6 +149,7 @@ export type {
 
 export { RuVectorBackend } from './backends/ruvector/RuVectorBackend.js';
 export { RuVectorLearning } from './backends/ruvector/RuVectorLearning.js';
+export { RvfBackend } from './backends/rvf/RvfBackend.js';
 // Note: HNSWLibBackend is NOT exported - use the main entry point if you need it
 
 export {
@@ -159,4 +160,6 @@ export {
   getInstallCommand
 } from './backends/factory.js';
 
-export type { BackendType, BackendDetection } from './backends/factory.js';
+export type { BackendType, BackendDetection, RvfDetection } from './backends/factory.js';
+export type { VectorBackendAsync } from './backends/VectorBackend.js';
+export type { RvfConfig } from './backends/rvf/RvfBackend.js';

@@ -11,7 +11,9 @@ import * as os from 'os';
 
 interface DoctorOptions {
   dbPath?: string;
+  rvfPath?: string;
   verbose?: boolean;
+  fix?: boolean;
 }
 
 export async function doctorCommand(options: DoctorOptions = {}): Promise<void> {
@@ -77,9 +79,96 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       console.log('     🚀 Using RuVector (150x faster than SQLite)');
     }
     passedChecks++;
-  } catch (error: any) {
-    console.log(`  ❌ Backend detection failed: ${error?.message || 'Unknown error'}`);
+  } catch (error: unknown) {
+    console.log(`  ❌ Backend detection failed: ${(error as Error | null)?.message || 'Unknown error'}`);
     failedChecks++;
+  }
+
+  // Check 3b: RVF Backend Detection
+  console.log('\n📦 RVF Backend');
+  try {
+    let rvfSdk = false;
+    let rvfNode = false;
+    let rvfWasm = false;
+
+    try {
+      await import('@ruvector/rvf');
+      rvfSdk = true;
+    } catch { /* not installed */ }
+
+    try {
+      await import('@ruvector/rvf-node');
+      rvfNode = true;
+    } catch { /* not installed */ }
+
+    try {
+      await import('@ruvector/rvf-wasm');
+      rvfWasm = true;
+    } catch { /* not installed */ }
+
+    if (rvfSdk) {
+      console.log(`  ✅ @ruvector/rvf SDK available`);
+      passedChecks++;
+      if (rvfNode) {
+        console.log(`  ✅ @ruvector/rvf-node (N-API native backend)`);
+        passedChecks++;
+      } else {
+        console.log(`  ⚠️  @ruvector/rvf-node not installed (no N-API backend)`);
+        warnings++;
+      }
+      if (rvfWasm) {
+        console.log(`  ✅ @ruvector/rvf-wasm (WASM fallback backend)`);
+        passedChecks++;
+      } else if (!rvfNode) {
+        console.log(`  ❌ No RVF backend available (need rvf-node or rvf-wasm)`);
+        failedChecks++;
+      } else {
+        console.log(`  ℹ️  @ruvector/rvf-wasm not installed (optional with N-API)`);
+      }
+    } else {
+      console.log(`  ℹ️  @ruvector/rvf not installed (optional - single-file vector storage)`);
+      console.log(`     Install: npm install @ruvector/rvf @ruvector/rvf-node`);
+    }
+  } catch (error: unknown) {
+    console.log(`  ⚠️  RVF detection error: ${(error as Error | null)?.message || 'Unknown'}`);
+    warnings++;
+  }
+
+  // Check 3c: RVF Store Health (if .rvf file exists)
+  const rvfPath = options.rvfPath || './agentdb.rvf';
+  if (fs.existsSync(rvfPath)) {
+    console.log(`\n📁 RVF Store: ${rvfPath}`);
+    try {
+      const stat = fs.statSync(rvfPath);
+      console.log(`  ✅ RVF file exists (${(stat.size / 1024).toFixed(1)}KB)`);
+      passedChecks++;
+
+      // Try to open and read status
+      try {
+        const { RvfBackend } = await import('../../backends/rvf/RvfBackend.js');
+        const rvfBackend = new RvfBackend({
+          dimension: 384,
+          metric: 'cosine',
+          storagePath: rvfPath,
+        });
+        await (rvfBackend as unknown as { initialize(): Promise<void> }).initialize();
+        const status = await rvfBackend.status();
+        console.log(`  ✅ RVF store readable`);
+        console.log(`     Vectors: ${status.totalVectors}, Segments: ${status.totalSegments}`);
+        passedChecks++;
+
+        const fileId = await rvfBackend.fileId();
+        console.log(`     File ID: ${fileId.substring(0, 16)}...`);
+
+        rvfBackend.close();
+      } catch (rvfErr: unknown) {
+        console.log(`  ❌ RVF store corrupted or unreadable: ${(rvfErr as Error | null)?.message}`);
+        failedChecks++;
+      }
+    } catch {
+      console.log(`  ❌ Cannot stat RVF file`);
+      failedChecks++;
+    }
   }
 
   // Check 4: Database Accessibility
@@ -115,8 +204,8 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
         warnings++;
       }
       db.close();
-    } catch (error: any) {
-      console.log(`  ❌ Database error: ${error?.message || 'Unknown error'}`);
+    } catch (error: unknown) {
+      console.log(`  ❌ Database error: ${(error as Error | null)?.message || 'Unknown error'}`);
       failedChecks++;
     }
   } else if (dbPath && dbPath !== ':memory:') {
@@ -237,10 +326,25 @@ export async function doctorCommand(options: DoctorOptions = {}): Promise<void> 
       recommendations.push('✅ RuVector with GNN enabled - maximum performance (150x faster).');
     } else if (result.backend === 'ruvector') {
       recommendations.push('✅ RuVector enabled - good performance (50x faster than SQLite).');
+    } else if (result.backend === 'rvf') {
+      recommendations.push('✅ RVF format enabled - single-file crash-safe vector storage.');
+      recommendations.push('   💡 Use agentdb rvf compact <store> to reclaim dead space.');
     } else {
       recommendations.push('💡 Consider using --backend ruvector for 150x performance improvement.');
     }
-  } catch {}
+    // RVF-specific recommendations
+    if (result.features.rvf) {
+      recommendations.push('✅ RVF single-file format available - use for portable vector stores.');
+      if (result.features.lineage) {
+        recommendations.push('   💡 Use agentdb rvf derive to create experimental branches.');
+      }
+    } else {
+      recommendations.push('💡 Install @ruvector/rvf for crash-safe single-file vector storage.');
+      recommendations.push('   npm install @ruvector/rvf @ruvector/rvf-node');
+    }
+  } catch {
+    // Backend detection failed - skip recommendations
+  }
 
   // Storage optimization
   if (dbPath && dbPath !== ':memory:' && fs.existsSync(dbPath)) {
