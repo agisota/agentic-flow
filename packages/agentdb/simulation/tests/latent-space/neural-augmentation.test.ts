@@ -310,13 +310,13 @@ describe('NeuralAugmentation', () => {
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.length).toBeGreaterThanOrEqual(4);
+      expect(report.recommendations!.length).toBeGreaterThanOrEqual(4);
     });
 
     it('should generate neural diagrams', () => {
-      expect(report.artifacts.gnnArchitectures).toBeDefined();
-      expect(report.artifacts.navigationPolicies).toBeDefined();
-      expect(report.artifacts.optimizationCurves).toBeDefined();
+      expect(report.artifacts!.gnnArchitectures).toBeDefined();
+      expect(report.artifacts!.navigationPolicies).toBeDefined();
+      expect(report.artifacts!.optimizationCurves).toBeDefined();
     });
 
     it('should complete within timeout', () => {

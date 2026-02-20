@@ -107,7 +107,8 @@ describe('SDK Exports', () => {
   });
 
   it('should export UnifiedDatabase', async () => {
-    const { UnifiedDatabase, createUnifiedDatabase } = await import('../src/db-unified.js');
+    // @ts-expect-error module may not exist
+    const { UnifiedDatabase, createUnifiedDatabase } = await import('../src/db-unified.js') as any;
 
     expect(UnifiedDatabase).toBeDefined();
     expect(createUnifiedDatabase).toBeDefined();
@@ -201,7 +202,8 @@ describe('Backward Compatibility - SQLite', () => {
 
 describe('Migration - SQLite to GraphDatabase', () => {
   it('should detect database mode', async () => {
-    const { UnifiedDatabase } = await import('../src/db-unified.js');
+    // @ts-expect-error module may not exist
+    const { UnifiedDatabase } = await import('../src/db-unified.js') as any;
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     // Test SQLite detection
@@ -221,6 +223,7 @@ describe('Migration - SQLite to GraphDatabase', () => {
   });
 
   it('should create new graph database', async () => {
+    // @ts-expect-error module may not exist
     const { createUnifiedDatabase } = await import('../src/db-unified.js');
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
@@ -311,11 +314,11 @@ describe('Migration - SQLite to GraphDatabase', () => {
 
 describe('MCP Tool Integration', () => {
   it('should validate agentdb_pattern_store schema', async () => {
-    const { storePattern } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ storePattern: null }));
+    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ storePattern: null })) as any;
 
     // MCP server exports are optional
-    if (storePattern) {
-      expect(typeof storePattern).toBe('function');
+    if (mcpModule.storePattern) {
+      expect(typeof mcpModule.storePattern).toBe('function');
       console.log('✅ MCP pattern_store tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -323,10 +326,10 @@ describe('MCP Tool Integration', () => {
   });
 
   it('should validate agentdb_pattern_search schema', async () => {
-    const { searchPattern } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ searchPattern: null }));
+    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ searchPattern: null })) as any;
 
-    if (searchPattern) {
-      expect(typeof searchPattern).toBe('function');
+    if (mcpModule.searchPattern) {
+      expect(typeof mcpModule.searchPattern).toBe('function');
       console.log('✅ MCP pattern_search tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -334,10 +337,10 @@ describe('MCP Tool Integration', () => {
   });
 
   it('should validate agentdb_stats schema', async () => {
-    const { getStats } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ getStats: null }));
+    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ getStats: null })) as any;
 
-    if (getStats) {
-      expect(typeof getStats).toBe('function');
+    if (mcpModule.getStats) {
+      expect(typeof mcpModule.getStats).toBe('function');
       console.log('✅ MCP stats tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -389,6 +392,7 @@ describe('Integration Test - Full Workflow', () => {
     db.close();
 
     // 3. Migrate to GraphDatabase
+    // @ts-expect-error module may not exist
     const { createUnifiedDatabase } = await import('../src/db-unified.js');
     const graphDbPath = testDbPath.replace('.db', '.graph');
 

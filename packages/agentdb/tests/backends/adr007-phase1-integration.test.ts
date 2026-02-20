@@ -402,7 +402,7 @@ describe('ADR-007 Phase 1: FilterBuilder', () => {
     });
 
     it('should return null for null input', () => {
-      expect(FilterBuilder.buildFilter(null as unknown as Record<string, unknown>)).toBeNull();
+      expect(FilterBuilder.buildFilter(null as any)).toBeNull();
     });
 
     it('should skip null/undefined values', () => {
@@ -476,7 +476,7 @@ describe('ADR-007 Phase 1: TemporalCompressor Batch + Native Bridge', () => {
     const compressor = await TemporalCompressor.create();
     const dim = 32;
 
-    const items = [];
+    const items: any[] = [];
     for (let i = 0; i < 20; i++) {
       items.push({
         id: `batch-${i}`,

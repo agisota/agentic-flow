@@ -25,6 +25,8 @@ import { ReflexionMemory } from './ReflexionMemory.js';
 import { SkillLibrary } from './SkillLibrary.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import { AttentionService, type FlashAttentionConfig } from '../services/AttentionService.js';
+import { cosineSimilarity } from '../utils/similarity.js';
+import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface LearnerConfig {
   minSimilarity: number; // Min similarity to consider for causal edge (default: 0.7)
@@ -62,6 +64,7 @@ export class NightlyLearner {
   private skillLibrary: SkillLibrary;
   private embedder: EmbeddingService;
   private attentionService?: AttentionService;
+  private bandit: SolverBandit | null = null;
 
   constructor(
     db: Database,
@@ -76,10 +79,12 @@ export class NightlyLearner {
       autoExperiments: true,
       experimentBudget: 10,
       ENABLE_FLASH_CONSOLIDATION: false,
-    }
+    },
+    bandit?: SolverBandit
   ) {
     this.db = db;
     this.embedder = embedder;
+    this.bandit = bandit || null;
     this.causalGraph = new CausalMemoryGraph(db);
     this.reflexion = new ReflexionMemory(db, embedder);
     this.skillLibrary = new SkillLibrary(db, embedder);
@@ -323,18 +328,7 @@ export class NightlyLearner {
    * Helper: Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    return denom === 0 ? 0 : dotProduct / denom;
+    return cosineSimilarity(a, b);
   }
 
   private async discoverCausalEdges(): Promise<number> {
@@ -524,7 +518,7 @@ export class NightlyLearner {
     }
 
     // Find promising task pairs that don't have experiments yet
-    const candidates = this.db.prepare(`
+    let candidates = this.db.prepare(`
       SELECT DISTINCT
         e1.task as treatment_task,
         e1.id as treatment_id,
@@ -541,6 +535,14 @@ export class NightlyLearner {
       ORDER BY COUNT(e2.id) DESC
       LIMIT ?
     `).all(this.config.minSampleSize, available) as any[];
+
+    // ADR-010: Bandit-guided experiment prioritization
+    if (this.bandit && candidates.length > 1) {
+      const armKeys = candidates.map((c: any) => c.treatment_task as string);
+      const ranked = this.bandit.rerank('experiment', armKeys);
+      const byTask = new Map(candidates.map((c: any) => [c.treatment_task as string, c]));
+      candidates = ranked.map(k => byTask.get(k)!).filter(Boolean);
+    }
 
     let created = 0;
 

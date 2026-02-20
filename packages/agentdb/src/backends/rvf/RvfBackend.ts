@@ -29,82 +29,19 @@ import type {
   VectorStats,
 } from '../VectorBackend.js';
 import { FilterBuilder, type RvfFilterExpr } from './FilterBuilder.js';
-
-// Security constants (aligned with RuVectorBackend)
-const MAX_VECTOR_DIMENSION = 4096;
-const MAX_BATCH_SIZE = 10000;
-const MAX_PATH_LENGTH = 4096;
-const DEFAULT_BATCH_THRESHOLD = 100;
-const MAX_PENDING_WRITES = 50000;
-const MAX_METADATA_BYTES = 65536;
-const MAX_ID_LENGTH = 1024;
-const MAX_SEARCH_K = 10000;
-
-const FORBIDDEN_PATH_PATTERNS = [
-  /\.\./,       // Path traversal
-  /^\/etc\//i,  // System config
-  /^\/proc\//i, // Process info
-  /^\/sys\//i,  // System info
-  /^\/dev\//i,  // Devices
-];
-
-function validatePath(inputPath: string): void {
-  if (!inputPath || typeof inputPath !== 'string') {
-    throw new Error('Path must be a non-empty string');
-  }
-  if (inputPath.length > MAX_PATH_LENGTH) {
-    throw new Error(`Path exceeds maximum length of ${MAX_PATH_LENGTH}`);
-  }
-  if (inputPath.includes('\0')) {
-    throw new Error('Path must not contain null bytes');
-  }
-  // Check both forward-slash and backslash traversal
-  if (/\.\.[\\/]/.test(inputPath)) {
-    throw new Error('Path contains forbidden traversal pattern');
-  }
-  for (const pattern of FORBIDDEN_PATH_PATTERNS) {
-    if (pattern.test(inputPath)) {
-      throw new Error('Path contains forbidden pattern');
-    }
-  }
-}
-
-function validateId(id: string): void {
-  if (!id || typeof id !== 'string') {
-    throw new Error('Vector ID must be a non-empty string');
-  }
-  if (id.length > MAX_ID_LENGTH) {
-    throw new Error(`Vector ID exceeds maximum length of ${MAX_ID_LENGTH}`);
-  }
-  if (id.includes('\0')) {
-    throw new Error('Vector ID must not contain null bytes');
-  }
-}
-
-function validateMetadata(metadata: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!metadata) return metadata;
-  const json = JSON.stringify(metadata);
-  if (json.length > MAX_METADATA_BYTES) {
-    throw new Error(`Metadata exceeds maximum size of ${MAX_METADATA_BYTES} bytes`);
-  }
-  // Strip prototype-pollution keys
-  if ('__proto__' in metadata || 'constructor' in metadata || 'prototype' in metadata) {
-    const clean: Record<string, unknown> = Object.create(null);
-    for (const key of Object.keys(metadata)) {
-      if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
-        clean[key] = metadata[key];
-      }
-    }
-    return clean;
-  }
-  return metadata;
-}
-
-function validateDimension(dimension: number): void {
-  if (!Number.isFinite(dimension) || dimension < 1 || dimension > MAX_VECTOR_DIMENSION) {
-    throw new Error(`Dimension must be between 1 and ${MAX_VECTOR_DIMENSION}`);
-  }
-}
+import {
+  validatePath,
+  validateId,
+  validateMetadata,
+  validateDimension,
+  MAX_BATCH_SIZE,
+  MAX_PENDING_WRITES,
+  MAX_SEARCH_K,
+  DEFAULT_BATCH_THRESHOLD,
+  MAX_ID_LENGTH,
+  MAX_METADATA_BYTES,
+  MAX_VECTOR_DIMENSION,
+} from './validation.js';
 
 /** RVF-specific configuration options */
 export interface RvfConfig extends VectorConfig {
@@ -222,7 +159,7 @@ export class RvfBackend implements VectorBackendAsync {
       if (fileExists) {
         this.db = await RvfDatabase.open(storagePath, rvfBackendType);
       } else {
-        const createOpts: Record<string, unknown> = {
+        const createOpts: any = {
           dimensions: this.dim,
           metric: rvfMetric,
           m: this.config.M ?? 16,
@@ -429,7 +366,7 @@ export class RvfBackend implements VectorBackendAsync {
     if (options?.threshold) rvfOpts.minScore = options.threshold;
     // Wire filter expressions through to RVF query options
     if (options?.filter && typeof options.filter === 'object') {
-      const builtFilter = FilterBuilder.buildFilter(options.filter as Record<string, unknown>);
+      const builtFilter = FilterBuilder.buildFilter(options.filter as any);
       if (builtFilter) rvfOpts.filter = builtFilter;
     }
     const results = await this.db.query(queryVec, safeK, Object.keys(rvfOpts).length > 0 ? rvfOpts : undefined);
@@ -712,7 +649,7 @@ export class RvfBackend implements VectorBackendAsync {
     if ('op' in filter) {
       rvfFilter = filter as RvfFilterExpr;
     } else {
-      rvfFilter = FilterBuilder.buildFilter(filter as Record<string, unknown>);
+      rvfFilter = FilterBuilder.buildFilter(filter as any);
     }
 
     if (!rvfFilter) {

@@ -237,13 +237,13 @@ describe('HNSWExploration', () => {
 
     it('should provide actionable recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.length).toBeGreaterThan(0);
-      expect(report.recommendations.some(r => r.includes('M='))).toBe(true);
+      expect(report.recommendations!.length).toBeGreaterThan(0);
+      expect(report.recommendations!.some(r => r.includes('M='))).toBe(true);
     });
 
     it('should generate visualizations', () => {
-      expect(report.artifacts.graphVisualizations).toBeDefined();
-      expect(report.artifacts.performanceCharts).toBeDefined();
+      expect(report.artifacts!.graphVisualizations).toBeDefined();
+      expect(report.artifacts!.performanceCharts).toBeDefined();
     });
 
     it('should complete within timeout', () => {

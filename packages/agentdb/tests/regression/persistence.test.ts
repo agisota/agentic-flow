@@ -63,14 +63,14 @@ describe('Persistence and Data Migration', () => {
     // Initialize embedder
     embedder = new EmbeddingService({
       model: 'mock-model',
-      dimensions: 384,
+      dimension: 384,
       provider: 'local',
     });
     await embedder.initialize();
 
     // Initialize vector backend (required for v2)
     vectorBackend = await createBackend('auto', {
-      dimensions: 384,
+      dimension: 384,
       metric: 'cosine',
     });
   });

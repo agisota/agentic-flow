@@ -48,7 +48,7 @@ describe('Attention Mechanism Regression Tests', () => {
     });
 
     it('should initialize AgentDB without attention controllers', async () => {
-      const controllers = db.listControllers();
+      const controllers = (db as any).listControllers();
 
       expect(controllers).not.toContain('self-attention');
       expect(controllers).not.toContain('cross-attention');
@@ -68,8 +68,8 @@ describe('Attention Mechanism Regression Tests', () => {
       const retrieved = await memoryController.retrieve(memory.id);
 
       expect(retrieved).toBeDefined();
-      expect(retrieved.id).toBe(memory.id);
-      expect(retrieved.content).toBe(memory.content);
+      expect(retrieved!.id).toBe(memory.id);
+      expect(retrieved!.content).toBe(memory.content);
     });
 
     it('should perform vector search without attention', async () => {
@@ -104,8 +104,8 @@ describe('Attention Mechanism Regression Tests', () => {
         success: true
       };
 
-      await reflexion.storeTrajectory(trajectory);
-      const retrieved = await reflexion.getTrajectory('session1');
+      await (reflexion as any).storeTrajectory(trajectory);
+      const retrieved = await (reflexion as any).getTrajectory('session1');
 
       expect(retrieved).toBeDefined();
       expect(retrieved.reward).toBe(0.8);
@@ -122,8 +122,8 @@ describe('Attention Mechanism Regression Tests', () => {
         successRate: 0.9
       };
 
-      await skillLib.storeSkill(skill);
-      const retrieved = await skillLib.getSkill('test-skill');
+      await (skillLib as any).storeSkill(skill);
+      const retrieved = await (skillLib as any).getSkill('test-skill');
 
       expect(retrieved).toBeDefined();
       expect(retrieved.name).toBe(skill.name);
@@ -131,7 +131,7 @@ describe('Attention Mechanism Regression Tests', () => {
     });
 
     it('should not impact database schema', async () => {
-      const tables = await db.query('SELECT name FROM sqlite_master WHERE type="table"');
+      const tables = await (db as any).query('SELECT name FROM sqlite_master WHERE type="table"');
 
       // Should not have attention-specific tables when disabled
       const tableNames = tables.map(t => t.name);
@@ -169,7 +169,7 @@ describe('Attention Mechanism Regression Tests', () => {
     });
 
     it('should initialize attention controllers when enabled', async () => {
-      const controllers = db.listControllers();
+      const controllers = (db as any).listControllers();
 
       expect(controllers).toContain('self-attention');
       expect(controllers).toContain('cross-attention');
@@ -225,7 +225,7 @@ describe('Attention Mechanism Regression Tests', () => {
 
       await db.initialize();
 
-      const controllers = db.listControllers();
+      const controllers = (db as any).listControllers();
       expect(controllers).toContain('self-attention');
       expect(controllers).not.toContain('cross-attention');
       expect(controllers).not.toContain('multi-head-attention');
@@ -257,7 +257,7 @@ describe('Attention Mechanism Regression Tests', () => {
       expect(db).toBeInstanceOf(AgentDB);
       expect(db.initialize).toBeInstanceOf(Function);
       expect(db.getController).toBeInstanceOf(Function);
-      expect(db.query).toBeInstanceOf(Function);
+      expect((db as any).query).toBeInstanceOf(Function);
       expect(db.close).toBeInstanceOf(Function);
     });
 
@@ -469,7 +469,7 @@ describe('Attention Mechanism Regression Tests', () => {
       const retrieved = await memoryController2.retrieve('migration-test');
 
       expect(retrieved).toBeDefined();
-      expect(retrieved.id).toBe('migration-test');
+      expect(retrieved!.id).toBe('migration-test');
 
       // Should be able to use attention features
       const results = await memoryController2.retrieveWithAttention([0.1, 0.2, 0.3]);
@@ -486,14 +486,14 @@ describe('Attention Mechanism Regression Tests', () => {
 
       const memoryController = db.getController('memory') as MemoryController;
 
-      const memories = [];
+      const memories: any[] = [];
       for (let i = 0; i < 100; i++) {
         const memory = {
           id: `integrity-${i}`,
           content: `Memory ${i}`,
           embedding: [Math.random(), Math.random(), Math.random()]
         };
-        await memoryController.store(memory);
+        await memoryController.store(memory as any);
         memories.push(memory);
       }
 
@@ -510,7 +510,7 @@ describe('Attention Mechanism Regression Tests', () => {
 
       // Verify all data is intact
       for (const memory of memories) {
-        const retrieved = await memoryController2.retrieve(memory.id);
+        const retrieved = await memoryController2.retrieve(memory.id) as any;
         expect(retrieved).toBeDefined();
         expect(retrieved.id).toBe(memory.id);
         expect(retrieved.content).toBe(memory.content);
@@ -554,22 +554,22 @@ describe('Attention Mechanism Regression Tests', () => {
     it('should maintain transaction integrity with attention', async () => {
       const memoryController = db.getController('memory') as MemoryController;
 
-      await db.beginTransaction();
+      await (db as any).beginTransaction();
 
       try {
         await memoryController.store({
           id: 'tx-test-1',
           embedding: [0.1, 0.2, 0.3]
-        });
+        } as any);
 
         await memoryController.store({
           id: 'tx-test-2',
           embedding: [0.4, 0.5, 0.6]
-        });
+        } as any);
 
-        await db.commitTransaction();
+        await (db as any).commitTransaction();
       } catch (error) {
-        await db.rollbackTransaction();
+        await (db as any).rollbackTransaction();
         throw error;
       }
 

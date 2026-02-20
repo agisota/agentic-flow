@@ -22,6 +22,8 @@
 // Database type from db-fallback
 type Database = any;
 import { EmbeddingService } from './EmbeddingService.js';
+import { cosineSimilarity } from '../utils/similarity.js';
+import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface LearningSession {
   id: string;
@@ -71,10 +73,12 @@ export class LearningSystem {
   private db: Database;
   private embedder: EmbeddingService;
   private activeSessions: Map<string, LearningSession> = new Map();
+  private bandit: SolverBandit | null = null;
 
-  constructor(db: Database, embedder: EmbeddingService) {
+  constructor(db: Database, embedder: EmbeddingService, bandit?: SolverBandit) {
     this.db = db;
     this.embedder = embedder;
+    this.bandit = bandit || null;
     this.initializeSchema();
   }
 
@@ -377,6 +381,25 @@ export class LearningSystem {
       convergenceRate,
       trainingTimeMs,
     };
+  }
+
+  /** ADR-010: Recommend best RL algorithm for a task based on learned outcomes */
+  recommendAlgorithm(taskDescription: string): LearningSession['sessionType'] {
+    const algorithms: LearningSession['sessionType'][] = [
+      'q-learning', 'sarsa', 'dqn', 'policy-gradient',
+      'actor-critic', 'ppo', 'decision-transformer', 'mcts', 'model-based',
+    ];
+    if (!this.bandit) return 'ppo'; // default
+    const ctx = taskDescription.split(/\s+/).slice(0, 3).join('_') || 'general';
+    return this.bandit.selectArm(ctx, algorithms) as LearningSession['sessionType'];
+  }
+
+  /** ADR-010: Record session outcome for algorithm meta-selection */
+  recordAlgorithmOutcome(taskDescription: string, algorithm: LearningSession['sessionType'], reward: number, timeMs?: number): void {
+    if (this.bandit) {
+      const ctx = taskDescription.split(/\s+/).slice(0, 3).join('_') || 'general';
+      this.bandit.recordReward(ctx, algorithm, reward, timeMs);
+    }
   }
 
   // ============================================================================
@@ -1268,20 +1291,6 @@ export class LearningSystem {
 
   // Helper method for cosine similarity
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    if (a.length !== b.length) {
-      throw new Error('Vectors must have same length');
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return cosineSimilarity(a, b);
   }
 }

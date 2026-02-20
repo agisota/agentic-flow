@@ -17,6 +17,7 @@ import type { VectorBackend } from '../backends/VectorBackend.js';
 import { SelfAttentionController } from './attention/SelfAttentionController.js';
 import { CrossAttentionController } from './attention/CrossAttentionController.js';
 import { MultiHeadAttentionController } from './attention/MultiHeadAttentionController.js';
+import { cosineSimilarity } from '../utils/similarity.js';
 
 /**
  * Configuration for the MemoryController
@@ -362,24 +363,7 @@ export class MemoryController {
    * Compute cosine similarity between two vectors
    */
   private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) {
-      throw new Error('Vectors must have same dimension');
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    if (denominator === 0) return 0;
-
-    return dotProduct / denominator;
+    return cosineSimilarity(a, b);
   }
 
   /**

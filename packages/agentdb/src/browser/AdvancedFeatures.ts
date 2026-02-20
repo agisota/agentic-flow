@@ -8,6 +8,8 @@
  * - Batch operations and utilities
  */
 
+import { cosineSimilarity } from '../utils/similarity.js';
+
 // ============================================================================
 // GNN (Graph Neural Networks)
 // ============================================================================
@@ -323,17 +325,7 @@ export class MaximalMarginalRelevance {
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return cosineSimilarity(a, b);
   }
 
   private euclideanDistance(a: Float32Array, b: Float32Array): number {

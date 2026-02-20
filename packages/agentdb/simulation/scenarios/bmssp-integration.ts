@@ -10,7 +10,7 @@
  * - Hybrid reasoning paths
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { CausalMemoryGraph } from '../../src/controllers/CausalMemoryGraph.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -34,10 +34,10 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'advanced', 'bmssp.graph'),
-      embedder,
       {
+        embedder,
         forceMode: 'graph'
         // Note: Distance metric configured in RuVector backend
       }

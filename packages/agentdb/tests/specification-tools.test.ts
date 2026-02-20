@@ -595,7 +595,7 @@ describe('AgentDB Core Vector Operations', () => {
         avgReward: 0.7,
         avgLatencyMs: 0,
         tags: ['optimization', 'performance'],
-      });
+      } as any);
 
       const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
       expect(skill.tags).toBeDefined();

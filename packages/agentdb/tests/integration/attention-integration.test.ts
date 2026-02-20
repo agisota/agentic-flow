@@ -140,7 +140,7 @@ describe('Attention Mechanism Integration', () => {
       const controller = db.getController('self-attention') as SelfAttentionController;
 
       // Store 1000 memories
-      const promises = [];
+      const promises: Promise<any>[] = [];
       for (let i = 0; i < 1000; i++) {
         promises.push(memoryController.store({
           id: `mem${i}`,

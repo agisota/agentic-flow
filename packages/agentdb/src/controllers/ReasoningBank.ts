@@ -12,6 +12,7 @@
  * - metadata: Additional contextual information
  *
  * AgentDB v2 Migration:
+ * - Uses shared cosineSimilarity from utils/similarity
  * - Uses VectorBackend abstraction for 8x faster search (RuVector/hnswlib)
  * - Optional GNN enhancement via LearningBackend
  * - 100% backward compatible with v1 API
@@ -22,6 +23,8 @@ import type { IDatabaseConnection, DatabaseRows } from '../types/database.types.
 import { normalizeRowId } from '../types/database.types.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend, SearchResult } from '../backends/VectorBackend.js';
+import { cosineSimilarity } from '../utils/similarity.js';
+import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface ReasoningPattern {
   id?: number;
@@ -94,6 +97,9 @@ export class ReasoningBank {
   private vectorBackend?: VectorBackend;
   private learningBackend?: LearningBackend;
 
+  // ADR-010: Optional SolverBandit for adaptive pattern routing
+  private bandit: SolverBandit | null = null;
+
   // Maps pattern ID (number) to vector backend ID (string) for hybrid mode
   private idMapping: Map<number, string> = new Map();
   private nextVectorId = 0;
@@ -111,12 +117,14 @@ export class ReasoningBank {
     db: IDatabaseConnection,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
-    learningBackend?: LearningBackend
+    learningBackend?: LearningBackend,
+    bandit?: SolverBandit
   ) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend;
     this.learningBackend = learningBackend;
+    this.bandit = bandit || null;
     this.cache = new Map();
     this.initializeSchema();
   }
@@ -250,11 +258,11 @@ export class ReasoningBank {
 
     // Use VectorBackend if available (v2 mode)
     if (this.vectorBackend) {
-      return this.searchPatternsV2(enrichedQuery);
+      return this.banditRerankPatterns(query, await this.searchPatternsV2(enrichedQuery));
     }
 
     // Legacy v1 search (100% backward compatible)
-    return this.searchPatternsLegacy(enrichedQuery);
+    return this.banditRerankPatterns(query, await this.searchPatternsLegacy(enrichedQuery));
   }
 
   /**
@@ -443,6 +451,23 @@ export class ReasoningBank {
     }
 
     return embeddings;
+  }
+
+  /** ADR-010: Rerank patterns using Thompson Sampling bandit */
+  private banditRerankPatterns(query: PatternSearchQuery, results: ReasoningPattern[]): ReasoningPattern[] {
+    if (!this.bandit || results.length <= 1) return results;
+    const ctx = query.filters?.taskType || query.task?.split(/\s+/)[0] || 'general';
+    const armKeys = results.map((p, i) => p.taskType || `pattern-${i}`);
+    const ranked = this.bandit.rerank(ctx, armKeys);
+    const byKey = new Map(results.map((p, i) => [p.taskType || `pattern-${i}`, p]));
+    return ranked.map(k => byKey.get(k)!).filter(Boolean);
+  }
+
+  /** ADR-010: Record pattern outcome for bandit learning */
+  recordPatternOutcome(taskType: string, patternTaskType: string, reward: number): void {
+    if (this.bandit) {
+      this.bandit.recordReward(taskType, patternTaskType, reward);
+    }
   }
 
   /**
@@ -655,21 +680,6 @@ export class ReasoningBank {
    * Calculate cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    if (a.length !== b.length) {
-      throw new Error('Vectors must have same length');
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    const denom = Math.sqrt(normA) * Math.sqrt(normB);
-    return denom === 0 ? 0 : dotProduct / denom;
+    return cosineSimilarity(a, b);
   }
 }

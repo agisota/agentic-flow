@@ -1,3 +1,7 @@
+# Source files (compiled output is in dist/)
+src/
+simulation/
+
 # Development files
 *.test.ts
 *.test.js
@@ -8,6 +12,11 @@ test/
 __tests__/
 coverage/
 .nyc_output/
+
+# Compiled test/simulation output
+dist/tests/
+dist/simulation/
+dist/benchmarks/
 
 # Documentation (keep README.md)
 *.md

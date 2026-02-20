@@ -126,8 +126,38 @@ export {
   type BenchmarkConfig,
 } from './benchmark/index.js';
 
-// Re-export all controllers for convenience
-export * from './controllers/index.js';
+// Additional controllers not explicitly listed above
+export { MMRDiversityRanker } from './controllers/MMRDiversityRanker.js';
+export { ContextSynthesizer } from './controllers/ContextSynthesizer.js';
+export { MetadataFilter } from './controllers/MetadataFilter.js';
+export { QUICServer } from './controllers/QUICServer.js';
+export { QUICClient } from './controllers/QUICClient.js';
+export { SyncCoordinator } from './controllers/SyncCoordinator.js';
+
+// Controller types
+export type { Episode, EpisodeWithEmbedding, ReflexionQuery } from './controllers/ReflexionMemory.js';
+export type { Skill, SkillLink, SkillQuery } from './controllers/SkillLibrary.js';
+export type { EmbeddingConfig } from './controllers/EmbeddingService.js';
+export type { VectorSearchConfig, VectorSearchResult, VectorIndex } from './controllers/WASMVectorSearch.js';
+export type { HNSWConfig, HNSWSearchResult, HNSWStats } from './controllers/HNSWIndex.js';
+export type { EnhancedEmbeddingConfig } from './controllers/EnhancedEmbeddingService.js';
+export type { MMROptions, MMRCandidate } from './controllers/MMRDiversityRanker.js';
+export type { MemoryPattern, SynthesizedContext } from './controllers/ContextSynthesizer.js';
+export type { MetadataFilters, FilterableItem, FilterOperator, FilterValue } from './controllers/MetadataFilter.js';
+export type { QUICServerConfig, SyncRequest, SyncResponse } from './controllers/QUICServer.js';
+export type { QUICClientConfig } from './controllers/QUICClient.js';
+export type { SyncCoordinatorConfig, SyncState, SyncReport } from './controllers/SyncCoordinator.js';
+export type { AttentionConfig, AttentionResult, AttentionStats } from './controllers/AttentionService.js';
+export type {
+  MemoryControllerConfig,
+  Memory,
+  SearchOptions,
+  SearchResult,
+  AttentionRetrievalResult,
+} from './controllers/MemoryController.js';
+export type { SelfAttentionConfig, AttentionScore, SelfAttentionResult, SelfAttentionMemoryEntry } from './controllers/attention/index.js';
+export type { CrossAttentionConfig, CrossAttentionScore, CrossAttentionResult, ContextEntry } from './controllers/attention/index.js';
+export type { MultiHeadAttentionConfig, HeadAttentionOutput, MultiHeadAttentionResult, MultiHeadMemoryEntry } from './controllers/attention/index.js';
 
 // Coordination - Multi-database synchronization
 export {

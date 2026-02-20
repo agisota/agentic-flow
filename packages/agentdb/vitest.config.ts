@@ -38,4 +38,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    deps: {
+      // Externalize WASM-loading packages so vitest doesn't transform them
+      external: [/@ruvector\//, /ruvector/, /ruvector-attention-wasm/],
+    },
+  },
 });

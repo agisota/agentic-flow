@@ -53,6 +53,14 @@ export interface LearningStats {
   useAdaptiveEf: boolean;
   activeSessionCount: number;
   compressionEntries: number;
+  /** Accuracy under noise from last acceptance (v0.1.6) */
+  noiseAccuracy: number;
+  /** Total constraint violations from last acceptance (v0.1.6) */
+  violations: number;
+  /** Patterns distilled in last acceptance cycle (v0.1.6) */
+  patternsDistilled: number;
+  /** Improvement dimensions from last acceptance 0-4 (v0.1.6) */
+  dimensionsImproved: number;
 }
 
 const EF_ARMS = [50, 100, 200, 400];
@@ -93,6 +101,8 @@ export class SelfLearningRvfBackend implements VectorBackendAsync {
   private _solverTrainCount = 0;
   private _destroyed = false;
   private _simBuf = new Float32Array(0);
+  private _lastManifest: SolverAcceptanceManifest | null = null;
+  private _learningRate = 1.0;
 
   private constructor(backend: RvfBackend, config: SelfLearningConfig) {
     this.backend = backend;
@@ -111,10 +121,22 @@ export class SelfLearningRvfBackend implements VectorBackendAsync {
 
   // ─── Async VectorBackendAsync ───
 
+  /** ADR-010 Phase 7: Append a mutation event to the solver witness chain via training */
+  recordMutationWitness(operation: string): void {
+    if (!this.solver) return;
+    // Each train call extends the SHAKE-256 witness chain
+    // Use operation hash as seed for deterministic witnessing
+    const seed = Array.from(operation).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+    try {
+      this.solver.train({ count: 1, minDifficulty: 1, maxDifficulty: 1, seed: Math.abs(seed) });
+    } catch { /* non-blocking */ }
+  }
+
   async insertAsync(id: string, embedding: Float32Array, metadata?: Record<string, unknown>): Promise<void> {
     this.ensureAlive();
     const start = performance.now();
     await this.backend.insertAsync(id, embedding, metadata);
+    this.recordMutationWitness(`insert:${id}`);
     if (this.learningEnabled) {
       this.accessFrequency.set(id, 1.0);
       if (this.compressor) this.compressor.compress(id, embedding, 1.0);
@@ -190,7 +212,11 @@ export class SelfLearningRvfBackend implements VectorBackendAsync {
   async removeAsync(id: string): Promise<boolean> {
     this.ensureAlive();
     const ok = await this.backend.removeAsync(id);
-    if (ok) { this.accessFrequency.delete(id); if (this.compressor) this.compressor.remove(id); }
+    if (ok) {
+      this.recordMutationWitness(`remove:${id}`);
+      this.accessFrequency.delete(id);
+      if (this.compressor) this.compressor.remove(id);
+    }
     return ok;
   }
 
@@ -311,10 +337,19 @@ export class SelfLearningRvfBackend implements VectorBackendAsync {
   // ─── Stats & accessors ───
 
   getLearningStats(): LearningStats {
-    return { searchesEnhanced: this._searchesEnhanced, trajectoriesRecorded: this._trajectoriesRecorded,
+    const lastModeC = this._lastManifest?.modeC;
+    const lastCycle = lastModeC?.cycles?.at(-1);
+    return {
+      searchesEnhanced: this._searchesEnhanced, trajectoriesRecorded: this._trajectoriesRecorded,
       contrastiveSamples: this._contrastiveSamples, contrastiveBatches: this._contrastiveBatches,
       tickCount: this._tickCount, solverTrainCount: this._solverTrainCount, useAdaptiveEf: this.useAdaptiveEf,
-      activeSessionCount: this.activeSessions.size, compressionEntries: this.compressor?.size ?? 0 };
+      activeSessionCount: this.activeSessions.size, compressionEntries: this.compressor?.size ?? 0,
+      // v0.1.6 fields (ADR-010)
+      noiseAccuracy: lastCycle?.noiseAccuracy ?? 0,
+      violations: lastModeC?.cycles?.reduce((s, c) => s + c.violations, 0) ?? 0,
+      patternsDistilled: lastCycle?.patternsLearned ?? 0,
+      dimensionsImproved: lastModeC?.dimensionsImproved ?? 0,
+    };
   }
 
   getBackend(): RvfBackend { return this.backend; }
@@ -425,7 +460,26 @@ export class SelfLearningRvfBackend implements VectorBackendAsync {
     if (!this.solver) return;
     try {
       const m = this.solver.acceptance({ cycles: 3, holdoutSize: this.config.acceptanceHoldoutSize ?? 30, trainingPerCycle: 100 });
-      this.useAdaptiveEf = m.allPassed && m.modeC.finalAccuracy >= m.modeA.finalAccuracy;
+      this._lastManifest = m;
+
+      // Multi-dimensional regression detection (v0.1.6 ADR-010)
+      const modeC = m.modeC;
+      if (!modeC.accuracyMaintained) {
+        this.useAdaptiveEf = false;
+      }
+      if (!modeC.zeroViolations) {
+        this.useAdaptiveEf = false;
+      }
+      if (modeC.dimensionsImproved < 2) {
+        this._learningRate = Math.max(0.1, this._learningRate * 0.5);
+      }
+      if (modeC.robustnessImproved && modeC.costImproved) {
+        this._learningRate = Math.min(1.0, this._learningRate * 1.1);
+      }
+      // Legacy fallback: if new fields are all zero (old WASM), use original logic
+      if (!modeC.accuracyMaintained && !modeC.costImproved && !modeC.robustnessImproved && modeC.dimensionsImproved === 0) {
+        this.useAdaptiveEf = m.allPassed && modeC.finalAccuracy >= m.modeA.finalAccuracy;
+      }
     } catch { /* skip */ }
   }
 

@@ -346,7 +346,7 @@ describe('QueryCache', () => {
 
   describe('Thread Safety Simulation', () => {
     it('should handle concurrent operations', async () => {
-      const promises = [];
+      const promises: Promise<any>[] = [];
 
       // Simulate concurrent reads and writes
       for (let i = 0; i < 20; i++) {

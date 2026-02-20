@@ -76,7 +76,7 @@ describe('Build Validation Tests', () => {
 
   describe('Import Resolution', () => {
     it('should resolve main exports', async () => {
-      const mainExports = await import('../../dist/index.js');
+      const mainExports = await import('../../dist/src/index.js');
 
       expect(mainExports).toHaveProperty('ReflexionMemory');
       expect(mainExports).toHaveProperty('SkillLibrary');
@@ -88,26 +88,26 @@ describe('Build Validation Tests', () => {
     });
 
     it('should resolve controller imports', async () => {
-      const reflexionModule = await import('../../dist/controllers/ReflexionMemory.js');
+      const reflexionModule = await import('../../dist/src/controllers/ReflexionMemory.js');
       expect(reflexionModule).toHaveProperty('ReflexionMemory');
 
-      const skillsModule = await import('../../dist/controllers/SkillLibrary.js');
+      const skillsModule = await import('../../dist/src/controllers/SkillLibrary.js');
       expect(skillsModule).toHaveProperty('SkillLibrary');
 
-      const causalModule = await import('../../dist/controllers/CausalMemoryGraph.js');
+      const causalModule = await import('../../dist/src/controllers/CausalMemoryGraph.js');
       expect(causalModule).toHaveProperty('CausalMemoryGraph');
 
-      const embeddingModule = await import('../../dist/controllers/EmbeddingService.js');
+      const embeddingModule = await import('../../dist/src/controllers/EmbeddingService.js');
       expect(embeddingModule).toHaveProperty('EmbeddingService');
     });
 
     it('should resolve CLI import', async () => {
-      const cliModule = await import('../../dist/cli/agentdb-cli.js');
+      const cliModule = await import('../../dist/src/cli/agentdb-cli.js');
       expect(cliModule).toHaveProperty('AgentDBCLI');
     });
 
     it('should resolve db-fallback', async () => {
-      const dbModule = await import('../../dist/db-fallback.js');
+      const dbModule = await import('../../dist/src/db-fallback.js');
       expect(dbModule).toHaveProperty('createDatabase');
     });
   });

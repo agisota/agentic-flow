@@ -13,6 +13,7 @@
  */
 
 import type { IndexStats } from './RvfBackend.js';
+import type { SolverBandit } from './SolverBandit.js';
 
 /** Compression tier for temporal memory decay */
 export type CompressionTier = 'none' | 'half' | 'pq8' | 'pq4' | 'binary';
@@ -82,17 +83,19 @@ export class TemporalCompressor {
   // ADR-007 Phase 1: optional NativeAccelerator for native tensor compression
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private accel: any = null;
+  private bandit: SolverBandit | null = null;
 
   /**
    * Create a new temporal compressor.
    * Lazy-loads NativeAccelerator for native compression when available.
    */
-  static async create(): Promise<TemporalCompressor> {
+  static async create(bandit?: SolverBandit): Promise<TemporalCompressor> {
     const compressor = new TemporalCompressor();
     try {
       const { getAccelerator } = await import('./NativeAccelerator.js');
       compressor.accel = await getAccelerator();
     } catch { /* proceed without native compression */ }
+    compressor.bandit = bandit || null;
     return compressor;
   }
 
@@ -479,6 +482,13 @@ export class TemporalCompressor {
   }
 
   private frequencyToTier(freq: number): CompressionTier {
+    // ADR-010: Bandit-guided tier selection
+    if (this.bandit) {
+      const tiers: CompressionTier[] = ['none', 'half', 'pq8', 'pq4', 'binary'];
+      const ctx = freq >= 0.5 ? 'hot' : freq >= 0.2 ? 'warm' : 'cold';
+      const selected = this.bandit.selectArm(ctx, tiers) as CompressionTier;
+      return selected;
+    }
     if (freq >= 0.8) return 'none';
     if (freq >= 0.6) return 'half';
     if (freq >= 0.4) return 'pq8';

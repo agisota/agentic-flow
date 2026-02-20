@@ -113,8 +113,8 @@ async function setupTestContext(): Promise<TestContext> {
   const skills = new SkillLibrary(db, embedder);
   const causalGraph = new CausalMemoryGraph(db);
   const explainableRecall = new ExplainableRecall(db);
-  const causalRecall = new CausalRecall(db, embedder, causalGraph, explainableRecall);
-  const nightlyLearner = new NightlyLearner(db, embedder, causalGraph);
+  const causalRecall = new CausalRecall(db, embedder, causalGraph as any, explainableRecall as any);
+  const nightlyLearner = new NightlyLearner(db, embedder, causalGraph as any);
 
   return { db, reflexion, skills, causalGraph, causalRecall, explainableRecall, nightlyLearner, embedder };
 }

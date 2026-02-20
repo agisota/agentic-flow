@@ -14,7 +14,7 @@
  * - Sync state persistence
  */
 
-import chalk from 'chalk';
+import chalk from '../utils/chalk-fallback.js';
 import { QUICClient, SyncOptions, SyncResult, PushResult } from './QUICClient.js';
 import { QUICServer, SyncRequest } from './QUICServer.js';
 

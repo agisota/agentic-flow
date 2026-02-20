@@ -29,7 +29,7 @@ export class WasmStoreBridge {
   async initialize(): Promise<boolean> {
     if (this._initialized) return this.available;
     try {
-      const wasm = await import('@ruvector/rvf-wasm');
+      const wasm: any = await import('@ruvector/rvf-wasm');
       if (wasm.rvf_store_create) this._storeCreate = wasm.rvf_store_create;
       if (wasm.rvf_store_ingest) this._storeIngest = wasm.rvf_store_ingest;
       if (wasm.rvf_store_query) this._storeQuery = wasm.rvf_store_query;

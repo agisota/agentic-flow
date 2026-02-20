@@ -279,13 +279,13 @@ describe('HypergraphExploration', () => {
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.some(r => r.includes('hypergraph'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('hypergraph'))).toBe(true);
     });
 
     it('should generate visualizations', () => {
-      expect(report.artifacts.hypergraphVisualizations).toBeDefined();
-      expect(report.artifacts.collaborationDiagrams).toBeDefined();
-      expect(report.artifacts.queryPerformanceCharts).toBeDefined();
+      expect(report.artifacts!.hypergraphVisualizations).toBeDefined();
+      expect(report.artifacts!.collaborationDiagrams).toBeDefined();
+      expect(report.artifacts!.queryPerformanceCharts).toBeDefined();
     });
 
     it('should complete within timeout', () => {

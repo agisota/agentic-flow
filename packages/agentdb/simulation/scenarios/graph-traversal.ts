@@ -4,7 +4,7 @@
  * Tests Cypher queries and graph operations
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import * as path from 'path';
 
@@ -26,10 +26,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'graph-traversal.graph'),
-      embedder,
-      { forceMode: 'graph' }
+      { embedder, forceMode: 'graph' }
     );
 
     // Get GraphDatabaseAdapter (not raw graph database)

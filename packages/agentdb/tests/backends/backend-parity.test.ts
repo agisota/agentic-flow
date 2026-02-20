@@ -219,7 +219,7 @@ describe('Backend Parity Tests', () => {
       const threshold = 0.7;
 
       const hnswResults = await hnswIndex.search(query.embedding, K_RESULTS, { threshold });
-      const wasmResults = await wasmSearch.findKNN(query.embedding, K_RESULTS, { threshold });
+      const wasmResults = await wasmSearch.findKNN(query.embedding, K_RESULTS, { threshold } as any);
 
       // Both should filter by threshold
       for (const result of hnswResults) {

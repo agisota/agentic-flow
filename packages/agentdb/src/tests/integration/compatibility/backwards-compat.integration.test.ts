@@ -314,7 +314,7 @@ describe('Backwards Compatibility Integration', () => {
       const adapter = new V1toV2Adapter(mockV2);
 
       const start = performance.now();
-      const promises = [];
+      const promises: Promise<any>[] = [];
       for (let i = 0; i < 100; i++) {
         promises.push(adapter.setMemory(`key${i}`, `value${i}`));
       }

@@ -9,7 +9,7 @@
  * - Approximate nearest neighbor (ANN) queries
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import * as path from 'path';
@@ -32,12 +32,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'advanced', 'sublinear.graph'),
-      embedder,
-      {
-        forceMode: 'graph'
-      }
+      { embedder, forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(

@@ -13,7 +13,7 @@
  * - Comprehensive error handling
  */
 
-import chalk from 'chalk';
+import chalk from '../utils/chalk-fallback.js';
 
 export interface QUICClientConfig {
   serverHost: string;

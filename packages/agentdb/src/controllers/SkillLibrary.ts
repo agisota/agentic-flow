@@ -15,6 +15,8 @@ import { VectorBackend } from '../backends/VectorBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
+import { cosineSimilarity } from '../utils/similarity.js';
+import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface Skill {
   id?: number;
@@ -58,19 +60,22 @@ export class SkillLibrary {
   private vectorBackend: VectorBackend | null;
   private graphBackend?: any; // GraphBackend or GraphDatabaseAdapter
   private queryCache: QueryCache;
+  private bandit: SolverBandit | null = null;
 
   constructor(
     db: IDatabaseConnection,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
     graphBackend?: any,
-    cacheConfig?: QueryCacheConfig
+    cacheConfig?: QueryCacheConfig,
+    bandit?: SolverBandit
   ) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend || null;
     this.graphBackend = graphBackend;
     this.queryCache = new QueryCache(cacheConfig);
+    this.bandit = bandit || null;
   }
 
   /**
@@ -212,7 +217,7 @@ export class SkillLibrary {
 
       const searchResults = await graphAdapter.searchSkills(queryEmbedding, k);
 
-      const results = searchResults
+      let results = searchResults
         .map((result) => {
           // Handle metadata/tags parsing
           let metadata: any = undefined;
@@ -245,6 +250,9 @@ export class SkillLibrary {
           };
         })
         .filter((skill) => skill.successRate >= minSuccessRate);
+
+      // ADR-010: Bandit-guided skill reranking
+      results = this.banditRerank(task, results);
 
       // Cache the results
       this.queryCache.set(cacheKey, results);
@@ -296,7 +304,10 @@ export class SkillLibrary {
         return scoreB - scoreA;
       });
 
-      const results = skillsWithSimilarity.slice(0, k);
+      let results = skillsWithSimilarity.slice(0, k);
+
+      // ADR-010: Bandit-guided skill reranking
+      results = this.banditRerank(task, results);
 
       // Cache the results
       this.queryCache.set(cacheKey, results);
@@ -360,7 +371,9 @@ export class SkillLibrary {
       return scoreB - scoreA;
     });
 
-    return skillsWithSimilarity.slice(0, k);
+    // ADR-010: Bandit-guided skill reranking
+    const results = this.banditRerank(task, skillsWithSimilarity.slice(0, k));
+    return results;
   }
 
   /**
@@ -380,17 +393,7 @@ export class SkillLibrary {
    * Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return cosineSimilarity(a, b);
   }
 
   /**
@@ -871,9 +874,26 @@ export class SkillLibrary {
     });
   }
 
+  /** ADR-010: Record skill execution outcome for bandit learning */
+  recordSkillOutcome(taskType: string, skillName: string, reward: number, latencyMs?: number): void {
+    if (this.bandit) {
+      this.bandit.recordReward(taskType, skillName, reward, latencyMs);
+    }
+  }
+
   // ========================================================================
   // Private Helper Methods
   // ========================================================================
+
+  /** ADR-010: Rerank results using Thompson Sampling bandit */
+  private banditRerank<T extends Skill>(task: string, results: T[]): T[] {
+    if (!this.bandit || results.length <= 1) return results;
+    const taskType = task.split(/\s+/)[0] || 'general';
+    const armKeys = results.map(s => s.name);
+    const ranked = this.bandit.rerank(taskType, armKeys);
+    const byName = new Map(results.map(s => [s.name, s]));
+    return ranked.map(name => byName.get(name)!).filter(Boolean);
+  }
 
   private getSkillById(id: number): Skill {
     const stmt = this.db.prepare('SELECT * FROM skills WHERE id = ?');

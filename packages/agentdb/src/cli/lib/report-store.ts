@@ -190,7 +190,7 @@ export class ReportStore {
       result.timestamp.toISOString(),
       JSON.stringify(result.config),
       result.config.profile,
-      '2.0.0', // TODO: Get from package.json
+      '3.0.0',
       result.duration || 0,
       result.iterations || 1,
       'completed'

@@ -390,7 +390,7 @@ export class NativeAccelerator {
 
   private async loadWasmVerify(): Promise<void> {
     try {
-      const wasm = await import('@ruvector/rvf-wasm');
+      const wasm: any = await import('@ruvector/rvf-wasm');
       if (wasm.rvf_witness_verify) this._witnessVerify = wasm.rvf_witness_verify;
       if (wasm.rvf_witness_count) this._witnessCount = wasm.rvf_witness_count;
       if (wasm.rvf_verify_header) this._verifyHeader = wasm.rvf_verify_header;
@@ -400,7 +400,7 @@ export class NativeAccelerator {
 
   private async loadWasmQuantization(): Promise<void> {
     try {
-      const wasm = await import('@ruvector/rvf-wasm');
+      const wasm: any = await import('@ruvector/rvf-wasm');
       if (wasm.rvf_sq_load_params) this._sqLoad = wasm.rvf_sq_load_params;
       if (wasm.rvf_dequant_i8) this._dequantI8 = wasm.rvf_dequant_i8;
       if (wasm.rvf_pq_load_codebook) this._pqLoadCodebook = wasm.rvf_pq_load_codebook;
@@ -420,14 +420,14 @@ export class NativeAccelerator {
 
   private async loadNativeTensorCompress(): Promise<void> {
     try {
-      const { TensorCompress } = await import('@ruvector/gnn');
-      if (TensorCompress && TensorCompress.compress) this._tensorCompress = TensorCompress;
+      const gnnMod: any = await import('@ruvector/gnn');
+      if (gnnMod.TensorCompress?.compress) this._tensorCompress = gnnMod.TensorCompress;
     } catch { /* not available */ }
   }
 
   private async loadRouterPersistence(): Promise<void> {
     try {
-      const router = await import('@ruvector/router');
+      const router: any = await import('@ruvector/router');
       if (router.SemanticRouter?.prototype?.save) {
         this._routerSave = async (r: any, p: string) => r.save(p);
         this._routerLoad = async (p: string) => router.SemanticRouter.load(p);
@@ -437,24 +437,24 @@ export class NativeAccelerator {
 
   private async loadSonaExtended(): Promise<void> {
     try {
-      const { SonaEngine } = await import('@ruvector/sona');
-      if (SonaEngine?.prototype?.flush) this._sonaFlush = true;
-      if (SonaEngine?.prototype?.addTrajectoryContext) this._sonaContext = true;
-      if (SonaEngine?.prototype?.applyBaseLora) this._sonaBaseLora = true;
+      const sonaMod: any = await import('@ruvector/sona');
+      if (sonaMod.SonaEngine?.prototype?.flush) this._sonaFlush = true;
+      if (sonaMod.SonaEngine?.prototype?.addTrajectoryContext) this._sonaContext = true;
+      if (sonaMod.SonaEngine?.prototype?.applyBaseLora) this._sonaBaseLora = true;
     } catch { /* not available */ }
   }
 
   private async loadGraphCapabilities(): Promise<void> {
     try {
-      const { GraphDatabase } = await import('@ruvector/graph-node');
-      if (GraphDatabase?.prototype?.beginTransaction) this._graphTx = true;
-      if (GraphDatabase?.prototype?.batchInsert) this._graphBatchInsert = true;
-      if (GraphDatabase?.prototype?.cypher) this._graphCypher = true;
+      const graphMod: any = await import('@ruvector/graph-node');
+      if (graphMod.GraphDatabase?.prototype?.beginTransaction) this._graphTx = true;
+      if (graphMod.GraphDatabase?.prototype?.batchInsert) this._graphBatchInsert = true;
+      if (graphMod.GraphDatabase?.prototype?.cypher) this._graphCypher = true;
     } catch { /* not available */ }
   }
 
   private async loadCoreBatch(): Promise<void> {
-    try { const { VectorDb } = await import('@ruvector/core'); if (VectorDb?.prototype?.batchInsert) this._coreBatchInsert = true; } catch { /* not available */ }
+    try { const coreMod: any = await import('@ruvector/core'); if (coreMod.VectorDb?.prototype?.batchInsert) this._coreBatchInsert = true; } catch { /* not available */ }
   }
 
   private async loadEwcManager(): Promise<void> {

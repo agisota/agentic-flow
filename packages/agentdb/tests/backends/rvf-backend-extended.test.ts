@@ -258,7 +258,7 @@ describe('ADR-007 Phase 1: RvfBackend Extended APIs', () => {
     });
 
     it('should return null for null input', () => {
-      expect(FilterBuilder.buildFilter(null as unknown as Record<string, unknown>)).toBeNull();
+      expect(FilterBuilder.buildFilter(null as any)).toBeNull();
     });
 
     it('should skip null/undefined values', () => {

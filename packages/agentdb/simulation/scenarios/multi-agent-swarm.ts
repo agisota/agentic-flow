@@ -4,7 +4,7 @@
  * Tests concurrent access and coordination using agentic-flow
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -28,10 +28,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'swarm.graph'),
-      embedder,
-      { forceMode: 'graph' }
+      { embedder, forceMode: 'graph' }
     );
 
     const results = {

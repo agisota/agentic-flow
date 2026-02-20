@@ -265,13 +265,13 @@ describe('ClusteringAnalysis', () => {
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.some(r => r.includes('Louvain'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('Louvain'))).toBe(true);
     });
 
     it('should generate visualizations', () => {
-      expect(report.artifacts.dendrograms).toBeDefined();
-      expect(report.artifacts.communityVisualizations).toBeDefined();
-      expect(report.artifacts.modularityCharts).toBeDefined();
+      expect(report.artifacts!.dendrograms).toBeDefined();
+      expect(report.artifacts!.communityVisualizations).toBeDefined();
+      expect(report.artifacts!.modularityCharts).toBeDefined();
     });
 
     it('should complete within timeout', () => {

@@ -15,6 +15,31 @@
  * - All options bounded to safe defaults
  */
 
+/** PolicyKernel skip strategies (v0.1.6) */
+export type SolverSkipMode = 'none' | 'weekday' | 'hybrid';
+
+/** Per-arm Thompson Sampling statistics (v0.1.6) */
+export interface SolverSkipModeStats {
+  attempts: number;
+  successes: number;
+  totalSteps: number;
+  alphaSafety: number;
+  betaSafety: number;
+  costEma: number;
+  earlyCommitWrongs: number;
+}
+
+/** KnowledgeCompiler distilled configuration entry (v0.1.6) */
+export interface SolverCompiledConfig {
+  maxSteps: number;
+  avgSteps: number;
+  observations: number;
+  expectedCorrect: boolean;
+  hitCount: number;
+  counterexampleCount: number;
+  compiledSkip: SolverSkipMode;
+}
+
 /** Training configuration */
 export interface SolverTrainOptions {
   /** Number of puzzles to generate and solve */
@@ -40,12 +65,28 @@ export interface SolverCycleMetrics {
   cycle: number;
   accuracy: number;
   costPerSolve: number;
+  /** Accuracy under injected noise — measures robustness (v0.1.6) */
+  noiseAccuracy: number;
+  /** Constraint violations per cycle — safety signal (v0.1.6) */
+  violations: number;
+  /** Patterns distilled per cycle (v0.1.6) */
+  patternsLearned: number;
 }
 
 /** Single acceptance mode result (A, B, or C) */
 export interface SolverModeResult {
   passed: boolean;
   finalAccuracy: number;
+  /** Accuracy stayed above threshold across all cycles (v0.1.6) */
+  accuracyMaintained: boolean;
+  /** Cost-per-solve decreased vs. baseline (v0.1.6) */
+  costImproved: boolean;
+  /** Noise accuracy improved vs. baseline (v0.1.6) */
+  robustnessImproved: boolean;
+  /** No constraint violations in any cycle (v0.1.6) */
+  zeroViolations: boolean;
+  /** Count of improvement dimensions 0-4 (v0.1.6) */
+  dimensionsImproved: number;
   cycles: SolverCycleMetrics[];
 }
 
@@ -245,12 +286,27 @@ export class AgentDBSolver {
   private mapModeResult(raw: any): SolverModeResult {
     return {
       passed: raw?.passed ?? false,
-      finalAccuracy: raw?.finalAccuracy ?? 0,
-      cycles: (raw?.cycles ?? []).map((c: { cycle: number; accuracy: number; costPerSolve: number }) => ({
-        cycle: c.cycle,
-        accuracy: c.accuracy,
-        costPerSolve: c.costPerSolve,
-      })),
+      finalAccuracy: raw?.finalAccuracy ?? raw?.final_accuracy ?? 0,
+      // v0.1.6 acceptance dimensions
+      accuracyMaintained: raw?.accuracyMaintained ?? raw?.accuracy_maintained ?? false,
+      costImproved: raw?.costImproved ?? raw?.cost_improved ?? false,
+      robustnessImproved: raw?.robustnessImproved ?? raw?.robustness_improved ?? false,
+      zeroViolations: raw?.zeroViolations ?? raw?.zero_violations ?? false,
+      dimensionsImproved: raw?.dimensionsImproved ?? raw?.dimensions_improved ?? 0,
+      cycles: (raw?.cycles ?? []).map(this.mapCycleMetrics),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private mapCycleMetrics(c: any): SolverCycleMetrics {
+    return {
+      cycle: c?.cycle ?? 0,
+      accuracy: c?.accuracy ?? 0,
+      costPerSolve: c?.costPerSolve ?? c?.cost_per_solve ?? 0,
+      // v0.1.6 fields
+      noiseAccuracy: c?.noiseAccuracy ?? c?.noise_accuracy ?? 0,
+      violations: c?.violations ?? 0,
+      patternsLearned: c?.patternsLearned ?? c?.patterns_learned ?? 0,
     };
   }
 }

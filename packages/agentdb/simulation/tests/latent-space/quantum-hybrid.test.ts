@@ -271,15 +271,15 @@ describe('QuantumHybrid (Theoretical)', () => {
 
   describe('Recommendations', () => {
     it('should warn about current viability', () => {
-      expect(report.recommendations.some(r => r.includes('NOT viable'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('NOT viable'))).toBe(true);
     });
 
     it('should suggest hybrid approaches', () => {
-      expect(report.recommendations.some(r => r.includes('hybrid'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('hybrid'))).toBe(true);
     });
 
     it('should project future timeline', () => {
-      expect(report.recommendations.some(r => r.includes('2040'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('2040'))).toBe(true);
     });
   });
 
@@ -295,9 +295,9 @@ describe('QuantumHybrid (Theoretical)', () => {
     });
 
     it('should generate visualizations', () => {
-      expect(report.artifacts.speedupCharts).toBeDefined();
-      expect(report.artifacts.resourceDiagrams).toBeDefined();
-      expect(report.artifacts.viabilityTimeline).toBeDefined();
+      expect(report.artifacts!.speedupCharts).toBeDefined();
+      expect(report.artifacts!.resourceDiagrams).toBeDefined();
+      expect(report.artifacts!.viabilityTimeline).toBeDefined();
     });
 
     it('should complete efficiently', () => {

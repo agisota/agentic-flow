@@ -35,7 +35,7 @@ afterAll(() => {
 
 describe('RuVector Core (@ruvector/core) - Vector Database', () => {
   it('should load native bindings (not WASM)', async () => {
-    const { VectorDB, version, hello } = await import('@ruvector/core');
+    const { VectorDB, version, hello } = await import('@ruvector/core') as any;
 
     expect(VectorDB).toBeDefined();
     expect(typeof version).toBe('function');
@@ -52,7 +52,7 @@ describe('RuVector Core (@ruvector/core) - Vector Database', () => {
   });
 
   it('should create vector database with HNSW indexing', async () => {
-    const { VectorDB, DistanceMetric } = await import('@ruvector/core');
+    const { VectorDB, DistanceMetric } = await import('@ruvector/core') as any;
 
     const db = new VectorDB({
       dimensions: 128,
@@ -73,7 +73,7 @@ describe('RuVector Core (@ruvector/core) - Vector Database', () => {
   });
 
   it('should insert and search vectors with persistence', async () => {
-    const { VectorDB, DistanceMetric } = await import('@ruvector/core');
+    const { VectorDB, DistanceMetric } = await import('@ruvector/core') as any;
 
     const db = new VectorDB({
       dimensions: 128,
@@ -114,7 +114,7 @@ describe('RuVector Core (@ruvector/core) - Vector Database', () => {
   });
 
   it('should support batch operations', async () => {
-    const { VectorDB, DistanceMetric } = await import('@ruvector/core');
+    const { VectorDB, DistanceMetric } = await import('@ruvector/core') as any;
 
     const db = new VectorDB({
       dimensions: 64,
@@ -131,14 +131,14 @@ describe('RuVector Core (@ruvector/core) - Vector Database', () => {
     const ids = await db.insertBatch(entries);
     const duration = Date.now() - startTime;
 
-    expect(ids.length).toBe(100);
-    expect(ids[0]).toBe('batch-0');
+    expect((ids as any).length).toBe(100);
+    expect((ids as any)[0]).toBe('batch-0');
 
     const opsPerSec = (100 / duration) * 1000;
     console.log(`✅ Batch insert: 100 vectors in ${duration}ms (${opsPerSec.toFixed(0)} ops/sec)`);
 
     // Verify we can retrieve vectors
-    const count = await db.len();
+    const count = await (db as any).len();
     expect(count).toBe(100);
     console.log('✅ Vector count verified:', count);
   });
@@ -394,7 +394,7 @@ describe('RuVector Graph Database (@ruvector/graph-node)', () => {
 
 describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
   it('should load GNN module', async () => {
-    const gnnModule = await import('@ruvector/gnn');
+    const gnnModule = await import('@ruvector/gnn') as any;
 
     expect(gnnModule.RuvectorLayer).toBeDefined();
     expect(gnnModule.TensorCompress).toBeDefined();
@@ -406,7 +406,7 @@ describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
 
   it('should create and execute GNN layer', async () => {
     try {
-      const { RuvectorLayer } = await import('@ruvector/gnn');
+      const { RuvectorLayer } = await import('@ruvector/gnn') as any;
 
       // Create GNN layer
       const layer = new RuvectorLayer(
@@ -444,7 +444,7 @@ describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
   });
 
   it('should serialize and deserialize GNN layers', async () => {
-    const { RuvectorLayer } = await import('@ruvector/gnn');
+    const { RuvectorLayer } = await import('@ruvector/gnn') as any;
 
     const layer = new RuvectorLayer(64, 128, 2, 0.0);
 
@@ -462,7 +462,7 @@ describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
 
   it('should perform differentiable search', async () => {
     try {
-      const { differentiableSearch } = await import('@ruvector/gnn');
+      const { differentiableSearch } = await import('@ruvector/gnn') as any;
 
       const query = [1.0, 0.0, 0.0];
       const candidates = [
@@ -493,7 +493,7 @@ describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
 
   it('should compress and decompress tensors', async () => {
     try {
-      const { TensorCompress } = await import('@ruvector/gnn');
+      const { TensorCompress } = await import('@ruvector/gnn') as any;
 
       const compressor = new TensorCompress();
       expect(compressor).toBeDefined();
@@ -522,7 +522,7 @@ describe('RuVector GNN (@ruvector/gnn) - Graph Neural Networks', () => {
 
   it('should perform hierarchical forward pass', async () => {
     try {
-      const { hierarchicalForward, RuvectorLayer } = await import('@ruvector/gnn');
+      const { hierarchicalForward, RuvectorLayer } = await import('@ruvector/gnn') as any;
 
       const query = [1.0, 0.0];
       const layerEmbeddings = [
@@ -628,7 +628,7 @@ describe('Integration Test - All RuVector Packages Together', () => {
       console.log('✅ 1. GraphDatabase created');
 
       // 2. Create GNN layer for node embeddings
-      const { RuvectorLayer } = await import('@ruvector/gnn');
+      const { RuvectorLayer } = await import('@ruvector/gnn') as any;
       const gnnLayer = new RuvectorLayer(128, 128, 2, 0.0);
 
       console.log('✅ 2. GNN layer created');

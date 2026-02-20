@@ -460,7 +460,7 @@ describe('CausalRecall', () => {
           db.prepare(`
             INSERT INTO causal_edges (from_memory_id, from_memory_type, to_memory_id, to_memory_type, similarity, uplift, confidence, sample_size)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(episodeId, 'episode', episodeId - 1, 'episode', 0.8, 0.1 * i, 0.7, 10);
+          `).run(episodeId, 'episode', (episodeId as number) - 1, 'episode', 0.8, 0.1 * i, 0.7, 10);
         }
       }
     });

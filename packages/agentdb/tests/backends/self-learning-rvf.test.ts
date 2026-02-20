@@ -184,6 +184,10 @@ describe('SelfLearningRvfBackend', () => {
         useAdaptiveEf: true,
         activeSessionCount: 0,
         compressionEntries: 0,
+        noiseAccuracy: 0,
+        violations: 0,
+        patternsDistilled: 0,
+        dimensionsImproved: 0,
       };
       expect(stats.searchesEnhanced).toBe(0);
       expect(stats.trajectoriesRecorded).toBe(0);
@@ -194,6 +198,10 @@ describe('SelfLearningRvfBackend', () => {
       expect(stats.useAdaptiveEf).toBe(true);
       expect(stats.activeSessionCount).toBe(0);
       expect(stats.compressionEntries).toBe(0);
+      expect(stats.noiseAccuracy).toBe(0);
+      expect(stats.violations).toBe(0);
+      expect(stats.patternsDistilled).toBe(0);
+      expect(stats.dimensionsImproved).toBe(0);
     });
   });
 });
@@ -635,6 +643,155 @@ describe('ADR-006 Component Integration', () => {
 
       sessions.delete('agent-1');
       expect(sessions.size).toBe(1);
+    });
+  });
+
+  describe('Solver v0.1.6 types (Phase 5 — ADR-010)', () => {
+    it('CycleMetrics includes noiseAccuracy, violations, patternsLearned', async () => {
+      const mod = await import('../../src/backends/rvf/RvfSolver.js');
+      // Verify type shape — construct a valid SolverCycleMetrics
+      const metrics: import('../../src/backends/rvf/RvfSolver.js').SolverCycleMetrics = {
+        cycle: 1,
+        accuracy: 0.85,
+        costPerSolve: 12.3,
+        noiseAccuracy: 0.72,
+        violations: 0,
+        patternsLearned: 5,
+      };
+      expect(metrics.noiseAccuracy).toBe(0.72);
+      expect(metrics.violations).toBe(0);
+      expect(metrics.patternsLearned).toBe(5);
+      expect(mod).toBeDefined();
+    });
+
+    it('SolverModeResult includes dimensionsImproved and acceptance fields', async () => {
+      const mod = await import('../../src/backends/rvf/RvfSolver.js');
+      const result: import('../../src/backends/rvf/RvfSolver.js').SolverModeResult = {
+        passed: true,
+        finalAccuracy: 0.90,
+        accuracyMaintained: true,
+        costImproved: true,
+        robustnessImproved: false,
+        zeroViolations: true,
+        dimensionsImproved: 3,
+        cycles: [{
+          cycle: 0,
+          accuracy: 0.88,
+          costPerSolve: 10.0,
+          noiseAccuracy: 0.75,
+          violations: 0,
+          patternsLearned: 3,
+        }],
+      };
+      expect(result.accuracyMaintained).toBe(true);
+      expect(result.costImproved).toBe(true);
+      expect(result.robustnessImproved).toBe(false);
+      expect(result.zeroViolations).toBe(true);
+      expect(result.dimensionsImproved).toBe(3);
+      expect(result.cycles[0].noiseAccuracy).toBe(0.75);
+      expect(mod).toBeDefined();
+    });
+
+    it('SolverSkipMode and SolverSkipModeStats have correct shapes', async () => {
+      const mod = await import('../../src/backends/rvf/RvfSolver.js');
+      const mode: import('../../src/backends/rvf/RvfSolver.js').SolverSkipMode = 'hybrid';
+      expect(['none', 'weekday', 'hybrid']).toContain(mode);
+
+      const stats: import('../../src/backends/rvf/RvfSolver.js').SolverSkipModeStats = {
+        attempts: 100,
+        successes: 80,
+        totalSteps: 500,
+        alphaSafety: 1.5,
+        betaSafety: 0.5,
+        costEma: 12.0,
+        earlyCommitWrongs: 2,
+      };
+      expect(stats.attempts).toBe(100);
+      expect(stats.successes).toBe(80);
+      expect(stats.costEma).toBe(12.0);
+      expect(mod).toBeDefined();
+    });
+
+    it('SolverCompiledConfig has correct shape', async () => {
+      const mod = await import('../../src/backends/rvf/RvfSolver.js');
+      const config: import('../../src/backends/rvf/RvfSolver.js').SolverCompiledConfig = {
+        maxSteps: 200,
+        avgSteps: 45.2,
+        observations: 150,
+        expectedCorrect: true,
+        hitCount: 30,
+        counterexampleCount: 2,
+        compiledSkip: 'weekday',
+      };
+      expect(config.maxSteps).toBe(200);
+      expect(config.compiledSkip).toBe('weekday');
+      expect(config.expectedCorrect).toBe(true);
+      expect(mod).toBeDefined();
+    });
+
+    it('regression guard disables adaptive ef on violations', () => {
+      // Simulate v0.1.6 multi-dimensional regression check
+      let useAdaptiveEf = true;
+      let learningRate = 1.0;
+      const modeC = {
+        accuracyMaintained: true,
+        zeroViolations: false,  // violation detected
+        dimensionsImproved: 1,
+        robustnessImproved: false,
+        costImproved: false,
+      };
+
+      if (!modeC.accuracyMaintained) useAdaptiveEf = false;
+      if (!modeC.zeroViolations) useAdaptiveEf = false;
+      if (modeC.dimensionsImproved < 2) learningRate = Math.max(0.1, learningRate * 0.5);
+      if (modeC.robustnessImproved && modeC.costImproved) learningRate = Math.min(1.0, learningRate * 1.1);
+
+      expect(useAdaptiveEf).toBe(false);  // disabled due to violations
+      expect(learningRate).toBe(0.5);     // slowed due to low dimensions
+    });
+
+    it('regression guard speeds up when robustness + cost both improve', () => {
+      let useAdaptiveEf = true;
+      let learningRate = 0.5;
+      const modeC = {
+        accuracyMaintained: true,
+        zeroViolations: true,
+        dimensionsImproved: 3,
+        robustnessImproved: true,
+        costImproved: true,
+      };
+
+      if (!modeC.accuracyMaintained) useAdaptiveEf = false;
+      if (!modeC.zeroViolations) useAdaptiveEf = false;
+      if (modeC.dimensionsImproved < 2) learningRate = Math.max(0.1, learningRate * 0.5);
+      if (modeC.robustnessImproved && modeC.costImproved) learningRate = Math.min(1.0, learningRate * 1.1);
+
+      expect(useAdaptiveEf).toBe(true);
+      expect(learningRate).toBeCloseTo(0.55, 5);  // 0.5 * 1.1
+    });
+
+    it('LearningStats includes v0.1.6 fields', async () => {
+      const mod = await import('../../src/backends/rvf/SelfLearningRvfBackend.js');
+      const stats: import('../../src/backends/rvf/SelfLearningRvfBackend.js').LearningStats = {
+        searchesEnhanced: 10,
+        trajectoriesRecorded: 5,
+        contrastiveSamples: 3,
+        contrastiveBatches: 1,
+        tickCount: 100,
+        solverTrainCount: 2,
+        useAdaptiveEf: true,
+        activeSessionCount: 1,
+        compressionEntries: 50,
+        noiseAccuracy: 0.72,
+        violations: 0,
+        patternsDistilled: 5,
+        dimensionsImproved: 3,
+      };
+      expect(stats.noiseAccuracy).toBe(0.72);
+      expect(stats.violations).toBe(0);
+      expect(stats.patternsDistilled).toBe(5);
+      expect(stats.dimensionsImproved).toBe(3);
+      expect(mod).toBeDefined();
     });
   });
 

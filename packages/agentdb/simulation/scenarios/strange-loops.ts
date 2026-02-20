@@ -5,7 +5,7 @@
  * Agents observe their own performance and adapt based on meta-cognitive feedback
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { CausalMemoryGraph } from '../../src/controllers/CausalMemoryGraph.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -29,10 +29,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'strange-loops.graph'),
-      embedder,
-      { forceMode: 'graph' }
+      { embedder, forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(

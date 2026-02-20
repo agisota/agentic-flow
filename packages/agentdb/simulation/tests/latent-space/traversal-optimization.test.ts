@@ -245,13 +245,13 @@ describe('TraversalOptimization', () => {
 
     it('should provide strategy recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.length).toBeGreaterThanOrEqual(3);
+      expect(report.recommendations!.length).toBeGreaterThanOrEqual(3);
     });
 
     it('should generate visualization artifacts', () => {
-      expect(report.artifacts.recallLatencyPlots).toBeDefined();
-      expect(report.artifacts.strategyComparisons).toBeDefined();
-      expect(report.artifacts.efficiencyCurves).toBeDefined();
+      expect(report.artifacts!.recallLatencyPlots).toBeDefined();
+      expect(report.artifacts!.strategyComparisons).toBeDefined();
+      expect(report.artifacts!.efficiencyCurves).toBeDefined();
     });
 
     it('should complete efficiently', () => {

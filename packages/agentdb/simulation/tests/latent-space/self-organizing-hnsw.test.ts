@@ -275,13 +275,13 @@ describe('SelfOrganizingHNSW', () => {
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.some(r => r.includes('MPC'))).toBe(true);
+      expect(report.recommendations!.some(r => r.includes('MPC'))).toBe(true);
     });
 
     it('should generate evolution visualizations', () => {
-      expect(report.artifacts.evolutionTimelines).toBeDefined();
-      expect(report.artifacts.parameterTrajectories).toBeDefined();
-      expect(report.artifacts.healingVisualizations).toBeDefined();
+      expect(report.artifacts!.evolutionTimelines).toBeDefined();
+      expect(report.artifacts!.parameterTrajectories).toBeDefined();
+      expect(report.artifacts!.healingVisualizations).toBeDefined();
     });
 
     it('should complete within timeout', () => {

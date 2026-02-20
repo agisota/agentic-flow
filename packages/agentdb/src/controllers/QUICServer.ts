@@ -13,7 +13,7 @@
  * - Comprehensive error handling and logging
  */
 
-import chalk from 'chalk';
+import chalk from '../utils/chalk-fallback.js';
 
 // Database type from db-fallback
 type Database = any;

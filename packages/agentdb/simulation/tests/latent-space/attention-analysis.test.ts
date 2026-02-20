@@ -182,19 +182,19 @@ describe('AttentionAnalysis', () => {
 
     it('should include detailed analysis', () => {
       expect(report.analysis).toBeDefined();
-      expect(report.analysis.length).toBeGreaterThan(100);
+      expect(report.analysis!.length).toBeGreaterThan(100);
     });
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations.length).toBeGreaterThan(0);
-      expect(report.recommendations[0]).toContain('8');
+      expect(report.recommendations!.length).toBeGreaterThan(0);
+      expect(report.recommendations![0]).toContain('8');
     });
 
     it('should generate artifacts', () => {
       expect(report.artifacts).toBeDefined();
-      expect(report.artifacts.attentionHeatmaps).toBeDefined();
-      expect(report.artifacts.weightDistributions).toBeDefined();
+      expect(report.artifacts!.attentionHeatmaps).toBeDefined();
+      expect(report.artifacts!.weightDistributions).toBeDefined();
     });
 
     it('should complete within reasonable time', () => {

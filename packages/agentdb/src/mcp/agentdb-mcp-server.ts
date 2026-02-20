@@ -11,9 +11,8 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-// Database type from db-fallback
+// Database type
 type Database = any;
-import { createDatabase } from '../db-fallback.js';
 import { CausalMemoryGraph } from '../controllers/CausalMemoryGraph.js';
 import { CausalRecall } from '../controllers/CausalRecall.js';
 import { ReflexionMemory } from '../controllers/ReflexionMemory.js';
@@ -221,41 +220,21 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 }
 
 // ============================================================================
-// Initialize Database and Controllers
+// Initialize Database and Controllers via unified AgentDB
 // ============================================================================
-const dbPath = process.env.AGENTDB_PATH || './agentdb.db';
-const db = await createDatabase(dbPath);
+import { AgentDB } from '../core/AgentDB.js';
 
-// Configure for performance
-db.pragma('journal_mode = WAL');
-db.pragma('synchronous = NORMAL');
-db.pragma('cache_size = -64000');
+const dbPath = process.env.AGENTDB_PATH || './agentdb.rvf';
+const agentdb = new AgentDB({
+  dbPath,
+  vectorBackend: 'rvf',
+  vectorDimension: 384,
+});
+await agentdb.initialize();
+const db = agentdb.database;
+console.error(`✅ Unified AgentDB initialized (${agentdb.isUnifiedMode ? 'single .rvf file' : 'legacy'} mode)`);
 
-// Initialize schema automatically on server start using SQL files
-const schemaPath = path.join(__dirname, '../schemas/schema.sql');
-const frontierSchemaPath = path.join(__dirname, '../schemas/frontier-schema.sql');
-
-try {
-  if (fs.existsSync(schemaPath)) {
-    const schemaSQL = fs.readFileSync(schemaPath, 'utf-8');
-    db.exec(schemaSQL);
-    console.error('✅ Main schema loaded');
-  }
-
-  if (fs.existsSync(frontierSchemaPath)) {
-    const frontierSQL = fs.readFileSync(frontierSchemaPath, 'utf-8');
-    db.exec(frontierSQL);
-    console.error('✅ Frontier schema loaded');
-  }
-
-  console.error('✅ Database schema initialized');
-} catch (error) {
-  console.error('⚠️  Schema initialization failed, using fallback:', (error as Error).message);
-  // Fallback to initializeSchema function if SQL files not found
-  initializeSchema(db);
-}
-
-// Initialize embedding service
+// Initialize embedding service (shared by MCP-local helpers)
 const embeddingService = new EmbeddingService({
   model: 'Xenova/all-MiniLM-L6-v2',
   dimension: 384,
@@ -263,7 +242,7 @@ const embeddingService = new EmbeddingService({
 });
 await embeddingService.initialize();
 
-// Initialize all controllers
+// Initialize all controllers using the shared db
 const causalGraph = new CausalMemoryGraph(db);
 const reflexion = new ReflexionMemory(db, embeddingService);
 const skills = new SkillLibrary(db, embeddingService);
@@ -280,7 +259,7 @@ const caches = new MCPToolCaches();
 const server = new Server(
   {
     name: 'agentdb',
-    version: '1.3.0',
+    version: '3.0.0',
   },
   {
     capabilities: {
@@ -302,7 +281,7 @@ const tools = [
     inputSchema: {
       type: 'object',
       properties: {
-        db_path: { type: 'string', description: 'Database file path (optional, defaults to ./agentdb.db)', default: './agentdb.db' },
+        db_path: { type: 'string', description: 'Database file path (optional, defaults to ./agentdb.rvf)', default: './agentdb.rvf' },
         reset: { type: 'boolean', description: 'Reset database (delete existing)', default: false },
       },
     },
@@ -881,6 +860,72 @@ const tools = [
     },
   },
 ];
+
+// ============================================================================
+// Solver MCP Tools (ADR-010 — gated behind WASM availability)
+// ============================================================================
+let solverInstance: any = null;
+
+async function getSolver(): Promise<any> {
+  if (solverInstance) return solverInstance;
+  try {
+    const { AgentDBSolver } = await import('../backends/rvf/RvfSolver.js');
+    if (await AgentDBSolver.isAvailable()) {
+      solverInstance = await AgentDBSolver.create();
+      return solverInstance;
+    }
+  } catch { /* skip */ }
+  return null;
+}
+
+// Register solver tools at startup if WASM is available
+const solverTools: Array<{ name: string; description: string; inputSchema: any }> = [
+  {
+    name: 'solver_train',
+    description: 'Train the RVF self-learning solver on generated puzzles. Uses three-loop architecture: fast (constraint propagation), medium (PolicyKernel skip-mode), slow (KnowledgeCompiler pattern distillation).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        count: { type: 'number', description: 'Number of puzzles to generate and solve (1-100000)' },
+        min_difficulty: { type: 'number', description: 'Minimum puzzle difficulty 1-10' },
+        max_difficulty: { type: 'number', description: 'Maximum puzzle difficulty 1-10' },
+        seed: { type: 'number', description: 'RNG seed for reproducibility' },
+      },
+    },
+  },
+  {
+    name: 'solver_acceptance',
+    description: 'Run the A/B/C ablation acceptance test. Mode A: fixed heuristic baseline, Mode B: compiler-suggested policy, Mode C: learned Thompson Sampling policy. Returns multi-dimensional pass/fail with accuracy, cost, robustness, and violation metrics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cycles: { type: 'number', description: 'Number of acceptance cycles (1-50)' },
+        holdout_size: { type: 'number', description: 'Holdout set size' },
+        training_per_cycle: { type: 'number', description: 'Training puzzles per cycle' },
+        step_budget: { type: 'number', description: 'Max steps per solve' },
+        seed: { type: 'number', description: 'RNG seed for reproducibility' },
+      },
+    },
+  },
+  {
+    name: 'solver_policy',
+    description: 'Get the current Thompson Sampling policy state: 18 context-bucketed bandits (3 range x 3 distractor x 2 noise), per-arm stats, KnowledgeCompiler cache, and speculative execution metrics.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'solver_witness',
+    description: 'Get the SHAKE-256 tamper-evident witness chain summary. Each entry is 73 bytes. Provides cryptographic audit trail of all solver state transitions.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+(async () => {
+  try {
+    const { AgentDBSolver } = await import('../backends/rvf/RvfSolver.js');
+    if (await AgentDBSolver.isAvailable()) {
+      tools.push(...solverTools as any);
+    }
+  } catch { /* solver not available — tools not registered */ }
+})();
 
 // ============================================================================
 // Tool Handlers
@@ -1997,7 +2042,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const batchSize = (args?.batch_size as number) || 32;
         const learningRate = (args?.learning_rate as number) || 0.01;
 
-        console.log(`🎓 Training session ${sessionId}...`);
+        console.error(`🎓 Training session ${sessionId}...`);
         const result = await learningSystem.train(sessionId, epochs, batchSize, learningRate);
 
         return {
@@ -2260,6 +2305,73 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // ======================================================================
+      // SOLVER TOOLS (ADR-010)
+      // ======================================================================
+      case 'solver_train': {
+        const solver = await getSolver();
+        if (!solver) throw new Error('RVF Solver not available. Install @ruvector/rvf-solver.');
+        const count = validateNumericRange(args?.count ?? 50, 'count', 1, 100000);
+        const minDifficulty = validateNumericRange(args?.min_difficulty ?? 1, 'min_difficulty', 1, 10);
+        const maxDifficulty = validateNumericRange(args?.max_difficulty ?? 10, 'max_difficulty', 1, 10);
+        const result = solver.train({ count, minDifficulty, maxDifficulty, seed: args?.seed as number | undefined });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      case 'solver_acceptance': {
+        const solver = await getSolver();
+        if (!solver) throw new Error('RVF Solver not available. Install @ruvector/rvf-solver.');
+        const manifest = solver.acceptance({
+          cycles: args?.cycles as number | undefined,
+          holdoutSize: args?.holdout_size as number | undefined,
+          trainingPerCycle: args?.training_per_cycle as number | undefined,
+          stepBudget: args?.step_budget as number | undefined,
+          seed: args?.seed as number | undefined,
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(manifest, null, 2),
+          }],
+        };
+      }
+
+      case 'solver_policy': {
+        const solver = await getSolver();
+        if (!solver) throw new Error('RVF Solver not available. Install @ruvector/rvf-solver.');
+        const policy = solver.policy();
+        return {
+          content: [{
+            type: 'text',
+            text: policy ? JSON.stringify(policy, null, 2) : 'No policy state available (no training yet).',
+          }],
+        };
+      }
+
+      case 'solver_witness': {
+        const solver = await getSolver();
+        if (!solver) throw new Error('RVF Solver not available. Install @ruvector/rvf-solver.');
+        const chain = solver.witnessChain();
+        if (!chain || chain.length === 0) {
+          return { content: [{ type: 'text', text: JSON.stringify({ entries: 0, bytes: 0, hex: '' }) }] };
+        }
+        const entries = Math.floor(chain.length / 73);
+        const slice = new Uint8Array(chain.buffer, chain.byteOffset, Math.min(chain.length, 73 * 3));
+        const hex = Array.from(slice)
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ entries, bytes: chain.length, hex: hex.length > 438 ? hex.slice(0, 438) + '...' : hex }, null, 2),
+          }],
+        };
+      }
+
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -2268,7 +2380,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: 'text',
-          text: `❌ Error: ${error.message}\n${error.stack || ''}`,
+          text: `❌ Error: ${error.message}`,
         },
       ],
       isError: true,
@@ -2283,8 +2395,8 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error('🚀 AgentDB MCP Server v2.0.0 running on stdio');
-  console.error('📦 32 tools available (5 core + 9 frontier + 10 learning + 5 AgentDB + 3 batch ops)');
+  console.error('🚀 AgentDB MCP Server v3.0.0 running on stdio');
+  console.error('📦 33 tools available (5 core + 9 frontier + 10 learning + 5 AgentDB + 4 batch ops)');
   console.error('🧠 Embedding service initialized');
   console.error('🎓 Learning system ready (9 RL algorithms)');
   console.error('⚡ NEW v2.0: Batch operations (3-4x faster), format parameters, enhanced validation');
@@ -2300,12 +2412,10 @@ async function main() {
   }, 1000 * 60 * 60); // Every hour (basically forever)
 
   // Periodic auto-save: Save database every 5 minutes to prevent data loss
-  const autoSaveInterval = setInterval(() => {
+  const autoSaveInterval = setInterval(async () => {
     try {
-      if (db && typeof db.save === 'function') {
-        db.save();
-        console.error('💾 Auto-saved database to', dbPath);
-      }
+      await agentdb.save();
+      console.error('💾 Auto-saved database to', dbPath);
     } catch (error) {
       console.error('❌ Auto-save failed:', (error as Error).message);
     }
@@ -2319,25 +2429,15 @@ async function main() {
     clearInterval(keepAlive);
     clearInterval(autoSaveInterval);
 
-    // Save database before exit
+    // Save and close via unified AgentDB (handles both vectors + relational)
     try {
-      if (db && typeof db.save === 'function') {
-        console.error('💾 Saving database to', dbPath);
-        await db.save();
-        console.error('✅ Database saved successfully');
-      }
+      console.error('💾 Saving database to', dbPath);
+      await agentdb.save();
+      console.error('✅ Database saved successfully');
+      await agentdb.close();
+      console.error('✅ Database connection closed');
     } catch (error) {
-      console.error('❌ Error saving database:', (error as Error).message);
-    }
-
-    // Close database connection
-    try {
-      if (db && typeof db.close === 'function') {
-        db.close();
-        console.error('✅ Database connection closed');
-      }
-    } catch (error) {
-      console.error('❌ Error closing database:', (error as Error).message);
+      console.error('❌ Error during shutdown:', (error as Error).message);
     }
 
     process.exit(0);

@@ -12,7 +12,7 @@
  * and preference learning across voting cycles.
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import { PerformanceOptimizer, executeParallel } from '../utils/PerformanceOptimizer.js';
@@ -59,10 +59,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'voting-consensus.graph'),
-      embedder,
-      { forceMode: 'graph' }
+      { embedder, forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(

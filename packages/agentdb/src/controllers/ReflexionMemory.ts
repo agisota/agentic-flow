@@ -17,6 +17,7 @@ import type { GraphBackend, GraphNode } from '../backends/GraphBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
+import { cosineSimilarity } from '../utils/similarity.js';
 
 export interface Episode {
   id?: number;
@@ -848,17 +849,7 @@ export class ReflexionMemory {
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return cosineSimilarity(a, b);
   }
 
   // ========================================================================

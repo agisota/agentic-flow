@@ -20,6 +20,7 @@ export { RuVectorBackend } from './ruvector/RuVectorBackend.js';
 export { RuVectorLearning } from './ruvector/RuVectorLearning.js';
 export { HNSWLibBackend } from './hnswlib/HNSWLibBackend.js';
 export { RvfBackend } from './rvf/RvfBackend.js';
+export { SqlJsRvfBackend } from './rvf/SqlJsRvfBackend.js';
 
 // Factory and detection
 export {
@@ -29,6 +30,9 @@ export {
   isBackendAvailable,
   getInstallCommand
 } from './factory.js';
+
+// Unified database wrapper (for single-file .rvf mode)
+export { wrapExistingSqlJsDatabase } from '../db-fallback.js';
 
 export type { BackendType, BackendDetection, RvfDetection } from './factory.js';
 export type { LearningConfig, EnhancementOptions } from './ruvector/RuVectorLearning.js';
@@ -44,7 +48,19 @@ export type {
   SolverAcceptanceManifest,
   SolverAcceptanceOptions,
   SolverPolicyState,
+  SolverSkipMode,
+  SolverSkipModeStats,
+  SolverCompiledConfig,
 } from './rvf/RvfSolver.js';
+
+// SolverBandit (ADR-010)
+export { SolverBandit } from './rvf/SolverBandit.js';
+export type {
+  BanditArmStats,
+  BanditConfig,
+  BanditStats,
+  BanditState,
+} from './rvf/SolverBandit.js';
 
 // SONA Learning Backend (ADR-005)
 export { SonaLearningBackend } from './rvf/SonaLearningBackend.js';

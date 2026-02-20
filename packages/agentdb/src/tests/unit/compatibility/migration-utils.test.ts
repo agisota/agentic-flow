@@ -309,7 +309,7 @@ describe('MigrationUtilities', () => {
     it('should convert v1 config to v2 config', () => {
       const v1Config = {
         memoryPath: './swarm-memory.db',
-        topology: 'mesh',
+        topology: 'mesh' as const,
         maxAgents: 10,
         provider: 'anthropic',
         model: 'claude-3-opus'

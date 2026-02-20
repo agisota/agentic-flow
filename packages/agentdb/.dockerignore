@@ -43,8 +43,8 @@ tmp
 temp
 .cache
 
-# Package artifacts
-*.tgz
+# Package artifacts (allow agentdb tgz for test builds)
+!agentdb-*.tgz
 package
 
 # IDE
@@ -58,7 +58,7 @@ Dockerfile*
 docker-compose*.yml
 .dockerignore
 
-# Test docker directory
+# Test docker directory (legacy)
 test-docker
 
 # Previous validation files

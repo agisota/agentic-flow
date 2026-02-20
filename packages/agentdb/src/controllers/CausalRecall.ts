@@ -19,6 +19,7 @@ import { CausalMemoryGraph, CausalEdge } from './CausalMemoryGraph.js';
 import { ExplainableRecall, RecallCertificate } from './ExplainableRecall.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
+import { cosineSimilarity } from '../utils/similarity.js';
 
 export interface RerankConfig {
   alpha: number; // Similarity weight (default: 0.7)
@@ -363,22 +364,7 @@ export class CausalRecall {
    * Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    if (a.length !== b.length) {
-      throw new Error('Vector dimensions must match');
-    }
-
-    let dotProduct = 0;
-    let magnitudeA = 0;
-    let magnitudeB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      magnitudeA += a[i] * a[i];
-      magnitudeB += b[i] * b[i];
-    }
-
-    const magnitude = Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB);
-    return magnitude === 0 ? 0 : dotProduct / magnitude;
+    return cosineSimilarity(a, b);
   }
 
   /**

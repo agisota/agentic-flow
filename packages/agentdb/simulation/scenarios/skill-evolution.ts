@@ -4,7 +4,7 @@
  * Tests SkillLibrary with skill creation, evolution, and composition
  */
 
-import { createUnifiedDatabase } from '../../src/db-unified.js';
+import { createDatabase } from '../../src/db-fallback.js';
 import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import * as path from 'path';
@@ -27,10 +27,9 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createUnifiedDatabase(
+    const db = await createDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'skills.graph'),
-      embedder,
-      { forceMode: 'graph' }
+      { embedder, forceMode: 'graph' }
     );
 
     const skills = new SkillLibrary(
