@@ -15,22 +15,7 @@ import { createBackend } from '../../src/backends/factory.js';
 import type { VectorBackend } from '../../src/backends/VectorBackend.js';
 import * as fs from 'fs';
 import * as path from 'path';
-// crypto import removed - not needed in tests
-
-// Check if ruvector native bindings actually load (not just installed)
-// SkillLibrary tests depend on vector backend which may use ruvector
-let ruvectorAvailable = false;
-try {
-  await import('ruvector');
-  ruvectorAvailable = true;
-} catch {
-  try {
-    await import('@ruvector/core');
-    ruvectorAvailable = true;
-  } catch {
-    /* native bindings not functional */
-  }
-}
+import * as crypto from 'crypto';
 
 const TEST_DB_PATH = './tests/fixtures/test-persistence.db';
 const TEMP_DIR = `./tests/fixtures/temp-${Date.now()}`;
@@ -78,14 +63,14 @@ describe('Persistence and Data Migration', () => {
     // Initialize embedder
     embedder = new EmbeddingService({
       model: 'mock-model',
-      dimension: 384,
+      dimensions: 384,
       provider: 'local',
     });
     await embedder.initialize();
 
     // Initialize vector backend (required for v2)
     vectorBackend = await createBackend('auto', {
-      dimension: 384,
+      dimensions: 384,
       metric: 'cosine',
     });
   });
@@ -247,7 +232,7 @@ describe('Persistence and Data Migration', () => {
     }, 30000);
   });
 
-  describe.skipIf(!ruvectorAvailable)('SkillLibrary Persistence', () => {
+  describe('SkillLibrary Persistence', () => {
     it('should persist skills across database restarts', async () => {
       // First session: store skills
       let skillLibrary = new SkillLibrary(db, embedder, vectorBackend);
@@ -281,22 +266,19 @@ describe('Persistence and Data Migration', () => {
 
       db.close();
 
-      // Second session: verify skills are persisted in SQLite
+      // Second session: verify
       db = new Database(TEST_DB_PATH);
       db.pragma('journal_mode = WAL');
 
-      // Verify skills exist in the database directly (vector backend is not persisted)
-      const rows = db.prepare('SELECT * FROM skills').all();
-      expect(rows.length).toBe(skills.length);
-
-      // Also verify via SkillLibrary with a fresh vector backend
       skillLibrary = new SkillLibrary(db, embedder, vectorBackend);
 
-      // Note: searchSkills uses vector search which requires re-indexing
-      // after restart. Verify via direct SQL instead.
-      const row = db.prepare('SELECT * FROM skills WHERE name = ?').get('jwt_auth') as { name: string };
-      expect(row).toBeDefined();
-      expect(row.name).toBe('jwt_auth');
+      // Verify skills exist via search
+      const results = await skillLibrary.searchSkills({
+        task: 'authentication',
+        k: 10,
+      });
+
+      expect(results.length).toBeGreaterThan(0);
     });
 
     it('should preserve skill relationships across sessions', async () => {
@@ -345,7 +327,7 @@ describe('Persistence and Data Migration', () => {
 
     it('should persist skill metadata correctly', async () => {
       // First session: create skill with complex metadata
-      const skillLibrary = new SkillLibrary(db, embedder, vectorBackend);
+      let skillLibrary = new SkillLibrary(db, embedder, vectorBackend);
 
       const metadata = {
         version: '2.1.0',
@@ -374,7 +356,7 @@ describe('Persistence and Data Migration', () => {
       db = new Database(TEST_DB_PATH);
       db.pragma('journal_mode = WAL');
 
-      const row = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as { metadata: string };
+      const row = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
       const retrievedMetadata = JSON.parse(row.metadata);
 
       expect(retrievedMetadata).toEqual(metadata);
@@ -453,11 +435,10 @@ describe('Persistence and Data Migration', () => {
       const episodes = await reflexion.getRecentEpisodes(sessionId, 10);
       expect(episodes.length).toBe(5);
 
-      // Verify all rewards are present (order by ts DESC may not correlate with reward
-      // when episodes are stored in rapid succession with same-second timestamps)
-      const rewards = episodes.map(e => e.reward!).sort((a, b) => a - b);
-      expect(rewards[0]).toBeCloseTo(0.7, 2);
-      expect(rewards[4]).toBeCloseTo(0.9, 2);
+      // Verify order (most recent first)
+      for (let i = 0; i < episodes.length - 1; i++) {
+        expect(episodes[i].reward).toBeGreaterThanOrEqual(episodes[i + 1].reward!);
+      }
     });
   });
 
@@ -473,46 +454,34 @@ describe('Persistence and Data Migration', () => {
 
       db.close();
 
-      // Corrupt the database file severely (overwrite the SQLite header magic)
+      // Corrupt the database file
       const dbBuffer = fs.readFileSync(TEST_DB_PATH);
       const corrupted = Buffer.from(dbBuffer);
-      // Overwrite the SQLite header ("SQLite format 3\0" at offset 0)
-      corrupted.write('NOT_A_VALID_DB!!', 0);
+      // Overwrite some bytes in the middle
+      corrupted.write('CORRUPTED', 1000);
       fs.writeFileSync(TEST_DB_PATH, corrupted);
 
-      // Attempt to reopen - either throws on open or on first query
-      let threw = false;
-      try {
+      // Attempt to reopen - should fail gracefully
+      expect(() => {
         db = new Database(TEST_DB_PATH);
-        // If open succeeds, the first query should fail
-        db.prepare('SELECT * FROM reasoning_patterns LIMIT 1').all();
-      } catch {
-        threw = true;
-      }
-
-      expect(threw).toBe(true);
+      }).toThrow();
     });
 
     it('should verify database schema integrity', () => {
-      // Instantiate ReasoningBank to ensure its tables are created
-      // (reasoning_patterns and pattern_embeddings are lazily created by ReasoningBank constructor)
-      new ReasoningBank(db, embedder);
-
       const tables = db.prepare(`
         SELECT name FROM sqlite_master
         WHERE type='table'
         ORDER BY name
-      `).all() as Array<{ name: string }>;
+      `).all() as any[];
 
       const tableNames = tables.map(t => t.name);
 
-      // Essential tables from schema.sql
+      // Essential tables must exist
+      expect(tableNames).toContain('reasoning_patterns');
+      expect(tableNames).toContain('pattern_embeddings');
       expect(tableNames).toContain('skills');
       expect(tableNames).toContain('skill_embeddings');
       expect(tableNames).toContain('episodes');
-      // ReasoningBank tables (created by constructor)
-      expect(tableNames).toContain('reasoning_patterns');
-      expect(tableNames).toContain('pattern_embeddings');
     });
 
     it('should maintain indexes after restart', async () => {
@@ -537,7 +506,7 @@ describe('Persistence and Data Migration', () => {
       const indexes = db.prepare(`
         SELECT name FROM sqlite_master
         WHERE type='index'
-      `).all() as Array<{ name: string }>;
+      `).all() as any[];
 
       const indexNames = indexes.map(i => i.name);
       expect(indexNames.length).toBeGreaterThan(0);
@@ -581,7 +550,7 @@ describe('Persistence and Data Migration', () => {
       // Open second connection (WAL allows this)
       const db2 = new Database(TEST_DB_PATH, { readonly: true });
 
-      const count = db2.prepare('SELECT COUNT(*) as count FROM reasoning_patterns').get() as { count: number };
+      const count = db2.prepare('SELECT COUNT(*) as count FROM reasoning_patterns').get() as any;
       expect(count.count).toBeGreaterThan(0);
 
       db2.close();

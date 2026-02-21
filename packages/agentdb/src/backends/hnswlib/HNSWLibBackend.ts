@@ -26,8 +26,7 @@ import * as fsSync from 'fs';
 import * as path from 'path';
 
 // Lazy-loaded hnswlib-node to avoid import failures on systems without build tools
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let HierarchicalNSW: any = null; // hnswlib-node native constructor - FFI boundary
+let HierarchicalNSW: any = null;
 let hnswlibLoadAttempted = false;
 let hnswlibLoadError: Error | null = null;
 
@@ -40,9 +39,7 @@ async function loadHnswlib(): Promise<boolean> {
 
   try {
     const hnswlibNode = await import('hnswlib-node');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     HierarchicalNSW = (hnswlibNode as any).default?.HierarchicalNSW
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       || (hnswlibNode as any).HierarchicalNSW;
     return true;
   } catch (error) {
@@ -61,7 +58,7 @@ async function loadHnswlib(): Promise<boolean> {
 interface SavedMappings {
   idToLabel: Record<string, number>;
   labelToId: Record<string, string>;
-  metadata: Record<string, Record<string, unknown>>;
+  metadata: Record<string, Record<string, any>>;
   nextLabel: number;
   config: VectorConfig;
 }
@@ -69,14 +66,13 @@ interface SavedMappings {
 export class HNSWLibBackend implements VectorBackend {
   readonly name = 'hnswlib' as const;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private index: any | null = null; // hnswlib-node HierarchicalNSW instance - native FFI
+  private index: any | null = null;
   private config: VectorConfig;
 
   // String ID <-> Numeric Label mappings (hnswlib requires numeric labels)
   private idToLabel: Map<string, number> = new Map();
   private labelToId: Map<number, string> = new Map();
-  private metadata: Map<string, Record<string, unknown>> = new Map();
+  private metadata: Map<string, Record<string, any>> = new Map();
   private nextLabel: number = 0;
 
   // Tracking for deletions (hnswlib doesn't support true deletion)
@@ -133,7 +129,7 @@ export class HNSWLibBackend implements VectorBackend {
   /**
    * Insert a single vector with optional metadata
    */
-  insert(id: string, embedding: Float32Array, metadata?: Record<string, unknown>): void {
+  insert(id: string, embedding: Float32Array, metadata?: Record<string, any>): void {
     if (!this.index) {
       throw new Error('Backend not initialized. Call initialize() first.');
     }
@@ -169,7 +165,7 @@ export class HNSWLibBackend implements VectorBackend {
     items: Array<{
       id: string;
       embedding: Float32Array;
-      metadata?: Record<string, unknown>;
+      metadata?: Record<string, any>;
     }>
   ): void {
     for (const item of items) {
@@ -245,14 +241,12 @@ export class HNSWLibBackend implements VectorBackend {
       return false; // Not found
     }
 
-    // Mark as deleted (can't actually remove from hnswlib index)
+    // Mark as deleted (can't actually remove from hnswlib)
     this.deletedIds.add(id);
     this.metadata.delete(id);
 
-    // Clean up mappings so the ID can be re-inserted
-    // The underlying hnswlib point remains but is filtered out in search
-    this.labelToId.delete(label);
-    this.idToLabel.delete(id);
+    // Note: We keep idToLabel/labelToId mappings for consistency
+    // A full rebuild would be needed to reclaim space
 
     return true;
   }
@@ -261,8 +255,7 @@ export class HNSWLibBackend implements VectorBackend {
    * Get backend statistics
    */
   getStats(): VectorStats {
-    // idToLabel only contains active (non-deleted) IDs
-    const activeCount = this.idToLabel.size;
+    const activeCount = this.idToLabel.size - this.deletedIds.size;
 
     return {
       count: activeCount,
@@ -288,8 +281,8 @@ export class HNSWLibBackend implements VectorBackend {
         await fs.mkdir(indexDir, { recursive: true });
       }
 
-      // Save HNSW index (writeIndex returns a Promise that must be awaited)
-      await this.index.writeIndex(savePath);
+      // Save HNSW index
+      this.index.writeIndex(savePath);
 
       // Save mappings and metadata
       const mappingsPath = savePath + '.mappings.json';
@@ -334,8 +327,8 @@ export class HNSWLibBackend implements VectorBackend {
 
       this.index = new HierarchicalNSW(metric, this.config.dimension);
 
-      // Load HNSW index (readIndex returns a Promise that must be awaited)
-      await this.index.readIndex(loadPath);
+      // Load HNSW index
+      this.index.readIndex(loadPath);
       this.index.setEf(this.config.efSearch!);
 
       // Load mappings and metadata
@@ -413,7 +406,7 @@ export class HNSWLibBackend implements VectorBackend {
    */
   private applyFilters(
     results: SearchResult[],
-    filters: Record<string, unknown>
+    filters: Record<string, any>
   ): SearchResult[] {
     return results.filter((result) => {
       if (!result.metadata) return false;
@@ -430,11 +423,9 @@ export class HNSWLibBackend implements VectorBackend {
    * @param updateThreshold - Percentage of deletes to trigger rebuild (default: 0.1)
    */
   needsRebuild(updateThreshold: number = 0.1): boolean {
-    // Total = active IDs + deleted IDs (deleted IDs still occupy hnswlib index space)
-    const totalIds = this.idToLabel.size + this.deletedIds.size;
-    if (totalIds === 0) return false;
+    if (this.idToLabel.size === 0) return false;
 
-    const deletePercentage = this.deletedIds.size / totalIds;
+    const deletePercentage = this.deletedIds.size / this.idToLabel.size;
     return deletePercentage > updateThreshold;
   }
 

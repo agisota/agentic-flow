@@ -14,15 +14,15 @@ import { CausalMemoryGraph } from '../controllers/CausalMemoryGraph.js';
 import { CausalRecall } from '../controllers/CausalRecall.js';
 import { ExplainableRecall } from '../controllers/ExplainableRecall.js';
 import { NightlyLearner } from '../controllers/NightlyLearner.js';
-import { ReflexionMemory, Episode } from '../controllers/ReflexionMemory.js';
-import { SkillLibrary } from '../controllers/SkillLibrary.js';
+import { ReflexionMemory, Episode, ReflexionQuery } from '../controllers/ReflexionMemory.js';
+import { SkillLibrary, Skill, SkillQuery } from '../controllers/SkillLibrary.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
 import { MMRDiversityRanker } from '../controllers/MMRDiversityRanker.js';
 import { ContextSynthesizer } from '../controllers/ContextSynthesizer.js';
-import { MetadataFilter, MetadataFilters } from '../controllers/MetadataFilter.js';
+import { MetadataFilter } from '../controllers/MetadataFilter.js';
 import { QUICServer, QUICServerConfig } from '../controllers/QUICServer.js';
-import { QUICClient, QUICClientConfig } from '../controllers/QUICClient.js';
-import { SyncCoordinator, SyncProgress } from '../controllers/SyncCoordinator.js';
+import { QUICClient, QUICClientConfig, SyncProgress as ClientSyncProgress } from '../controllers/QUICClient.js';
+import { SyncCoordinator, SyncCoordinatorConfig, SyncProgress, SyncReport } from '../controllers/SyncCoordinator.js';
 import { initCommand } from './commands/init.js';
 import { statusCommand } from './commands/status.js';
 import { installEmbeddingsCommand } from './commands/install-embeddings.js';
@@ -32,8 +32,6 @@ import { attentionCommand } from './commands/attention.js';
 import { learnCommand } from './commands/learn.js';
 import { routeCommand } from './commands/route.js';
 import { hyperbolicCommand } from './commands/hyperbolic.js';
-import { rvfCommand } from './commands/rvf.js';
-import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
@@ -130,7 +128,6 @@ class ProgressBar {
 }
 
 class AgentDBCLI {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public db?: any; // Database instance from createDatabase (public for init command)
   private causalGraph?: CausalMemoryGraph;
   private causalRecall?: CausalRecall;
@@ -336,14 +333,14 @@ class AgentDBCLI {
     const result = this.causalGraph.calculateUplift(experimentId);
 
     // Fetch experiment details (now includes calculated means)
-    const experiment = this.db!.prepare('SELECT * FROM causal_experiments WHERE id = ?').get(experimentId) as Record<string, unknown> | undefined;
+    const experiment = this.db!.prepare('SELECT * FROM causal_experiments WHERE id = ?').get(experimentId) as any;
     if (!experiment) {
       throw new Error(`Experiment ${experimentId} not found`);
     }
 
     log.info(`Experiment: ${experiment.hypothesis || 'Unknown'}`);
-    log.info(`Treatment Mean: ${typeof experiment.treatment_mean === 'number' ? experiment.treatment_mean.toFixed(3) : 'N/A'}`);
-    log.info(`Control Mean: ${typeof experiment.control_mean === 'number' ? experiment.control_mean.toFixed(3) : 'N/A'}`);
+    log.info(`Treatment Mean: ${experiment.treatment_mean?.toFixed(3) || 'N/A'}`);
+    log.info(`Control Mean: ${experiment.control_mean?.toFixed(3) || 'N/A'}`);
     log.success(`Uplift: ${result?.uplift?.toFixed(3) || 'N/A'}`);
     if (result?.confidenceInterval && result.confidenceInterval.length === 2) {
       log.info(`95% CI: [${result.confidenceInterval[0]?.toFixed(3) || 'N/A'}, ${result.confidenceInterval[1]?.toFixed(3) || 'N/A'}]`);
@@ -353,13 +350,11 @@ class AgentDBCLI {
     }
 
     // Get sample sizes from observations
-    const counts = this.db!.prepare('SELECT COUNT(*) as total, SUM(is_treatment) as treatment FROM causal_observations WHERE experiment_id = ?').get(experimentId);
+    const counts = this.db!.prepare('SELECT COUNT(*) as total, SUM(is_treatment) as treatment FROM causal_observations WHERE experiment_id = ?').get(experimentId) as any;
     if (!counts) {
       throw new Error(`Failed to get observation counts for experiment ${experimentId}`);
     }
-    const totalCount = (counts.total as number) || 0;
-    const treatmentCount = (counts.treatment as number) || 0;
-    log.info(`Sample Sizes: ${treatmentCount} treatment, ${totalCount - treatmentCount} control`);
+    log.info(`Sample Sizes: ${counts.treatment || 0} treatment, ${(counts.total || 0) - (counts.treatment || 0)} control`);
 
     if (result && result.pValue !== undefined && result.pValue < 0.05) {
       log.success('Result is statistically significant (p < 0.05)');
@@ -483,11 +478,10 @@ class AgentDBCLI {
 
     if (discovered.length > 0) {
       console.log('\n' + '═'.repeat(80));
-      discovered.slice(0, 10).forEach((edge, i) => {
-        const e = edge as unknown as Record<string, unknown>;
-        console.log(`${colors.bright}#${i + 1}: ${e.cause} → ${e.effect}${colors.reset}`);
-        console.log(`  Uplift: ${colors.green}${(e.uplift as number)?.toFixed(3)}${colors.reset} (CI: ${(e.confidence as number)?.toFixed(2)})`);
-        console.log(`  Sample size: ${e.sampleSize}`);
+      discovered.slice(0, 10).forEach((edge: any, i: number) => {
+        console.log(`${colors.bright}#${i + 1}: ${edge.cause} → ${edge.effect}${colors.reset}`);
+        console.log(`  Uplift: ${colors.green}${edge.uplift.toFixed(3)}${colors.reset} (CI: ${edge.confidence.toFixed(2)})`);
+        console.log(`  Sample size: ${edge.sampleSize}`);
         console.log('─'.repeat(80));
       });
     }
@@ -554,7 +548,7 @@ class AgentDBCLI {
     onlySuccesses?: boolean;
     minReward?: number;
     synthesizeContext?: boolean;
-    filters?: MetadataFilters;
+    filters?: any;
   }): Promise<void> {
     if (!this.reflexion) throw new Error('Not initialized');
 
@@ -644,7 +638,7 @@ class AgentDBCLI {
     onlyFailures?: boolean;
     onlySuccesses?: boolean;
     minReward?: number;
-  }): Promise<unknown[]> {
+  }): Promise<any[]> {
     if (!this.reflexion) throw new Error('Not initialized');
 
     const episodes = await this.reflexion.retrieveRelevant({
@@ -754,13 +748,13 @@ class AgentDBCLI {
     }
 
     console.log('\n' + '═'.repeat(80));
-    skills.forEach((skill, i) => {
+    skills.forEach((skill: any, i: number) => {
       console.log(`${colors.bright}#${i + 1}: ${skill.name}${colors.reset}`);
       console.log(`  Description: ${skill.description}`);
       console.log(`  Success Rate: ${colors.green}${(skill.successRate * 100).toFixed(1)}%${colors.reset}`);
       console.log(`  Uses: ${skill.uses}`);
-      console.log(`  Avg Reward: ${(skill.avgReward ?? 0).toFixed(2)}`);
-      console.log(`  Avg Latency: ${(skill.avgLatencyMs ?? 0).toFixed(0)}ms`);
+      console.log(`  Avg Reward: ${skill.avgReward.toFixed(2)}`);
+      console.log(`  Avg Latency: ${skill.avgLatencyMs.toFixed(0)}ms`);
       console.log('─'.repeat(80));
     });
 
@@ -1146,11 +1140,13 @@ class AgentDBCLI {
       console.log(`${colors.bright}Push Progress${colors.reset}`);
       console.log('-'.repeat(80));
 
+      let pushedItems = 0;
       const startTime = Date.now();
 
       // Perform sync with progress callback
       const syncReport = await this.syncCoordinator.sync((progress: SyncProgress) => {
         if (progress.phase === 'pushing') {
+          pushedItems = progress.current;
           progressBar.update(progress.current, progress.total, progress.itemType || 'items');
         } else if (progress.phase === 'completed') {
           progressBar.complete('Push completed');
@@ -1190,10 +1186,10 @@ class AgentDBCLI {
   }
 
   // Helper to get detailed pending changes with actual data
-  private getPendingChangesDetailed(incremental?: boolean, _filter?: string): {
-    episodes: Record<string, unknown>[];
-    skills: Record<string, unknown>[];
-    edges: Record<string, unknown>[];
+  private getPendingChangesDetailed(incremental?: boolean, filter?: string): {
+    episodes: any[];
+    skills: any[];
+    edges: any[];
     totalItems: number;
     totalSize: number;
   } {
@@ -1217,7 +1213,7 @@ class AgentDBCLI {
 
       // Query episodes
       let episodesQuery = 'SELECT * FROM episodes WHERE 1=1';
-      const episodeParams: unknown[] = [];
+      const episodeParams: any[] = [];
       if (incremental && lastSyncTime > 0) {
         episodesQuery += ' AND ts > ?';
         episodeParams.push(lastSyncTime);
@@ -1226,12 +1222,12 @@ class AgentDBCLI {
 
       // Query skills
       let skillsQuery = 'SELECT * FROM skills WHERE 1=1';
-      const skillParams: unknown[] = [];
+      const skillParams: any[] = [];
       if (incremental && lastSyncTime > 0) {
         skillsQuery += ' AND ts > ?';
         skillParams.push(lastSyncTime);
       }
-      let skills: Record<string, unknown>[] = [];
+      let skills: any[] = [];
       try {
         skills = this.db.prepare(skillsQuery).all(...skillParams) || [];
       } catch {
@@ -1240,12 +1236,12 @@ class AgentDBCLI {
 
       // Query edges
       let edgesQuery = 'SELECT * FROM skill_edges WHERE 1=1';
-      const edgeParams: unknown[] = [];
+      const edgeParams: any[] = [];
       if (incremental && lastSyncTime > 0) {
         edgesQuery += ' AND ts > ?';
         edgeParams.push(lastSyncTime);
       }
-      let edges: Record<string, unknown>[] = [];
+      let edges: any[] = [];
       try {
         edges = this.db.prepare(edgesQuery).all(...edgeParams) || [];
       } catch {
@@ -1624,7 +1620,7 @@ class AgentDBCLI {
     ).join('');
   }
 
-  private getPendingChanges(_incremental?: boolean, _filter?: string): {
+  private getPendingChanges(incremental?: boolean, filter?: string): {
     episodes: number;
     skills: number;
     causalEdges: number;
@@ -1703,7 +1699,7 @@ class AgentDBCLI {
 /**
  * Helper function to execute Commander-based commands
  */
-async function handleCommanderCommand(command: Command, args: string[]): Promise<void> {
+async function handleCommanderCommand(command: any, args: string[]): Promise<void> {
   // Parse directly using the command instance without wrapping in a parent program
   // This avoids issues with subcommand routing
   await command.parseAsync(['node', command.name(), ...args], { from: 'user' });
@@ -1756,7 +1752,7 @@ async function main() {
 
   // Handle init command with new v2 implementation
   if (command === 'init') {
-    const options: Record<string, string | boolean | number | undefined> = { dbPath: './agentdb.db', dimension: 384 };
+    const options: any = { dbPath: './agentdb.db', dimension: 384 };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--backend' && i + 1 < args.length) {
@@ -1773,8 +1769,6 @@ async function main() {
         options.dryRun = true;
       } else if (arg === '--db' && i + 1 < args.length) {
         options.dbPath = args[++i];
-      } else if (arg === '--rvf-path' && i + 1 < args.length) {
-        options.rvfPath = args[++i];
       } else if (!arg.startsWith('--')) {
         options.dbPath = arg;
       }
@@ -1785,7 +1779,7 @@ async function main() {
 
   // Handle status command
   if (command === 'status') {
-    const options: Record<string, string | boolean | number | undefined> = { dbPath: './agentdb.db', verbose: false };
+    const options: any = { dbPath: './agentdb.db', verbose: false };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--db' && i + 1 < args.length) {
@@ -1802,7 +1796,7 @@ async function main() {
 
   // Handle install-embeddings command
   if (command === 'install-embeddings') {
-    const options: Record<string, string | boolean | number | undefined> = { global: false };
+    const options: any = { global: false };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--global' || arg === '-g') {
@@ -1815,17 +1809,13 @@ async function main() {
 
   // Handle migrate command
   if (command === 'migrate') {
-    const options: Record<string, string | boolean | number | undefined> = { optimize: true, dryRun: false, verbose: false };
+    const options: any = { optimize: true, dryRun: false, verbose: false };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--source' && i + 1 < args.length) {
         options.sourceDb = args[++i];
       } else if (arg === '--target' && i + 1 < args.length) {
         options.targetDb = args[++i];
-      } else if (arg === '--to' && i + 1 < args.length) {
-        options.to = args[++i];
-      } else if (arg === '--rvf-path' && i + 1 < args.length) {
-        options.rvfPath = args[++i];
       } else if (arg === '--no-optimize') {
         options.optimize = false;
       } else if (arg === '--dry-run') {
@@ -1841,23 +1831,19 @@ async function main() {
       console.log('Usage: agentdb migrate <source-db> [--target <target-db>] [--no-optimize] [--dry-run] [--verbose]');
       process.exit(1);
     }
-    await migrateCommand(options as unknown as Parameters<typeof migrateCommand>[0]);
+    await migrateCommand(options);
     return;
   }
 
   // Handle doctor command
   if (command === 'doctor') {
-    const options: Record<string, string | boolean | number | undefined> = { verbose: false };
+    const options: any = { verbose: false };
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--db' && i + 1 < args.length) {
         options.dbPath = args[++i];
-      } else if (arg === '--rvf-path' && i + 1 < args.length) {
-        options.rvfPath = args[++i];
       } else if (arg === '--verbose' || arg === '-v') {
         options.verbose = true;
-      } else if (arg === '--fix') {
-        options.fix = true;
       } else if (!arg.startsWith('--')) {
         options.dbPath = arg;
       }
@@ -1908,12 +1894,6 @@ async function main() {
     return;
   }
 
-  // Handle RVF store management commands
-  if (command === 'rvf') {
-    await handleCommanderCommand(rvfCommand, args.slice(1));
-    return;
-  }
-
   // Handle simulate command - run simulation CLI
   if (command === 'simulate') {
     // Use pathToFileURL for proper ESM module resolution
@@ -1940,7 +1920,7 @@ async function main() {
 
       if (subcommand === 'init') {
         const scenario = args[2];
-        const options: Record<string, string | boolean | number | undefined> = { template: 'basic' };
+        const options: any = { template: 'basic' };
         for (let i = 3; i < args.length; i++) {
           if (args[i] === '-t' || args[i] === '--template') {
             options.template = args[++i];
@@ -1952,7 +1932,7 @@ async function main() {
 
       if (subcommand === 'run') {
         const scenario = args[2];
-        const options: Record<string, string | boolean | number | undefined> = {
+        const options: any = {
           config: 'simulation/configs/default.json',
           verbosity: '2',
           iterations: '10',
@@ -2034,6 +2014,114 @@ async function main() {
 }
 
 // Command handlers
+
+// Init command handler
+async function handleInitCommand(args: string[]) {
+  // Parse arguments
+  let dbPath = './agentdb.db';
+  let dimension = 1536; // Default OpenAI ada-002
+  let preset: 'small' | 'medium' | 'large' | null = null;
+  let inMemory = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--dimension' && i + 1 < args.length) {
+      dimension = parseInt(args[++i]);
+    } else if (arg === '--preset' && i + 1 < args.length) {
+      preset = args[++i] as 'small' | 'medium' | 'large';
+    } else if (arg === '--in-memory') {
+      inMemory = true;
+      dbPath = ':memory:';
+    } else if (!arg.startsWith('--')) {
+      dbPath = arg;
+    }
+  }
+
+  // Apply preset configurations
+  if (preset) {
+    if (preset === 'small') {
+      log.info('Using SMALL preset (<10K vectors)');
+    } else if (preset === 'medium') {
+      log.info('Using MEDIUM preset (10K-100K vectors)');
+    } else if (preset === 'large') {
+      log.info('Using LARGE preset (>100K vectors)');
+    }
+  }
+
+  log.info(`Initializing AgentDB at: ${dbPath}`);
+  log.info(`Embedding dimension: ${dimension}`);
+  if (inMemory) {
+    log.info('Using in-memory database (data will not persist)');
+  }
+
+  // Check if database already exists
+  if (!inMemory && fs.existsSync(dbPath)) {
+    log.warning(`Database already exists at ${dbPath}`);
+    log.info('Use a different path or remove the existing file to reinitialize');
+    return;
+  }
+
+  // Create parent directories if needed
+  if (!inMemory) {
+    const parentDir = path.dirname(dbPath);
+    if (parentDir !== '.' && !fs.existsSync(parentDir)) {
+      log.info(`Creating directory: ${parentDir}`);
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+  }
+
+  // Create new database with schemas
+  const cli = new AgentDBCLI();
+  await cli.initialize(dbPath);
+
+  // CRITICAL: Save the database to disk (unless in-memory)
+  // sql.js keeps everything in memory until explicitly saved
+  if (!inMemory) {
+    if (cli.db && typeof cli.db.save === 'function') {
+      cli.db.save();
+    } else if (cli.db && typeof cli.db.close === 'function') {
+      // close() calls save() internally
+      cli.db.close();
+    }
+
+    // Verify database file was created
+    if (!fs.existsSync(dbPath)) {
+      log.error(`Failed to create database file at ${dbPath}`);
+      log.error('The database may be in memory only');
+      process.exit(1);
+    }
+  }
+
+  // Verify database has tables
+  try {
+    const db = await createDatabase(dbPath);
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    db.close();
+
+    if (tables.length === 0) {
+      log.warning('Database file created but no tables found');
+      log.warning('Schemas may not have been loaded correctly');
+    } else {
+      log.success(`Database created with ${tables.length} tables`);
+    }
+  } catch (error) {
+    log.warning(`Could not verify database tables: ${(error as Error).message}`);
+  }
+
+  log.success(`✅ AgentDB initialized successfully at ${dbPath}`);
+  log.info('Database includes:');
+  log.info('  - Core vector tables (episodes, embeddings)');
+  log.info('  - Causal memory graph');
+  log.info('  - Reflexion memory');
+  log.info('  - Skill library');
+  log.info('  - Learning system');
+  log.info('');
+  log.info('Next steps:');
+  log.info('  - Use "agentdb mcp start" to start MCP server');
+  log.info('  - Use "agentdb causal add" to add causal edges');
+  log.info('  - Use "agentdb reflexion add" to store episodes');
+  log.info('  - See "agentdb help" for all commands');
+}
 
 async function handleMcpCommand(args: string[]) {
   const subcommand = args[0];
@@ -2170,13 +2258,13 @@ async function handleReflexionCommands(cli: AgentDBCLI, subcommand: string, args
     });
   } else if (subcommand === 'retrieve') {
     // Parse retrieve command with new flags
-    const task = args[0];
+    let task = args[0];
     let k: number | undefined = undefined;
     let minReward: number | undefined = undefined;
     let onlyFailures: boolean | undefined = undefined;
     let onlySuccesses: boolean | undefined = undefined;
     let synthesizeContext = false;
-    let filters: MetadataFilters = {};
+    let filters: any = {};
 
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
@@ -2270,7 +2358,7 @@ async function handleSkillCommands(cli: AgentDBCLI, subcommand: string, args: st
   }
 }
 
-async function handleDbCommands(cli: AgentDBCLI, subcommand: string, _args: string[]) {
+async function handleDbCommands(cli: AgentDBCLI, subcommand: string, args: string[]) {
   if (subcommand === 'stats') {
     await cli.dbStats();
   } else {
@@ -2424,7 +2512,7 @@ async function handleQueryCommand(cli: AgentDBCLI, args: string[]) {
   let minConfidence = 0.0;
   let format = 'json';
   let synthesizeContext = false;
-  let filters: MetadataFilters = {};
+  let filters: any = {};
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--domain' && i + 1 < args.length) {
@@ -2474,20 +2562,20 @@ async function handleQueryCommand(cli: AgentDBCLI, args: string[]) {
 
   // Apply metadata filters if provided
   if (Object.keys(filters).length > 0) {
-    results = MetadataFilter.apply(results as Parameters<typeof MetadataFilter.apply>[0], filters);
+    results = MetadataFilter.apply(results, filters);
     log.info(`Filtered to ${results.length} results matching metadata criteria`);
   }
 
   // Synthesize context if requested
   if (synthesizeContext && results.length > 0) {
-    const context = ContextSynthesizer.synthesize((results as Record<string, unknown>[]).map((r) => ({
-      task: r.task as string,
-      reward: r.reward as number,
-      success: r.success as boolean,
-      critique: r.critique as string,
-      input: r.input as string,
-      output: r.output as string,
-      similarity: r.similarity as number
+    const context = ContextSynthesizer.synthesize(results.map((r: any) => ({
+      task: r.task,
+      reward: r.reward,
+      success: r.success,
+      critique: r.critique,
+      input: r.input,
+      output: r.output,
+      similarity: r.similarity
     })));
 
     if (format === 'json') {
@@ -2749,8 +2837,8 @@ async function handleVectorSearchCommand(args: string[]) {
   const results = cli.db.prepare(query).all(k * 10); // Get more for filtering
 
   // Calculate similarities
-  let scored = results.map((row: Record<string, unknown>) => {
-    const embedding = new Float32Array(row.embedding as ArrayBuffer);
+  let scored = results.map((row: any) => {
+    const embedding = new Float32Array(row.embedding);
     const similarity = calculateSimilarity(vector, Array.from(embedding), metric);
     return {
       id: row.id,
@@ -2776,7 +2864,7 @@ async function handleVectorSearchCommand(args: string[]) {
   }
 
   // Remove embedding from output
-  const output = scored.map(({ embedding: _embedding, ...rest }) => rest);
+  const output = scored.map(({ embedding, ...rest }) => rest);
 
   if (format === 'json') {
     console.log(JSON.stringify(output, null, 2));
@@ -2930,7 +3018,7 @@ async function handleImportCommand(args: string[]) {
     log.info('Decompression: enabled');
   }
 
-  let data: unknown[];
+  let data: any[];
 
   try {
     if (decompress) {
@@ -2951,9 +3039,8 @@ async function handleImportCommand(args: string[]) {
   await cli.initialize(dbPath);
 
   let imported = 0;
-  for (const rawItem of data) {
+  for (const item of data) {
     try {
-      const item = rawItem as Record<string, unknown>;
       // Import episode
       const episodeQuery = `
         INSERT INTO episodes (session_id, task, input, output, critique, reward, success, latency_ms, tokens_used, tags, metadata)
@@ -3065,14 +3152,15 @@ function printHelp() {
 ${colors.bright}${colors.cyan}█▀█ █▀▀ █▀▀ █▄░█ ▀█▀ █▀▄ █▄▄
 █▀█ █▄█ ██▄ █░▀█ ░█░ █▄▀ █▄█${colors.reset}
 
-${colors.bright}${colors.cyan}AgentDB v3 CLI - Intelligent Vector Database for AI Agents${colors.reset}
+${colors.bright}${colors.cyan}AgentDB v2 CLI - Vector Intelligence with Auto Backend Detection${colors.reset}
 
 ${colors.bright}CORE COMMANDS:${colors.reset}
   ${colors.cyan}init${colors.reset} [options]              Initialize database with backend detection
-    --backend <type>           Backend: auto (default), ruvector, rvf, hnswlib
+    --backend <type>           Backend: auto (default), ruvector, hnswlib
     --dimension <n>            Vector dimension (default: 384)
     --model <name>             Embedding model (default: Xenova/all-MiniLM-L6-v2)
-    --rvf-path <path>          RVF store path (default: ./agentdb.rvf)
+                               Popular: Xenova/bge-base-en-v1.5 (768d production)
+                                        Xenova/bge-small-en-v1.5 (384d best quality)
     --dry-run                  Show detection info without initializing
     --db <path>                Database path (default: ./agentdb.db)
 
@@ -3082,16 +3170,7 @@ ${colors.bright}CORE COMMANDS:${colors.reset}
 
   ${colors.cyan}doctor${colors.reset} [options]            System diagnostics and health check
     --db <path>                Database path to check (optional)
-    --rvf-path <path>          RVF store to check (default: ./agentdb.rvf)
-    --fix                      Auto-fix issues (compact RVF, repair DB)
     --verbose, -v              Show detailed system information
-
-  ${colors.cyan}rvf${colors.reset} <subcommand>            RVF store management
-    status <store>             Show RVF store status and statistics
-    compact <store>            Compact store to reclaim dead space
-    derive <parent> <child>    Create a COW branch
-    segments <store>           List store segments
-    detect                     Detect RVF SDK availability
 
 ${colors.bright}USAGE:${colors.reset}
   agentdb <command> <subcommand> [options]

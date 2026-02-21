@@ -13,29 +13,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as url from 'url';
 
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const TEST_DIR = path.join(process.cwd(), 'test-cli-data');
-
-/**
- * Load the schema SQL files into a sql.js database instance.
- * createDatabase from db-fallback.ts does NOT auto-initialize schema,
- * so we must do it manually for tests that use the backward-compat path.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function loadSchema(db: any): void {
-  const schemaPath = path.join(__dirname, '../src/schemas/schema.sql');
-  if (fs.existsSync(schemaPath)) {
-    const schema = fs.readFileSync(schemaPath, 'utf-8');
-    db.exec(schema);
-  }
-  const frontierSchemaPath = path.join(__dirname, '../src/schemas/frontier-schema.sql');
-  if (fs.existsSync(frontierSchemaPath)) {
-    const frontierSchema = fs.readFileSync(frontierSchemaPath, 'utf-8');
-    db.exec(frontierSchema);
-  }
-}
 const SQLITE_DB = path.join(TEST_DIR, 'legacy.db');
 const GRAPH_DB = path.join(TEST_DIR, 'modern.graph');
 
@@ -55,14 +34,15 @@ describe('CLI Commands', () => {
   it('should show help', () => {
     const output = execSync('npx tsx src/cli/agentdb-cli.ts --help', { encoding: 'utf-8' });
 
-    expect(output).toContain('AgentDB v3 CLI');
+    expect(output).toContain('AgentDB v2 CLI');
     expect(output).toContain('CORE COMMANDS');
     expect(output).toContain('init');
+    expect(output).toContain('migrate');
     console.log('✅ CLI help command working');
   });
 
   it('should initialize database', () => {
-    execSync(`npx tsx src/cli/agentdb-cli.ts init ${SQLITE_DB} --dimension 384`, {
+    const output = execSync(`npx tsx src/cli/agentdb-cli.ts init ${SQLITE_DB} --dimension 384`, {
       encoding: 'utf-8',
       cwd: process.cwd()
     });
@@ -126,14 +106,13 @@ describe('SDK Exports', () => {
     console.log('✅ GraphDatabaseAdapter exported');
   });
 
-  it.skip('should export UnifiedDatabase (db-unified module not yet implemented)', async () => {
-    // @ts-expect-error module may not exist
-    const { UnifiedDatabase, createUnifiedDatabase } = await import('../src/db-unified.js') as Record<string, unknown>;
+  it('should export UnifiedDatabase', async () => {
+    const { UnifiedDatabase, createUnifiedDatabase } = await import('../src/db-unified.js');
 
     expect(UnifiedDatabase).toBeDefined();
     expect(createUnifiedDatabase).toBeDefined();
 
-    console.log('UnifiedDatabase exported');
+    console.log('✅ UnifiedDatabase exported');
   });
 });
 
@@ -157,7 +136,6 @@ describe('Backward Compatibility - SQLite', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(SQLITE_DB);
-    loadSchema(db);
     const embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
       dimension: 384,
@@ -193,7 +171,6 @@ describe('Backward Compatibility - SQLite', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(SQLITE_DB);
-    loadSchema(db);
     const embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
       dimension: 384,
@@ -223,18 +200,12 @@ describe('Backward Compatibility - SQLite', () => {
 });
 
 describe('Migration - SQLite to GraphDatabase', () => {
-  it.skip('should detect database mode (db-unified module not yet implemented)', async () => {
-    // @ts-expect-error module may not exist
-    const mod = await import('../src/db-unified.js') as Record<string, unknown>;
-    const UnifiedDatabaseCtor = mod.UnifiedDatabase as new (opts: Record<string, unknown>) => {
-      initialize(embedder: unknown): Promise<void>;
-      getMode(): string;
-      close(): void;
-    };
+  it('should detect database mode', async () => {
+    const { UnifiedDatabase } = await import('../src/db-unified.js');
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     // Test SQLite detection
-    const sqliteDb = new UnifiedDatabaseCtor({ path: SQLITE_DB });
+    const sqliteDb = new UnifiedDatabase({ path: SQLITE_DB });
     const embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
       dimension: 384,
@@ -244,13 +215,12 @@ describe('Migration - SQLite to GraphDatabase', () => {
     await sqliteDb.initialize(embedder);
 
     expect(sqliteDb.getMode()).toBe('sqlite-legacy');
-    console.log('SQLite database detected correctly');
+    console.log('✅ SQLite database detected correctly');
 
     sqliteDb.close();
   });
 
-  it.skip('should create new graph database (db-unified module not yet implemented)', async () => {
-    // @ts-expect-error module may not exist
+  it('should create new graph database', async () => {
     const { createUnifiedDatabase } = await import('../src/db-unified.js');
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
@@ -267,7 +237,7 @@ describe('Migration - SQLite to GraphDatabase', () => {
     expect(db.getMode()).toBe('graph');
     expect(fs.existsSync(GRAPH_DB)).toBe(true);
 
-    console.log('GraphDatabase created successfully');
+    console.log('✅ GraphDatabase created successfully');
 
     db.close();
   });
@@ -286,7 +256,6 @@ describe('Migration - SQLite to GraphDatabase', () => {
 
     // Create source SQLite database with data
     const sqliteDb = await createDatabase(SQLITE_DB);
-    loadSchema(sqliteDb);
 
     // Insert test episode
     sqliteDb.exec(`
@@ -342,11 +311,11 @@ describe('Migration - SQLite to GraphDatabase', () => {
 
 describe('MCP Tool Integration', () => {
   it('should validate agentdb_pattern_store schema', async () => {
-    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ storePattern: null })) as Record<string, unknown>;
+    const { storePattern } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ storePattern: null }));
 
     // MCP server exports are optional
-    if (mcpModule.storePattern) {
-      expect(typeof mcpModule.storePattern).toBe('function');
+    if (storePattern) {
+      expect(typeof storePattern).toBe('function');
       console.log('✅ MCP pattern_store tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -354,10 +323,10 @@ describe('MCP Tool Integration', () => {
   });
 
   it('should validate agentdb_pattern_search schema', async () => {
-    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ searchPattern: null })) as Record<string, unknown>;
+    const { searchPattern } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ searchPattern: null }));
 
-    if (mcpModule.searchPattern) {
-      expect(typeof mcpModule.searchPattern).toBe('function');
+    if (searchPattern) {
+      expect(typeof searchPattern).toBe('function');
       console.log('✅ MCP pattern_search tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -365,10 +334,10 @@ describe('MCP Tool Integration', () => {
   });
 
   it('should validate agentdb_stats schema', async () => {
-    const mcpModule = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ getStats: null })) as Record<string, unknown>;
+    const { getStats } = await import('../src/mcp/agentdb-mcp-server.js').catch(() => ({ getStats: null }));
 
-    if (mcpModule.getStats) {
-      expect(typeof mcpModule.getStats).toBe('function');
+    if (getStats) {
+      expect(typeof getStats).toBe('function');
       console.log('✅ MCP stats tool available');
     } else {
       console.log('ℹ️  MCP server not loaded (optional)');
@@ -377,14 +346,16 @@ describe('MCP Tool Integration', () => {
 });
 
 describe('Integration Test - Full Workflow', () => {
-  it('should complete SQLite workflow: CLI init and SQLite ops', async () => {
+  it('should complete full workflow: CLI init → SQLite ops → Migration → Graph ops', async () => {
+    console.log('\n🚀 FULL INTEGRATION TEST\n');
+
     // 1. Initialize SQLite database via CLI
     const testDbPath = path.join(TEST_DIR, 'full-test.db');
     execSync(`npx tsx src/cli/agentdb-cli.ts init ${testDbPath} --dimension 384`, {
       cwd: process.cwd()
     });
 
-    console.log('1. CLI initialized SQLite database');
+    console.log('✅ 1. CLI initialized SQLite database');
 
     // 2. Perform SQLite operations
     const { createDatabase } = await import('../src/db-fallback.js');
@@ -392,7 +363,6 @@ describe('Integration Test - Full Workflow', () => {
     const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
 
     const db = await createDatabase(testDbPath);
-    loadSchema(db);
     const embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
       dimension: 384,
@@ -414,23 +384,11 @@ describe('Integration Test - Full Workflow', () => {
     const sqliteResults = await reflexion.retrieveRelevant({ task: 'integration', k: 5 });
     expect(sqliteResults.length).toBeGreaterThan(0);
 
-    console.log('2. SQLite operations completed');
+    console.log('✅ 2. SQLite operations completed');
 
     db.close();
-  });
-
-  it.skip('should complete migration workflow: SQLite to Graph (db-unified module not yet implemented)', async () => {
-    const testDbPath = path.join(TEST_DIR, 'full-test.db');
-    const { EmbeddingService } = await import('../src/controllers/EmbeddingService.js');
-    const embedder = new EmbeddingService({
-      model: 'Xenova/all-MiniLM-L6-v2',
-      dimension: 384,
-      provider: 'transformers'
-    });
-    await embedder.initialize();
 
     // 3. Migrate to GraphDatabase
-    // @ts-expect-error module may not exist
     const { createUnifiedDatabase } = await import('../src/db-unified.js');
     const graphDbPath = testDbPath.replace('.db', '.graph');
 
@@ -441,12 +399,20 @@ describe('Integration Test - Full Workflow', () => {
     expect(unifiedDb.getMode()).toBe('graph');
     expect(fs.existsSync(graphDbPath)).toBe(true);
 
+    console.log('✅ 3. Migration to GraphDatabase completed');
+
     // 4. Verify GraphDatabase operations
     const graphDb = unifiedDb.getGraphDatabase();
     expect(graphDb).toBeDefined();
 
+    // Query to verify migration worked (stats may not update immediately)
     const cypherResult = await graphDb!.query('MATCH (e:Episode) RETURN e LIMIT 5');
     expect(cypherResult.nodes.length).toBeGreaterThan(0);
+
+    console.log('✅ 4. GraphDatabase operations verified');
+    console.log('✅ 5. Cypher queries working - migration successful');
+
+    console.log('\n🎉 FULL INTEGRATION TEST PASSED\n');
 
     unifiedDb.close();
   });

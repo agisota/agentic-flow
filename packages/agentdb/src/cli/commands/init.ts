@@ -21,14 +21,13 @@ const colors = {
 };
 
 interface InitOptions {
-  backend?: 'auto' | 'ruvector' | 'rvf' | 'hnswlib';
+  backend?: 'auto' | 'ruvector' | 'hnswlib';
   dimension?: number;
   model?: string;
   preset?: 'small' | 'medium' | 'large';
   inMemory?: boolean;
   dryRun?: boolean;
   dbPath?: string;
-  rvfPath?: string;
 }
 
 function printDetectionInfo(detection: DetectionResult): void {
@@ -36,10 +35,8 @@ function printDetectionInfo(detection: DetectionResult): void {
   console.log(formatDetectionResult(detection));
 }
 
-function getBackendColor(backend: 'ruvector' | 'rvf' | 'hnswlib'): string {
-  if (backend === 'ruvector') return colors.green;
-  if (backend === 'rvf') return colors.magenta;
-  return colors.yellow;
+function getBackendColor(backend: 'ruvector' | 'hnswlib'): string {
+  return backend === 'ruvector' ? colors.green : colors.yellow;
 }
 
 export async function initCommand(options: InitOptions = {}): Promise<void> {
@@ -50,8 +47,7 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
     preset,
     inMemory = false,
     dryRun = false,
-    dbPath = './agentdb.db',
-    rvfPath,
+    dbPath = './agentdb.db'
   } = options;
 
   try {
@@ -65,20 +61,13 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
 
     // Validate backend selection
     if (backend === 'ruvector' && detection.backend !== 'ruvector') {
-      console.error(`${colors.red}Error: RuVector not available${colors.reset}`);
+      console.error(`${colors.red}❌ Error: RuVector not available${colors.reset}`);
       console.error(`   Install with: ${colors.cyan}npm install @ruvector/core${colors.reset}`);
       process.exit(1);
     }
 
-    if (backend === 'rvf' && !detection.features.rvf) {
-      console.error(`${colors.red}Error: RVF backend not available${colors.reset}`);
-      console.error(`   Install with: ${colors.cyan}npm install @ruvector/rvf${colors.reset}`);
-      console.error(`   Native:       ${colors.cyan}npm install @ruvector/rvf-node${colors.reset}`);
-      process.exit(1);
-    }
-
     if (backend === 'hnswlib' && detection.backend !== 'hnswlib') {
-      console.error(`${colors.red}Error: HNSWLib not available${colors.reset}`);
+      console.error(`${colors.red}❌ Error: HNSWLib not available${colors.reset}`);
       console.error(`   Install with: ${colors.cyan}npm install hnswlib-node${colors.reset}`);
       process.exit(1);
     }
@@ -165,32 +154,17 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
       VALUES (?, ?)
     `).run('version', '2.0.0');
 
-    // Store RVF path if using RVF backend
-    if (selectedBackend === 'rvf') {
-      const rvfStorePath = rvfPath || './agentdb.rvf';
-      db.prepare(`
-        INSERT OR REPLACE INTO agentdb_config (key, value)
-        VALUES (?, ?)
-      `).run('rvf_path', rvfStorePath);
-    }
-
     db.close();
 
-    console.log(`${colors.green}AgentDB initialized successfully${colors.reset}\n`);
+    console.log(`${colors.green}✅ AgentDB initialized successfully${colors.reset}\n`);
 
     if (selectedBackend === 'ruvector' && detection.features.gnn) {
-      console.log(`${colors.bright}${colors.magenta}Bonus:${colors.reset} GNN self-learning available`);
+      console.log(`${colors.bright}${colors.magenta}🧠 Bonus:${colors.reset} GNN self-learning available`);
       console.log(`   Use ${colors.cyan}agentdb train${colors.reset} to enable adaptive patterns\n`);
     }
 
-    if (selectedBackend === 'rvf') {
-      console.log(`${colors.bright}${colors.magenta}RVF features:${colors.reset} Lineage tracking, COW branching, crash safety`);
-      console.log(`   Use ${colors.cyan}agentdb rvf status${colors.reset} to view store details`);
-      console.log(`   Use ${colors.cyan}agentdb rvf derive${colors.reset} to create experimental branches\n`);
-    }
-
     if (selectedBackend === 'hnswlib') {
-      console.log(`${colors.yellow}Tip:${colors.reset} Install RuVector for 150x performance boost`);
+      console.log(`${colors.yellow}💡 Tip:${colors.reset} Install RuVector for 150x performance boost`);
       console.log(`   ${colors.cyan}npm install @ruvector/core${colors.reset}\n`);
     }
 

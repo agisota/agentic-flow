@@ -13,7 +13,7 @@
  * - All queries use parameterized values
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- sql.js / better-sqlite3 Database has no shared TS type
+// Database type from db-fallback
 type Database = any;
 import { EmbeddingService } from '../controllers/EmbeddingService';
 import { Episode } from '../controllers/ReflexionMemory';
@@ -64,6 +64,7 @@ export class BatchOperations {
    * Bulk insert episodes with embeddings
    */
   async insertEpisodes(episodes: Episode[]): Promise<number> {
+    const totalBatches = Math.ceil(episodes.length / this.config.batchSize);
     let completed = 0;
 
     for (let i = 0; i < episodes.length; i += this.config.batchSize) {
@@ -126,14 +127,14 @@ export class BatchOperations {
     skills: Array<{
       name: string;
       description: string;
-      signature?: unknown;
+      signature?: any;
       code?: string;
       successRate?: number;
       uses?: number;
       avgReward?: number;
       avgLatencyMs?: number;
       tags?: string[];
-      metadata?: Record<string, unknown>;
+      metadata?: Record<string, any>;
     }>
   ): Promise<number[]> {
     const skillIds: number[] = [];
@@ -203,7 +204,7 @@ export class BatchOperations {
       successRate: number;
       outcome?: string;
       tags?: string[];
-      metadata?: Record<string, unknown>;
+      metadata?: Record<string, any>;
     }>
   ): Promise<number[]> {
     const patternIds: number[] = [];
@@ -291,7 +292,7 @@ export class BatchOperations {
    */
   async batchInsertParallel(
     table: string,
-    data: Array<Record<string, unknown>>,
+    data: Array<Record<string, any>>,
     columns: string[],
     config: ParallelBatchConfig = {}
   ): Promise<ParallelBatchResult> {
@@ -308,7 +309,7 @@ export class BatchOperations {
 
     // Validate columns (check they exist in the table schema)
     const tableInfo = this.db.pragma(`table_info(${validatedTable})`);
-    const validColumns = (tableInfo as Array<{ name: string }>).map((col) => col.name);
+    const validColumns = (tableInfo as any[]).map((col) => col.name);
     const invalidColumns = columns.filter((col) => !validColumns.includes(col));
 
     if (invalidColumns.length > 0) {
@@ -322,14 +323,14 @@ export class BatchOperations {
     let totalInserted = 0;
 
     // Split data into chunks
-    const chunks: Array<Record<string, unknown>[]> = [];
+    const chunks: Array<Record<string, any>[]> = [];
     for (let i = 0; i < data.length; i += chunkSize) {
       chunks.push(data.slice(i, i + chunkSize));
     }
 
     // Process chunks in parallel with concurrency limit
     const processChunk = async (
-      chunk: Array<Record<string, unknown>>,
+      chunk: Array<Record<string, any>>,
       chunkIndex: number,
       attempt: number = 0
     ): Promise<number> => {
@@ -341,7 +342,7 @@ export class BatchOperations {
         if (useTransaction) {
           // Use transaction for ACID compliance
           const insertInTransaction = this.db.transaction(
-            (chunkData: Array<Record<string, unknown>>) => {
+            (chunkData: Array<Record<string, any>>) => {
               const stmt = this.db.prepare(query);
               for (const row of chunkData) {
                 const values = columns.map((col) => {
@@ -429,7 +430,6 @@ export class BatchOperations {
    * Bulk update embeddings for existing episodes
    */
   async regenerateEmbeddings(episodeIds?: number[]): Promise<number> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic sql.js row shapes
     let episodes: any[];
 
     if (episodeIds) {
@@ -442,12 +442,12 @@ export class BatchOperations {
     }
 
     let completed = 0;
+    const totalBatches = Math.ceil(episodes.length / this.config.batchSize);
 
     for (let i = 0; i < episodes.length; i += this.config.batchSize) {
       const batch = episodes.slice(i, i + this.config.batchSize);
 
       // Generate embeddings
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic sql.js row shapes
       const texts = batch.map((ep: any) =>
         [ep.task, ep.critique, ep.output].filter(Boolean).join('\n')
       );
@@ -460,7 +460,6 @@ export class BatchOperations {
           VALUES (?, ?)
         `);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic sql.js row shapes
         batch.forEach((episode: any, idx: number) => {
           stmt.run(episode.id, Buffer.from(embeddings[idx].buffer));
         });
@@ -500,7 +499,7 @@ export class BatchOperations {
   /**
    * Bulk delete with conditions (SQL injection safe)
    */
-  bulkDelete(table: string, conditions: Record<string, unknown>): number {
+  bulkDelete(table: string, conditions: Record<string, any>): number {
     try {
       // SECURITY: Validate table name against whitelist
       const validatedTable = validateTableName(table);
@@ -525,7 +524,7 @@ export class BatchOperations {
   /**
    * Bulk update with conditions (SQL injection safe)
    */
-  bulkUpdate(table: string, updates: Record<string, unknown>, conditions: Record<string, unknown>): number {
+  bulkUpdate(table: string, updates: Record<string, any>, conditions: Record<string, any>): number {
     try {
       // SECURITY: Validate table name against whitelist
       const validatedTable = validateTableName(table);
@@ -606,7 +605,7 @@ export class BatchOperations {
         )
     `
       )
-      .get(cutoffTime, minReward) as { count: number };
+      .get(cutoffTime, minReward) as any;
 
     if (!dryRun && episodesToPrune.count > 0) {
       this.db
@@ -637,7 +636,7 @@ export class BatchOperations {
         AND ts < ?
     `
       )
-      .get(minSuccessRate, cutoffTime) as { count: number };
+      .get(minSuccessRate, cutoffTime) as any;
 
     if (!dryRun && skillsToPrune.count > 0) {
       this.db
@@ -664,7 +663,7 @@ export class BatchOperations {
         AND ts < ?
     `
       )
-      .get(minSuccessRate, cutoffTime) as { count: number };
+      .get(minSuccessRate, cutoffTime) as any;
 
     if (!dryRun && patternsToPrune.count > 0) {
       this.db
@@ -683,7 +682,7 @@ export class BatchOperations {
     }
 
     // 4. Enforce max records limit (keep most recent + highest performing)
-    const episodeCount = this.db.prepare('SELECT COUNT(*) as count FROM episodes').get() as { count: number };
+    const episodeCount = this.db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any;
     if (episodeCount.count > maxRecords) {
       const toDelete = episodeCount.count - maxRecords;
 
@@ -736,7 +735,7 @@ export class BatchOperations {
       WHERE type='table' AND name NOT LIKE 'sqlite_%'
     `
       )
-      .all() as Array<{ name: string }>;
+      .all() as any[];
 
     for (const { name } of tables) {
       this.db.exec(`REINDEX ${name}`);
@@ -770,13 +769,13 @@ export class BatchOperations {
       WHERE type='table' AND name NOT LIKE 'sqlite_%'
     `
       )
-      .all() as Array<{ name: string }>;
+      .all() as any[];
 
     const tableStats = tables.map(({ name }) => {
-      const count = this.db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get() as { count: number };
+      const count = this.db.prepare(`SELECT COUNT(*) as count FROM ${name}`).get() as any;
       const pages = this.db
         .prepare(`SELECT COUNT(*) as count FROM dbstat WHERE name = ?`)
-        .get(name) as { count: number } | undefined;
+        .get(name) as any;
 
       return {
         name,

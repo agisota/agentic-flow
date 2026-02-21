@@ -11,12 +11,10 @@ import { WASMVectorSearch } from '../../src/controllers/WASMVectorSearch.js';
 // Mock database interface
 interface MockDatabase {
   prepare: (sql: string) => {
-    all: (..._params: unknown[]) => unknown[];
-    get: (..._params: unknown[]) => unknown;
+    all: (...params: any[]) => any[];
+    get: (...params: any[]) => any;
   };
 }
-
-type WASMDb = ConstructorParameters<typeof WASMVectorSearch>[0];
 
 function generateVector(dimension: number): Float32Array {
   const vec = new Float32Array(dimension);
@@ -66,14 +64,13 @@ function createMockDatabase(vectors: TestVector[]): MockDatabase {
 
   return {
     prepare: (sql: string) => ({
-      all: (..._params: unknown[]) => {
+      all: (...params: any[]) => {
         if (sql.includes('SELECT pattern_id')) {
           return Array.from(vectorMap.values());
         }
         return [];
       },
-      get: (..._params: unknown[]) => {
-        const id = _params[0] as number;
+      get: (id: number) => {
         return vectorMap.get(id);
       },
     }),
@@ -88,9 +85,9 @@ describe('RuVector Backend Tests', () => {
 
   beforeAll(() => {
     testVectors = generateTestVectors(1000, DIMENSION);
-    mockDb = createMockDatabase(testVectors);
+    mockDb = createMockDatabase(testVectors) as any;
 
-    wasmSearch = new WASMVectorSearch(mockDb as unknown as WASMDb, {
+    wasmSearch = new WASMVectorSearch(mockDb as any, {
       enableWASM: false, // Test pure JS implementation
       enableSIMD: false,
       batchSize: 100,
@@ -112,7 +109,7 @@ describe('RuVector Backend Tests', () => {
     });
 
     it('should create instance with custom config', () => {
-      const customSearch = new WASMVectorSearch(mockDb as unknown as WASMDb, {
+      const customSearch = new WASMVectorSearch(mockDb as any, {
         enableWASM: true,
         enableSIMD: true,
         batchSize: 200,
@@ -158,6 +155,7 @@ describe('RuVector Backend Tests', () => {
     });
 
     it('should handle normalized vectors correctly', () => {
+      const unnormalized = new Float32Array([3, 4, 0]);
       const magnitude = Math.sqrt(9 + 16); // = 5
 
       const normalized = new Float32Array([3 / magnitude, 4 / magnitude, 0]);
@@ -336,7 +334,7 @@ describe('RuVector Backend Tests', () => {
     });
 
     it('should throw error when index not built', () => {
-      const newSearch = new WASMVectorSearch(mockDb as unknown as WASMDb);
+      const newSearch = new WASMVectorSearch(mockDb as any);
       const query = generateVector(DIMENSION);
 
       expect(() => {

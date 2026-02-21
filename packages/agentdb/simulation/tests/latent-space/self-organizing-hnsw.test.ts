@@ -16,62 +16,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { selfOrganizingHNSWScenario } from '../../scenarios/latent-space/self-organizing-hnsw';
 import type { SimulationReport } from '../../types';
 
-// Type helpers for simulation report fields
-interface StrategyConfig {
-  name: string;
-  parameters: Record<string, unknown>;
-}
-
-interface TimelineEntry {
-  degradation?: boolean;
-  metrics?: unknown;
-  [key: string]: unknown;
-}
-
-interface DetailedResult {
-  strategy: string;
-  deletionRate: number;
-  evolution?: {
-    timeline?: TimelineEntry[];
-  };
-  healing?: {
-    healingTimeMs?: number;
-    postHealingRecall?: number;
-    fragmentationRate: number;
-  };
-  parameters?: {
-    optimalMFound?: number;
-    mTrajectory?: unknown[];
-  };
-  improvement?: {
-    latencyImprovement?: number;
-  };
-}
-
-interface BestStrategy {
-  strategy: string;
-  improvement?: {
-    latencyImprovement?: number;
-  };
-  [key: string]: unknown;
-}
-
-interface ParameterEvolution {
-  avgOptimalM: number;
-  avgStability: number;
-  [key: string]: unknown;
-}
-
-interface LongTermStability {
-  convergenceTime: number;
-  stabilityScore: number;
-  [key: string]: unknown;
-}
-
-interface WorkloadShift {
-  [key: string]: unknown;
-}
-
 describe('SelfOrganizingHNSW', () => {
   let report: SimulationReport;
 
@@ -81,24 +25,24 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Optimal Adaptation Strategy', () => {
     it('should select MPC as best strategy', () => {
-      const best = report.summary.bestStrategy as BestStrategy;
+      const best = report.summary.bestStrategy;
       expect(['mpc', 'hybrid']).toContain(best.strategy);
     });
 
     it('should test static baseline', () => {
-      const strategies = selfOrganizingHNSWScenario.config.strategies as StrategyConfig[];
+      const strategies = selfOrganizingHNSWScenario.config.strategies;
       const static_strategy = strategies.find(s => s.name === 'static');
       expect(static_strategy).toBeDefined();
     });
 
     it('should test MPC adaptation', () => {
-      const strategies = selfOrganizingHNSWScenario.config.strategies as StrategyConfig[];
+      const strategies = selfOrganizingHNSWScenario.config.strategies;
       const mpc = strategies.find(s => s.name === 'mpc');
       expect(mpc).toBeDefined();
     });
 
     it('should test online learning', () => {
-      const strategies = selfOrganizingHNSWScenario.config.strategies as StrategyConfig[];
+      const strategies = selfOrganizingHNSWScenario.config.strategies;
       const online = strategies.find(s => s.name === 'online-learning');
       expect(online).toBeDefined();
     });
@@ -106,19 +50,19 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Degradation Prevention', () => {
     it('should prevent >95% degradation', () => {
-      const avgDegradation = report.summary.avgDegradationPrevented as number;
+      const avgDegradation = report.summary.avgDegradationPrevented;
       expect(avgDegradation).toBeGreaterThan(95);
     });
 
     it('should target 97.9% degradation prevention', () => {
-      const avgDegradation = report.summary.avgDegradationPrevented as number;
+      const avgDegradation = report.summary.avgDegradationPrevented;
       expect(avgDegradation).toBeCloseTo(97.9, 5);
     });
 
     it('should detect performance degradation', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       const hasAdaptation = results.some(r => {
-        return r.evolution?.timeline?.some((t: TimelineEntry) => t.degradation);
+        return r.evolution?.timeline?.some((t: any) => t.degradation);
       });
       expect(hasAdaptation).toBe(true);
     });
@@ -126,12 +70,12 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Self-Healing Mechanisms', () => {
     it('should heal fragmentation', () => {
-      const avgHealing = report.summary.avgHealingTime as number;
+      const avgHealing = report.summary.avgHealingTime;
       expect(avgHealing).toBeLessThan(100);
     });
 
     it('should target <100ms healing latency', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       results.forEach(r => {
         if (r.healing?.healingTimeMs) {
           expect(r.healing.healingTimeMs).toBeLessThan(150);
@@ -140,7 +84,7 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should maintain recall after healing', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       results.forEach(r => {
         if (r.healing?.postHealingRecall) {
           expect(r.healing.postHealingRecall).toBeGreaterThan(0.90);
@@ -149,7 +93,7 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should reconnect fragmented nodes', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       results.forEach(r => {
         if (r.healing) {
           expect(r.healing.fragmentationRate).toBeLessThan(0.1);
@@ -160,25 +104,25 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('30-Day Simulation', () => {
     it('should simulate 30 days', () => {
-      const days = selfOrganizingHNSWScenario.config.simulationDays as number;
+      const days = selfOrganizingHNSWScenario.config.simulationDays;
       expect(days).toBe(30);
     });
 
     it('should handle workload shifts', () => {
-      const shifts = selfOrganizingHNSWScenario.config.workloadShifts as WorkloadShift[];
+      const shifts = selfOrganizingHNSWScenario.config.workloadShifts;
       expect(shifts.length).toBeGreaterThanOrEqual(3);
     });
 
     it('should track performance over time', () => {
-      const results = report.detailedResults as DetailedResult[];
-      const withEvolution = results.filter(r => (r.evolution?.timeline?.length ?? 0) > 0);
+      const results = report.detailedResults as any[];
+      const withEvolution = results.filter(r => r.evolution?.timeline?.length > 0);
       expect(withEvolution.length).toBeGreaterThan(0);
     });
   });
 
   describe('MPC Adaptation', () => {
     it('should optimize parameters', () => {
-      const mpcResults = (report.detailedResults as DetailedResult[]).filter(
+      const mpcResults = (report.detailedResults as any[]).filter(
         r => r.strategy === 'mpc' || r.strategy === 'hybrid'
       );
 
@@ -190,7 +134,7 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should use predictive horizon', () => {
-      const strategies = selfOrganizingHNSWScenario.config.strategies as StrategyConfig[];
+      const strategies = selfOrganizingHNSWScenario.config.strategies;
       const mpc = strategies.find(s => s.name === 'mpc');
 
       if (mpc) {
@@ -199,7 +143,7 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should improve latency over time', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       const adaptive = results.filter(r => r.strategy !== 'static');
 
       adaptive.forEach(r => {
@@ -212,20 +156,20 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Parameter Evolution', () => {
     it('should discover optimal M', () => {
-      const paramMetrics = report.metrics.parameterEvolution as ParameterEvolution;
+      const paramMetrics = report.metrics.parameterEvolution;
       expect(paramMetrics.avgOptimalM).toBeGreaterThan(0);
       expect(paramMetrics.avgOptimalM).toBeLessThan(100);
     });
 
     it('should maintain parameter stability', () => {
-      const paramMetrics = report.metrics.parameterEvolution as ParameterEvolution;
+      const paramMetrics = report.metrics.parameterEvolution;
       expect(paramMetrics.avgStability).toBeGreaterThan(0.7);
     });
 
     it('should track parameter trajectory', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       const withTrajectory = results.filter(
-        r => (r.parameters?.mTrajectory?.length ?? 0) > 0
+        r => r.parameters?.mTrajectory?.length > 0
       );
       expect(withTrajectory.length).toBeGreaterThan(0);
     });
@@ -233,13 +177,13 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Deletion Handling', () => {
     it('should test multiple deletion rates', () => {
-      const rates = selfOrganizingHNSWScenario.config.deletionRates as number[];
+      const rates = selfOrganizingHNSWScenario.config.deletionRates;
       expect(rates.length).toBeGreaterThanOrEqual(3);
       expect(rates).toContain(0.05);
     });
 
     it('should handle 10% daily deletions', () => {
-      const highDeletion = (report.detailedResults as DetailedResult[]).filter(
+      const highDeletion = (report.detailedResults as any[]).filter(
         r => r.deletionRate === 0.10
       );
 
@@ -253,7 +197,7 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Online Learning', () => {
     it('should use gradient-based optimization', () => {
-      const strategies = selfOrganizingHNSWScenario.config.strategies as StrategyConfig[];
+      const strategies = selfOrganizingHNSWScenario.config.strategies;
       const online = strategies.find(s => s.name === 'online-learning');
 
       if (online) {
@@ -263,7 +207,7 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should converge to good parameters', () => {
-      const onlineResults = (report.detailedResults as DetailedResult[]).filter(
+      const onlineResults = (report.detailedResults as any[]).filter(
         r => r.strategy === 'online-learning'
       );
 
@@ -278,7 +222,7 @@ describe('SelfOrganizingHNSW', () => {
 
   describe('Hybrid Strategy', () => {
     it('should combine MPC and online learning', () => {
-      const hybrid = (report.detailedResults as DetailedResult[]).find(r => r.strategy === 'hybrid');
+      const hybrid = (report.detailedResults as any[]).find(r => r.strategy === 'hybrid');
 
       if (hybrid) {
         expect(hybrid.parameters).toBeDefined();
@@ -286,36 +230,36 @@ describe('SelfOrganizingHNSW', () => {
     });
 
     it('should achieve best overall performance', () => {
-      const best = report.summary.bestStrategy as BestStrategy;
-      const improvement = best.improvement?.latencyImprovement || 0;
+      const best = report.summary.bestStrategy;
+      const improvement = (best as any).improvement?.latencyImprovement || 0;
       expect(improvement).toBeGreaterThan(-20);
     });
   });
 
   describe('Long-Term Stability', () => {
     it('should converge within simulation period', () => {
-      const stability = report.metrics.longTermStability as LongTermStability;
+      const stability = report.metrics.longTermStability;
       expect(stability.convergenceTime).toBeLessThan(30);
     });
 
     it('should maintain stability score >85%', () => {
-      const stability = report.metrics.longTermStability as LongTermStability;
+      const stability = report.metrics.longTermStability;
       expect(stability.stabilityScore).toBeGreaterThan(0.85);
     });
   });
 
   describe('Real-Time Monitoring', () => {
     it('should track metrics over time', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       const withTimeline = results.filter(r => r.evolution?.timeline);
       expect(withTimeline.length).toBeGreaterThan(0);
     });
 
     it('should detect anomalies', () => {
-      const results = report.detailedResults as DetailedResult[];
+      const results = report.detailedResults as any[];
       results.forEach(r => {
         if (r.evolution?.timeline) {
-          r.evolution.timeline.forEach((t: TimelineEntry) => {
+          r.evolution.timeline.forEach((t: any) => {
             expect(t.metrics).toBeDefined();
           });
         }
@@ -331,13 +275,13 @@ describe('SelfOrganizingHNSW', () => {
 
     it('should provide recommendations', () => {
       expect(report.recommendations).toBeDefined();
-      expect(report.recommendations!.some(r => r.includes('MPC'))).toBe(true);
+      expect(report.recommendations.some(r => r.includes('MPC'))).toBe(true);
     });
 
     it('should generate evolution visualizations', () => {
-      expect(report.artifacts!.evolutionTimelines).toBeDefined();
-      expect(report.artifacts!.parameterTrajectories).toBeDefined();
-      expect(report.artifacts!.healingVisualizations).toBeDefined();
+      expect(report.artifacts.evolutionTimelines).toBeDefined();
+      expect(report.artifacts.parameterTrajectories).toBeDefined();
+      expect(report.artifacts.healingVisualizations).toBeDefined();
     });
 
     it('should complete within timeout', () => {

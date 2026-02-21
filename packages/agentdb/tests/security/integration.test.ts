@@ -7,16 +7,16 @@
  * - db-fallback PRAGMA validation
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { createDatabase } from '../../src/db-fallback';
 import { BatchOperations } from '../../src/optimizations/BatchOperations';
-// EmbeddingService not needed directly in tests
+import { EmbeddingService } from '../../src/controllers/EmbeddingService';
 import { ValidationError } from '../../src/security/input-validation';
 import * as fs from 'fs';
 import * as path from 'path';
 
 describe('Integration Security Tests', () => {
-  let db: Awaited<ReturnType<typeof createDatabase>>;
+  let db: any;
   let batchOps: BatchOperations;
   const testDbPath = path.join(__dirname, 'test-security.db');
 
@@ -56,7 +56,7 @@ describe('Integration Security Tests', () => {
     const mockEmbedder = {
       embed: async () => new Float32Array(384),
       embedBatch: async (texts: string[]) => texts.map(() => new Float32Array(384)),
-    } as unknown as ConstructorParameters<typeof BatchOperations>[1];
+    } as any;
 
     batchOps = new BatchOperations(db, mockEmbedder);
   });
@@ -181,16 +181,17 @@ describe('Integration Security Tests', () => {
 
   describe('Parameterized Query Verification', () => {
     it('should use parameterized queries for DELETE', () => {
-      // Attempt to inject via parameter value (safely escaped by parameterized query)
+      // Attempt to inject via parameter value (should be safely escaped)
       const safeSessionId = "session-1'; DELETE FROM episodes--";
 
-      // Parameterized queries treat the value as a literal string, so no records match
-      const deleted = batchOps.bulkDelete('episodes', { session_id: safeSessionId });
-      expect(deleted).toBe(0); // No records have this literal session_id
+      // This should fail validation before reaching the database
+      expect(() => {
+        batchOps.bulkDelete('episodes', { session_id: safeSessionId });
+      }).toThrow(); // Should throw due to invalid characters in session_id
 
-      // Verify all records still present (injection was not executed)
+      // Even if it somehow reached DB, parameterized query would treat it as literal string
       const count = db.prepare('SELECT COUNT(*) as count FROM episodes').get();
-      expect(count.count).toBe(3);
+      expect(count.count).toBe(3); // All records still present
     });
 
     it('should use parameterized queries for UPDATE', () => {
@@ -222,11 +223,11 @@ describe('Integration Security Tests', () => {
       // Classic "Little Bobby Tables" XKCD attack
       const bobbyTables = "Robert'); DROP TABLE episodes;--";
 
-      // Parameterized queries treat this as a literal string value — no SQL injection
-      const deleted = batchOps.bulkDelete('episodes', { session_id: bobbyTables });
-      expect(deleted).toBe(0); // No records match this literal string
+      expect(() => {
+        batchOps.bulkDelete('episodes', { session_id: bobbyTables });
+      }).toThrow();
 
-      // Verify table still exists and all records intact
+      // Verify table still exists
       const count = db.prepare('SELECT COUNT(*) as count FROM episodes').get();
       expect(count.count).toBe(3);
     });
@@ -249,13 +250,9 @@ describe('Integration Security Tests', () => {
     });
 
     it('should prevent stacked queries', () => {
-      // Parameterized queries safely treat the value as a literal string
-      const deleted = batchOps.bulkDelete('episodes', { session_id: "'; DELETE FROM episodes; --" });
-      expect(deleted).toBe(0); // No records match this literal string
-
-      // Verify no records were deleted by injection
-      const count = db.prepare('SELECT COUNT(*) as count FROM episodes').get();
-      expect(count.count).toBe(3);
+      expect(() => {
+        batchOps.bulkDelete('episodes', { session_id: "'; DELETE FROM episodes; --" });
+      }).toThrow();
     });
   });
 });
@@ -264,7 +261,7 @@ describe('Error Message Security', () => {
   it('should not leak database structure in errors', () => {
     try {
       const db = { prepare: () => { throw new Error('SQLITE_ERROR: no such table: users'); } };
-      const batchOps = new BatchOperations(db as unknown as ConstructorParameters<typeof BatchOperations>[0], {} as unknown as ConstructorParameters<typeof BatchOperations>[1]);
+      const batchOps = new BatchOperations(db as any, {} as any);
       batchOps.bulkDelete('invalid_table', { id: 1 });
     } catch (error) {
       // Error should be caught and sanitized
@@ -275,7 +272,7 @@ describe('Error Message Security', () => {
   it('should provide safe validation error messages', () => {
     try {
       const db = { prepare: () => ({}) };
-      const batchOps = new BatchOperations(db as unknown as ConstructorParameters<typeof BatchOperations>[0], {} as unknown as ConstructorParameters<typeof BatchOperations>[1]);
+      const batchOps = new BatchOperations(db as any, {} as any);
       batchOps.bulkDelete("users'; DROP TABLE episodes--", { id: 1 });
     } catch (error) {
       expect(error).toBeInstanceOf(ValidationError);

@@ -2,9 +2,9 @@
  * TDD London School Tests for MigrationUtilities
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { MigrationUtilities } from '../../../compatibility/MigrationUtilities';
-import type { V2Config } from '../../../compatibility/types';
+import type { MigrationReport, ValidationResult, V2Config } from '../../../compatibility/types';
 
 describe('MigrationUtilities', () => {
   describe('analyzeCode', () => {
@@ -220,7 +220,7 @@ describe('MigrationUtilities', () => {
       const config = {
         version: '2.0',
         memory: { path: './db', backend: 'ruvector' as const }
-      } as unknown as V2Config;
+      } as any;
 
       const result = MigrationUtilities.validateMigratedConfig(config);
 
@@ -235,7 +235,7 @@ describe('MigrationUtilities', () => {
         backend: 'agentdb',
         version: '2.0',
         memory: { backend: 'ruvector' as const }
-      } as unknown as V2Config;
+      } as any;
 
       const result = MigrationUtilities.validateMigratedConfig(config);
 
@@ -309,7 +309,7 @@ describe('MigrationUtilities', () => {
     it('should convert v1 config to v2 config', () => {
       const v1Config = {
         memoryPath: './swarm-memory.db',
-        topology: 'mesh' as const,
+        topology: 'mesh',
         maxAgents: 10,
         provider: 'anthropic',
         model: 'claude-3-opus'

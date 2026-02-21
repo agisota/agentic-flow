@@ -17,7 +17,6 @@ import type { VectorBackend } from '../backends/VectorBackend.js';
 import { SelfAttentionController } from './attention/SelfAttentionController.js';
 import { CrossAttentionController } from './attention/CrossAttentionController.js';
 import { MultiHeadAttentionController } from './attention/MultiHeadAttentionController.js';
-import { cosineSimilarity } from '../utils/similarity.js';
 
 /**
  * Configuration for the MemoryController
@@ -50,7 +49,7 @@ export interface Memory {
   /** Creation timestamp */
   timestamp?: number;
   /** Additional metadata */
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -62,7 +61,7 @@ export interface SearchOptions {
   /** Minimum similarity threshold */
   threshold?: number;
   /** Metadata filters */
-  filter?: Record<string, unknown>;
+  filter?: Record<string, any>;
   /** Use attention for ranking */
   useAttention?: boolean;
   /** Weight recent memories higher */
@@ -235,7 +234,7 @@ export class MemoryController {
     // Compute similarity scores
     const results: SearchResult[] = [];
 
-    for (const memory of this.memories.values()) {
+    for (const [id, memory] of this.memories.entries()) {
       // Apply metadata filter if provided
       if (filter && !this.matchesFilter(memory.metadata || {}, filter)) {
         continue;
@@ -363,15 +362,32 @@ export class MemoryController {
    * Compute cosine similarity between two vectors
    */
   private cosineSimilarity(a: number[], b: number[]): number {
-    return cosineSimilarity(a, b);
+    if (a.length !== b.length) {
+      throw new Error('Vectors must have same dimension');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) return 0;
+
+    return dotProduct / denominator;
   }
 
   /**
    * Check if metadata matches filter criteria
    */
   private matchesFilter(
-    metadata: Record<string, unknown>,
-    filter: Record<string, unknown>
+    metadata: Record<string, any>,
+    filter: Record<string, any>
   ): boolean {
     for (const [key, value] of Object.entries(filter)) {
       if (metadata[key] !== value) {

@@ -84,7 +84,7 @@ export function detectFeatures() {
   return {
     indexedDB: 'indexedDB' in globalThis,
     broadcastChannel: 'BroadcastChannel' in globalThis,
-    webWorkers: typeof (globalThis as unknown as Record<string, unknown>).Worker !== 'undefined',
+    webWorkers: typeof (globalThis as any).Worker !== 'undefined',
     wasmSIMD: detectWasmSIMD(),
     sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined'
   };
@@ -96,7 +96,7 @@ export function detectFeatures() {
 async function detectWasmSIMD(): Promise<boolean> {
   try {
     // Check if WebAssembly is available (browser context)
-    if (typeof (globalThis as unknown as Record<string, unknown>).WebAssembly === 'undefined') {
+    if (typeof (globalThis as any).WebAssembly === 'undefined') {
       return false;
     }
 
@@ -108,8 +108,7 @@ async function detectWasmSIMD(): Promise<boolean> {
       0xfd, 0x0c, 0xfd, 0x0c, 0xfd, 0x54, 0x0b
     ]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const WA = (globalThis as unknown as Record<string, unknown>).WebAssembly as any;
+    const WA = (globalThis as any).WebAssembly;
     const module = await WA.instantiate(simdTest);
     return module instanceof WA.Instance;
   } catch {
@@ -210,7 +209,7 @@ export const VERSION = {
 export function estimateMemoryUsage(
   numVectors: number,
   dimension: number,
-  config: Record<string, Record<string, unknown> | undefined>
+  config: any
 ): {
   vectors: number;
   index: number;
@@ -221,20 +220,20 @@ export function estimateMemoryUsage(
 
   // Apply PQ compression
   if (config.pq?.enabled) {
-    const subvectors = (config.pq.subvectors as number) || 8;
+    const subvectors = config.pq.subvectors || 8;
     vectorBytes = numVectors * (subvectors + 4);  // codes + norm
   }
 
   // Apply SVD compression
   if (config.svd?.enabled) {
-    const targetDim = (config.svd.targetDim as number) || dimension / 2;
-    vectorBytes = numVectors * (targetDim as number) * 4;
+    const targetDim = config.svd.targetDim || dimension / 2;
+    vectorBytes = numVectors * targetDim * 4;
   }
 
   // HNSW index overhead
   let indexBytes = 0;
   if (config.hnsw?.enabled) {
-    const M = (config.hnsw.M as number) || 16;
+    const M = config.hnsw.M || 16;
     const avgConnections = M * 1.5;  // Estimate
     indexBytes = numVectors * avgConnections * 4;  // Connection IDs
   }
@@ -252,7 +251,7 @@ export function estimateMemoryUsage(
 /**
  * Recommend configuration based on dataset size
  */
-export function recommendConfig(numVectors: number, _dimension: number) {
+export function recommendConfig(numVectors: number, dimension: number) {
   if (numVectors < 1000) {
     return {
       name: 'SMALL_DATASET',
@@ -278,7 +277,7 @@ export function recommendConfig(numVectors: number, _dimension: number) {
  * Benchmark search performance
  */
 export async function benchmarkSearch(
-  searchFn: (query: Float32Array, k: number) => unknown[],
+  searchFn: (query: Float32Array, k: number) => any[],
   numQueries: number = 100,
   k: number = 10,
   dimension: number = 384

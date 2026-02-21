@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * QUICClient Unit Tests
@@ -10,11 +10,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
  * - Reconnection logic
  * - Error handling
  */
-
-interface SyncResult { type: string; status: string; synced: number; timestamp: number }
-interface PullResult { episodes: unknown[]; skills: unknown[]; edges: unknown[]; latestTimestamp: number }
-interface PushData { episodes?: unknown[]; skills?: unknown[]; edges?: unknown[] }
-interface PushResult { status: string; pushed: number; timestamp: number }
 
 // Mock QUICClient implementation for testing
 class MockQUICClient {
@@ -83,7 +78,7 @@ class MockQUICClient {
     return this.connectionAttempts;
   }
 
-  async syncEpisodes(episodes: unknown[]): Promise<SyncResult> {
+  async syncEpisodes(episodes: any[]): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to server');
     }
@@ -96,7 +91,7 @@ class MockQUICClient {
     };
   }
 
-  async syncSkills(skills: unknown[]): Promise<SyncResult> {
+  async syncSkills(skills: any[]): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to server');
     }
@@ -109,7 +104,7 @@ class MockQUICClient {
     };
   }
 
-  async syncCausalEdges(edges: unknown[]): Promise<SyncResult> {
+  async syncCausalEdges(edges: any[]): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to server');
     }
@@ -122,7 +117,7 @@ class MockQUICClient {
     };
   }
 
-  async pullUpdates(_since: number): Promise<PullResult> {
+  async pullUpdates(since: number): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to server');
     }
@@ -135,7 +130,7 @@ class MockQUICClient {
     };
   }
 
-  async pushUpdates(data: PushData): Promise<PushResult> {
+  async pushUpdates(data: any): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to server');
     }

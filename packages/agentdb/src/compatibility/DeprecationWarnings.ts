@@ -5,7 +5,7 @@
  * configurable severity and migration guidance.
  */
 
-import type { DeprecationConfig } from './types';
+import type { DeprecationConfig, DeprecationWarning } from './types';
 import * as fs from 'fs';
 
 export class DeprecationWarnings {

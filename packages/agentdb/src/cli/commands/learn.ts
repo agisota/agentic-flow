@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 
 // Learning modes
 type LearningMode = 'curriculum' | 'contrastive' | 'hard-negatives';
@@ -87,7 +88,7 @@ export const learnCommand = new Command('learn')
       }
 
       // Route to appropriate learning strategy
-      let result: Record<string, unknown>;
+      let result: any;
       switch (options.mode) {
         case 'curriculum':
           result = await runCurriculumLearning(trainingData, options);
@@ -116,12 +117,12 @@ export const learnCommand = new Command('learn')
         displayLearningResults(result, options.mode);
       }
 
-    } catch (error: unknown) {
+    } catch (error: any) {
       if (options.json) {
-        console.log(JSON.stringify({ error: (error as Error).message, wasmAvailable: false }, null, 2));
+        console.log(JSON.stringify({ error: error.message, wasmAvailable: false }, null, 2));
       } else {
-        console.error(chalk.red(`\n❌ Error: ${(error as Error).message}\n`));
-        if ((error as Error).message.includes('WASM') || (error as Error).message.includes('ruvector')) {
+        console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
+        if (error.message.includes('WASM') || error.message.includes('ruvector')) {
           console.log(chalk.yellow('💡 Tip: WASM modules may not be available. Running with fallback implementation.'));
         }
       }
@@ -133,7 +134,7 @@ export const learnCommand = new Command('learn')
  * Curriculum Learning Implementation
  * Progressively increases difficulty during training
  */
-async function runCurriculumLearning(data: unknown[], options: LearnOptions): Promise<Record<string, unknown>> {
+async function runCurriculumLearning(data: any[], options: LearnOptions): Promise<any> {
   const initialDiff = parseFloat(String(options.initialDifficulty || '0.1'));
   const targetDiff = parseFloat(String(options.targetDifficulty || '1.0'));
   const warmupEpochs = parseInt(String(options.warmupEpochs || '5'));
@@ -150,9 +151,11 @@ async function runCurriculumLearning(data: unknown[], options: LearnOptions): Pr
 
   // Try to use WASM-accelerated implementation
   let useWasm = false;
+  let wasmModule: any = null;
+
   try {
     // Attempt to load @ruvector/attention for curriculum scheduler
-    await import('@ruvector/attention');
+    wasmModule = await import('@ruvector/attention');
     useWasm = true;
     if (options.verbose) {
       console.log(chalk.green('✅ Using WASM-accelerated curriculum learning\n'));
@@ -163,7 +166,7 @@ async function runCurriculumLearning(data: unknown[], options: LearnOptions): Pr
     }
   }
 
-  const epochResults: Array<{ epoch: number; difficulty: number; samplesUsed: number; loss: number; timeMs: number }> = [];
+  const epochResults: any[] = [];
   let currentDifficulty = initialDiff;
 
   for (let epoch = 0; epoch < epochs; epoch++) {
@@ -216,7 +219,7 @@ async function runCurriculumLearning(data: unknown[], options: LearnOptions): Pr
  * Contrastive Learning Implementation
  * Implements InfoNCE and local contrastive loss
  */
-async function runContrastiveLearning(data: unknown[], options: LearnOptions): Promise<Record<string, unknown>> {
+async function runContrastiveLearning(data: any[], options: LearnOptions): Promise<any> {
   const margin = parseFloat(String(options.margin || '0.5'));
   const temperature = parseFloat(String(options.temperature || '0.07'));
   const lambda = parseFloat(String(options.lambda || '0.01'));
@@ -244,7 +247,7 @@ async function runContrastiveLearning(data: unknown[], options: LearnOptions): P
     }
   }
 
-  const epochResults: Array<{ epoch: number; loss: number; timeMs: number; batches: number }> = [];
+  const epochResults: any[] = [];
 
   for (let epoch = 0; epoch < epochs; epoch++) {
     const startTime = performance.now();
@@ -302,7 +305,7 @@ async function runContrastiveLearning(data: unknown[], options: LearnOptions): P
  * Hard Negative Mining Implementation
  * Selects hard negatives for contrastive learning
  */
-async function runHardNegativeMining(data: unknown[], options: LearnOptions): Promise<Record<string, unknown>> {
+async function runHardNegativeMining(data: any[], options: LearnOptions): Promise<any> {
   const strategy = options.strategy || 'hard';
   const topK = parseInt(String(options.topK || '10'));
   const margin = parseFloat(String(options.margin || '0.5'));
@@ -329,7 +332,7 @@ async function runHardNegativeMining(data: unknown[], options: LearnOptions): Pr
   }
 
   const startTime = performance.now();
-  const results: Array<{ anchorId: number; negativesFound: number; avgDistance: number; hardestDistance: number }> = [];
+  const results: any[] = [];
 
   // Mine negatives for each anchor
   for (let i = 0; i < Math.min(data.length, 100); i++) {
@@ -396,19 +399,19 @@ function calculateDifficulty(
   }
 }
 
-function filterByDifficulty(data: unknown[], difficulty: number): unknown[] {
+function filterByDifficulty(data: any[], difficulty: number): any[] {
   // Simple difficulty filter: use first N% of data based on difficulty
   const count = Math.ceil(data.length * difficulty);
   return data.slice(0, count);
 }
 
-function simulateTraining(data: unknown[], batchSize: number): number {
+function simulateTraining(data: any[], batchSize: number): number {
   // Simulate training loss (decreases with more data)
   const batches = Math.ceil(data.length / batchSize);
   return 1.0 / Math.log(1 + batches);
 }
 
-function computeInfoNCE(batchData: unknown[], temperature: number): number {
+function computeInfoNCE(batchData: any[], temperature: number): number {
   // Simplified InfoNCE loss simulation
   const positiveScore = 0.9;
   const negativeScores = Array(batchData.length - 1).fill(0.1);
@@ -419,19 +422,19 @@ function computeInfoNCE(batchData: unknown[], temperature: number): number {
   return -Math.log(expPos / (expPos + expNeg));
 }
 
-function computeSpectralRegularization(_batchData: unknown[], lambda: number): number {
+function computeSpectralRegularization(batchData: any[], lambda: number): number {
   // Simplified spectral regularization
   return lambda * Math.random() * 0.1;
 }
 
 function mineNegatives(
-  _anchor: unknown,
-  candidates: unknown[],
+  anchor: any,
+  candidates: any[],
   strategy: string,
   topK: number,
   margin: number
 ): Array<{ id: number; distance: number }> {
-  const distances = candidates.map((_candidate, idx) => ({
+  const distances = candidates.map((candidate, idx) => ({
     id: idx,
     distance: Math.random(), // Simplified distance computation
   }));
@@ -455,8 +458,7 @@ function mineNegatives(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function displayLearningResults(result: Record<string, any>, mode: LearningMode): void {
+function displayLearningResults(result: any, mode: LearningMode): void {
   console.log(chalk.bold('\n📊 Learning Results:\n'));
 
   console.log(`  Mode: ${mode}`);

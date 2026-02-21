@@ -49,7 +49,7 @@ export interface HyperedgeType {
   type: 'collaboration' | 'causal' | 'dependency' | 'composition';
   nodes: number[];
   weight: number;
-  metadata?: Record<string, unknown>;
+  metadata?: any;
 }
 
 /**
@@ -62,47 +62,6 @@ export interface HyperedgeType {
  * 4. Benchmarks Cypher query performance
  * 5. Compares hypergraph vs standard graph representations
  */
-// Internal interfaces for type safety
-interface HypergraphNode {
-  id: number;
-  type: string;
-  embedding: number[];
-}
-
-interface Hypergraph {
-  nodes: HypergraphNode[];
-  hyperedges: HyperedgeType[];
-  index: { nodeToEdges: Map<number, number[]> };
-}
-
-interface StandardGraph {
-  nodes: HypergraphNode[];
-  edges: [number, number][];
-}
-
-interface CollaborationGroup {
-  nodes: number[];
-  size: number;
-  pattern?: string;
-}
-
-interface HypergraphResultEntry {
-  size: number;
-  metrics: HypergraphMetrics;
-  comparison: {
-    hypergraphEdges: number;
-    standardGraphEdges: number;
-    compressionRatio: number;
-    expressivenessBenefit: number;
-  };
-}
-
-interface SizeDistribution {
-  size3: number;
-  size4: number;
-  size5Plus: number;
-}
-
 export const hypergraphExplorationScenario: SimulationScenario = {
   id: 'hypergraph-exploration',
   name: 'Hypergraph Multi-Agent Collaboration',
@@ -141,19 +100,19 @@ export const hypergraphExplorationScenario: SimulationScenario = {
   },
 
   async run(config: typeof hypergraphExplorationScenario.config): Promise<SimulationReport> {
-    const results: HypergraphResultEntry[] = [];
+    const results: any[] = [];
     const startTime = Date.now();
 
     console.log('🕸️  Starting Hypergraph Exploration...\n');
 
-    for (const size of config.graphSizes as number[]) {
+    for (const size of config.graphSizes) {
       console.log(`\n📈 Testing hypergraph size: ${size} nodes`);
 
       // Build hypergraph
       const hypergraph = await buildHypergraph(
         size,
-        config.hyperedgeSizeDistribution as SizeDistribution,
-        config.collaborationPatterns as string[]
+        config.hyperedgeSizeDistribution,
+        config.collaborationPatterns
       );
 
       // Analyze structure
@@ -162,7 +121,7 @@ export const hypergraphExplorationScenario: SimulationScenario = {
       // Model collaboration patterns
       const collaborationMetrics = await modelCollaborationPatterns(
         hypergraph,
-        config.collaborationPatterns as string[]
+        config.collaborationPatterns
       );
 
       // Analyze causal relationships
@@ -171,7 +130,7 @@ export const hypergraphExplorationScenario: SimulationScenario = {
       // Benchmark Cypher queries
       const queryMetrics = await benchmarkCypherQueries(
         hypergraph,
-        config.queryTypes as string[]
+        config.queryTypes
       );
 
       // Compare with standard graph
@@ -181,11 +140,11 @@ export const hypergraphExplorationScenario: SimulationScenario = {
         size,
         metrics: {
           ...structureMetrics,
-          ...(collaborationMetrics as Partial<HypergraphMetrics>),
-          ...(causalMetrics as Partial<HypergraphMetrics>),
-          ...(queryMetrics as Partial<HypergraphMetrics>),
-        } as HypergraphMetrics,
-        comparison: comparison as HypergraphResultEntry['comparison'],
+          ...collaborationMetrics,
+          ...causalMetrics,
+          ...queryMetrics,
+        },
+        comparison,
       });
     }
 
@@ -229,9 +188,9 @@ export const hypergraphExplorationScenario: SimulationScenario = {
  */
 async function buildHypergraph(
   numNodes: number,
-  sizeDistribution: SizeDistribution,
+  sizeDistribution: any,
   patterns: string[]
-): Promise<Hypergraph> {
+): Promise<any> {
   const nodes = Array(numNodes).fill(0).map((_, i) => ({
     id: i,
     type: ['agent', 'task', 'resource'][i % 3],
@@ -268,7 +227,7 @@ async function buildHypergraph(
 }
 
 function generateHyperedge(
-  nodes: HypergraphNode[],
+  nodes: any[],
   size: number,
   pattern: string,
   edgeId: number
@@ -294,7 +253,7 @@ function generateHyperedge(
       }
       break;
 
-    case 'pipeline': {
+    case 'pipeline':
       // Sequential dependencies
       let current = Math.floor(Math.random() * nodes.length);
       for (let i = 0; i < size; i++) {
@@ -302,9 +261,8 @@ function generateHyperedge(
         current = (current + 1) % nodes.length;
       }
       break;
-    }
 
-    case 'fan-out': {
+    case 'fan-out':
       // One source, multiple targets
       const source = Math.floor(Math.random() * nodes.length);
       selectedNodes.push(source);
@@ -315,9 +273,8 @@ function generateHyperedge(
         }
       }
       break;
-    }
 
-    case 'convergent': {
+    case 'convergent':
       // Multiple sources, one target
       const target = Math.floor(Math.random() * nodes.length);
       while (selectedNodes.length < size - 1) {
@@ -328,7 +285,6 @@ function generateHyperedge(
       }
       selectedNodes.push(target);
       break;
-    }
 
     default:
       // Random
@@ -341,14 +297,14 @@ function generateHyperedge(
   }
 
   return {
-    type: pattern as HyperedgeType['type'],
+    type: pattern as any,
     nodes: selectedNodes,
     weight: 1.0,
     metadata: { id: edgeId, pattern },
   };
 }
 
-function buildHypergraphIndex(nodes: HypergraphNode[], hyperedges: HyperedgeType[]): { nodeToEdges: Map<number, number[]> } {
+function buildHypergraphIndex(nodes: any[], hyperedges: HyperedgeType[]): any {
   // Build node → hyperedges index
   const nodeToEdges = new Map<number, number[]>();
 
@@ -368,7 +324,7 @@ function buildHypergraphIndex(nodes: HypergraphNode[], hyperedges: HyperedgeType
 /**
  * Analyze hypergraph structure
  */
-async function analyzeHypergraphStructure(hypergraph: Hypergraph): Promise<HypergraphMetrics> {
+async function analyzeHypergraphStructure(hypergraph: any): Promise<HypergraphMetrics> {
   const numNodes = hypergraph.nodes.length;
   const numHyperedges = hypergraph.hyperedges.length;
 
@@ -403,14 +359,14 @@ async function analyzeHypergraphStructure(hypergraph: Hypergraph): Promise<Hyper
  * Model collaboration patterns
  */
 async function modelCollaborationPatterns(
-  hypergraph: Hypergraph,
-  _patterns: string[]
-): Promise<Partial<HypergraphMetrics>> {
+  hypergraph: any,
+  patterns: string[]
+): Promise<any> {
   // Detect collaboration groups
   const groups = detectCollaborationGroups(hypergraph);
 
   // Analyze task coverage
-  const taskNodes = hypergraph.nodes.filter((n) => n.type === 'task');
+  const taskNodes = hypergraph.nodes.filter((n: any) => n.type === 'task');
   const coveredTasks = new Set<number>();
 
   for (const edge of hypergraph.hyperedges) {
@@ -430,16 +386,16 @@ async function modelCollaborationPatterns(
   };
 }
 
-function detectCollaborationGroups(hypergraph: Hypergraph): CollaborationGroup[] {
+function detectCollaborationGroups(hypergraph: any): any[] {
   // Simplified group detection based on hyperedge overlap
-  const groups: CollaborationGroup[] = [];
+  const groups: any[] = [];
 
   for (const edge of hypergraph.hyperedges) {
     if (edge.type === 'collaboration') {
       groups.push({
         nodes: edge.nodes,
         size: edge.nodes.length,
-        pattern: edge.metadata?.pattern as string | undefined,
+        pattern: edge.metadata?.pattern,
       });
     }
   }
@@ -450,7 +406,7 @@ function detectCollaborationGroups(hypergraph: Hypergraph): CollaborationGroup[]
 /**
  * Analyze causal relationships
  */
-async function analyzeCausalRelationships(hypergraph: Hypergraph): Promise<Partial<HypergraphMetrics>> {
+async function analyzeCausalRelationships(hypergraph: any): Promise<any> {
   // Trace causal chains
   const chains = traceCausalChains(hypergraph);
 
@@ -465,7 +421,7 @@ async function analyzeCausalRelationships(hypergraph: Hypergraph): Promise<Parti
   };
 }
 
-function traceCausalChains(hypergraph: Hypergraph): number[][] {
+function traceCausalChains(hypergraph: any): any[] {
   const chains: number[][] = [];
 
   // Find pipeline-type hyperedges (causal chains)
@@ -478,7 +434,7 @@ function traceCausalChains(hypergraph: Hypergraph): number[][] {
   return chains.length > 0 ? chains : [[0, 1, 2]]; // Fallback
 }
 
-function calculateBranchingFactor(hypergraph: Hypergraph): number {
+function calculateBranchingFactor(hypergraph: any): number {
   // Average out-degree in causal graph
   const fanOuts = hypergraph.hyperedges
     .filter((e: HyperedgeType) => e.metadata?.pattern === 'fan-out')
@@ -489,7 +445,7 @@ function calculateBranchingFactor(hypergraph: Hypergraph): number {
     : 2.5;
 }
 
-function calculateTransitivity(_hypergraph: Hypergraph): number {
+function calculateTransitivity(hypergraph: any): number {
   // Simulated: % of transitive relationships maintained
   return 0.78 + Math.random() * 0.15;
 }
@@ -498,10 +454,10 @@ function calculateTransitivity(_hypergraph: Hypergraph): number {
  * Benchmark Cypher queries
  */
 async function benchmarkCypherQueries(
-  hypergraph: Hypergraph,
+  hypergraph: any,
   queryTypes: string[]
-): Promise<Partial<HypergraphMetrics>> {
-  const queryResults: Record<string, { latencyMs: number; resultCount: number }> = {};
+): Promise<any> {
+  const queryResults: any = {};
 
   for (const queryType of queryTypes) {
     const start = Date.now();
@@ -515,7 +471,7 @@ async function benchmarkCypherQueries(
   }
 
   const avgLatency = Object.values(queryResults).reduce(
-    (sum: number, r) => sum + r.latencyMs,
+    (sum: number, r: any) => sum + r.latencyMs,
     0
   ) / queryTypes.length;
 
@@ -523,10 +479,11 @@ async function benchmarkCypherQueries(
     cypherQueryLatencyMs: avgLatency,
     hyperedgeTraversalMs: avgLatency * 0.6,
     patternMatchingMs: avgLatency * 1.2,
+    queryResults,
   };
 }
 
-async function executeCypherQuery(hypergraph: Hypergraph, queryType: string): Promise<unknown[]> {
+async function executeCypherQuery(hypergraph: any, queryType: string): Promise<any[]> {
   // Simulate Cypher query execution
   switch (queryType) {
     case 'find-collaborators':
@@ -554,7 +511,7 @@ async function executeCypherQuery(hypergraph: Hypergraph, queryType: string): Pr
   }
 }
 
-function findCollaborators(hypergraph: Hypergraph, nodeId: number): number[] {
+function findCollaborators(hypergraph: any, nodeId: number): any[] {
   const collaborators = new Set<number>();
 
   for (const edgeIdx of hypergraph.index.nodeToEdges.get(nodeId) || []) {
@@ -569,7 +526,7 @@ function findCollaborators(hypergraph: Hypergraph, nodeId: number): number[] {
   return [...collaborators];
 }
 
-function traceDependencies(hypergraph: Hypergraph, nodeId: number): number[] {
+function traceDependencies(hypergraph: any, nodeId: number): any[] {
   const dependencies: number[] = [];
 
   // Simplified: find all nodes in pipeline edges containing nodeId
@@ -582,9 +539,9 @@ function traceDependencies(hypergraph: Hypergraph, nodeId: number): number[] {
   return dependencies;
 }
 
-function patternMatch(hypergraph: Hypergraph): unknown[] {
+function patternMatch(hypergraph: any): any[] {
   // Find triangular patterns in hypergraph
-  const patterns: unknown[] = [];
+  const patterns: any[] = [];
 
   for (let i = 0; i < Math.min(100, hypergraph.hyperedges.length); i++) {
     const edge = hypergraph.hyperedges[i];
@@ -599,15 +556,15 @@ function patternMatch(hypergraph: Hypergraph): unknown[] {
   return patterns;
 }
 
-function pathQuery(_hypergraph: Hypergraph, start: number, end: number): number[] {
+function pathQuery(hypergraph: any, start: number, end: number): any[] {
   // Simplified shortest path
   return [start, Math.floor((start + end) / 2), end];
 }
 
-function aggregationQuery(hypergraph: Hypergraph): unknown[] {
+function aggregationQuery(hypergraph: any): any[] {
   const counts = new Map<string, number>();
 
-  for (const node of hypergraph.nodes as HypergraphNode[]) {
+  for (const node of hypergraph.nodes) {
     counts.set(node.type, (counts.get(node.type) || 0) + 1);
   }
 
@@ -620,7 +577,7 @@ function aggregationQuery(hypergraph: Hypergraph): unknown[] {
 /**
  * OPTIMIZED: 3.7x compression ratio validated empirically
  */
-async function compareWithStandardGraph(hypergraph: Hypergraph): Promise<HypergraphResultEntry['comparison']> {
+async function compareWithStandardGraph(hypergraph: any): Promise<any> {
   // Convert hypergraph to standard graph (flatten hyperedges)
   const standardGraph = flattenToStandardGraph(hypergraph);
 
@@ -637,7 +594,7 @@ async function compareWithStandardGraph(hypergraph: Hypergraph): Promise<Hypergr
   };
 }
 
-function flattenToStandardGraph(hypergraph: Hypergraph): StandardGraph {
+function flattenToStandardGraph(hypergraph: any): any {
   const edges: [number, number][] = [];
 
   // Convert each hyperedge to clique
@@ -658,46 +615,46 @@ function generateRandomVector(dim: number): number[] {
   return Array(dim).fill(0).map(() => Math.random() * 2 - 1);
 }
 
-function averageHyperedgeSize(results: HypergraphResultEntry[]): number {
+function averageHyperedgeSize(results: any[]): number {
   return results.reduce((sum, r) => sum + r.metrics.avgHyperedgeSize, 0) / results.length;
 }
 
-function averageCollaborationGroups(results: HypergraphResultEntry[]): number {
+function averageCollaborationGroups(results: any[]): number {
   return results.reduce((sum, r) => sum + r.metrics.collaborationGroups, 0) / results.length;
 }
 
-function averageQueryLatency(results: HypergraphResultEntry[]): number {
+function averageQueryLatency(results: any[]): number {
   return results.reduce((sum, r) => sum + r.metrics.cypherQueryLatencyMs, 0) / results.length;
 }
 
-function aggregateStructuralMetrics(results: HypergraphResultEntry[]) {
+function aggregateStructuralMetrics(results: any[]) {
   return {
     avgHyperedgeSize: averageHyperedgeSize(results),
     avgDensity: results.reduce((sum, r) => sum + r.metrics.hypergraphDensity, 0) / results.length,
   };
 }
 
-function aggregateCollaborationMetrics(results: HypergraphResultEntry[]) {
+function aggregateCollaborationMetrics(results: any[]) {
   return {
     avgGroups: averageCollaborationGroups(results),
     avgTaskCoverage: results.reduce((sum, r) => sum + r.metrics.taskCoverage, 0) / results.length,
   };
 }
 
-function aggregateCausalMetrics(results: HypergraphResultEntry[]) {
+function aggregateCausalMetrics(results: any[]) {
   return {
     avgChainLength: results.reduce((sum, r) => sum + r.metrics.causalChainLength, 0) / results.length,
     avgBranching: results.reduce((sum, r) => sum + r.metrics.causalBranchingFactor, 0) / results.length,
   };
 }
 
-function aggregateQueryMetrics(results: HypergraphResultEntry[]) {
+function aggregateQueryMetrics(results: any[]) {
   return {
     avgCypherLatency: averageQueryLatency(results),
   };
 }
 
-function generateHypergraphAnalysis(results: HypergraphResultEntry[]): string {
+function generateHypergraphAnalysis(results: any[]): string {
   return `
 # Hypergraph Exploration Analysis
 
@@ -716,7 +673,7 @@ function generateHypergraphAnalysis(results: HypergraphResultEntry[]): string {
   `.trim();
 }
 
-function generateHypergraphRecommendations(_results: HypergraphResultEntry[]): string[] {
+function generateHypergraphRecommendations(results: any[]): string[] {
   return [
     'Use hypergraphs for multi-agent collaboration (3+ agents)',
     'Model complex causal relationships with hyperedges',
@@ -725,21 +682,21 @@ function generateHypergraphRecommendations(_results: HypergraphResultEntry[]): s
   ];
 }
 
-async function generateHypergraphVisualizations(_results: HypergraphResultEntry[]) {
+async function generateHypergraphVisualizations(results: any[]) {
   return {
     hypergraphStructure: 'hypergraph-structure.png',
     collaborationPatterns: 'collaboration-patterns.png',
   };
 }
 
-async function generateCollaborationDiagrams(_results: HypergraphResultEntry[]) {
+async function generateCollaborationDiagrams(results: any[]) {
   return {
     hierarchical: 'hierarchical-collaboration.png',
     peerToPeer: 'peer-to-peer-collaboration.png',
   };
 }
 
-async function generateQueryPerformanceCharts(_results: HypergraphResultEntry[]) {
+async function generateQueryPerformanceCharts(results: any[]) {
   return {
     cypherLatency: 'cypher-latency.png',
     patternMatching: 'pattern-matching-performance.png',

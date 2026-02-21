@@ -63,7 +63,7 @@ export interface ContextEntry {
   id: string;
   embedding: number[];
   content?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 /**

@@ -19,9 +19,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Lazy-loaded RuvLLM to avoid import failures if not installed
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let RuvLLMEngine: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let ruvllmInstance: any = null;
 let ruvllmLoadAttempted = false;
 
@@ -45,7 +43,6 @@ async function loadRuvLLM(): Promise<boolean> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRuvLLMInstance(config?: { embeddingDim?: number }): any {
   if (!RuvLLMEngine) return null;
   if (!ruvllmInstance) {
@@ -393,7 +390,7 @@ export class LLMRouter {
   /**
    * Search RuvLLM's HNSW memory
    */
-  async searchMemory(query: string, k: number = 10): Promise<unknown[] | null> {
+  async searchMemory(query: string, k: number = 10): Promise<any[] | null> {
     if (!this.ruvllmAvailable) return null;
 
     const engine = getRuvLLMInstance();
@@ -409,7 +406,7 @@ export class LLMRouter {
   /**
    * Get RuvLLM statistics
    */
-  getRuvLLMStats(): unknown | null {
+  getRuvLLMStats(): any | null {
     if (!this.ruvllmAvailable) return null;
 
     const engine = getRuvLLMInstance();
@@ -456,8 +453,7 @@ export class LLMRouter {
       throw new Error(`OpenRouter API error: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await response.json()) as Record<string, any>;
+    const data: any = await response.json();
 
     return {
       content: (data.choices?.[0]?.message?.content as string) || '',
@@ -503,8 +499,7 @@ export class LLMRouter {
       throw new Error(`Gemini API error: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await response.json()) as Record<string, any>;
+    const data: any = await response.json();
 
     const content = (data.candidates?.[0]?.content?.parts?.[0]?.text as string) || '';
     const tokensUsed = ((data.usageMetadata?.promptTokenCount as number) || 0) +
@@ -550,8 +545,7 @@ export class LLMRouter {
       throw new Error(`Anthropic API error: ${response.statusText}`);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await response.json()) as Record<string, any>;
+    const data: any = await response.json();
 
     const content = (data.content?.[0]?.text as string) || '';
     const tokensUsed = ((data.usage?.input_tokens as number) || 0) + ((data.usage?.output_tokens as number) || 0);

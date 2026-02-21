@@ -16,25 +16,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { HNSWIndex } from '../../src/controllers/HNSWIndex.js';
 import { WASMVectorSearch } from '../../src/controllers/WASMVectorSearch.js';
 
-// Check if hnswlib-node native bindings actually load (not just installed)
-let hnswlibAvailable = false;
-try {
-  await import('hnswlib-node');
-  hnswlibAvailable = true;
-} catch {
-  /* native bindings not functional */
-}
-
 // Mock database interface
 interface MockDatabase {
   prepare: (sql: string) => {
-    all: (..._params: unknown[]) => unknown[];
-    get: (..._params: unknown[]) => unknown;
+    all: (...params: any[]) => any[];
+    get: (...params: any[]) => any;
   };
 }
-
-type HNSWDb = ConstructorParameters<typeof HNSWIndex>[0];
-type WASMDb = ConstructorParameters<typeof WASMVectorSearch>[0];
 
 // Test data generation utilities
 function generateVector(dimension: number): Float32Array {
@@ -86,21 +74,20 @@ function createMockDatabase(vectors: TestVector[]): MockDatabase {
 
   return {
     prepare: (sql: string) => ({
-      all: (..._params: unknown[]) => {
+      all: (...params: any[]) => {
         if (sql.includes('SELECT pattern_id')) {
           return Array.from(vectorMap.values());
         }
         return [];
       },
-      get: (..._params: unknown[]) => {
-        const id = _params[0] as number;
+      get: (id: number, ...params: any[]) => {
         return vectorMap.get(id);
       },
     }),
   };
 }
 
-describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
+describe('Backend Parity Tests', () => {
   const DIMENSION = 384;
   const NUM_VECTORS = 1000;
   const NUM_QUERIES = 100;
@@ -120,10 +107,10 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
     queries = generateTestVectors(NUM_QUERIES, DIMENSION);
 
     // Create mock database
-    mockDb = createMockDatabase(testVectors);
+    mockDb = createMockDatabase(testVectors) as any;
 
     // Initialize HNSW backend
-    hnswIndex = new HNSWIndex(mockDb as unknown as HNSWDb, {
+    hnswIndex = new HNSWIndex(mockDb as any, {
       dimension: DIMENSION,
       metric: 'cosine',
       M: 16,
@@ -134,7 +121,7 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
     });
 
     // Initialize WASM backend (RuVector alternative)
-    wasmSearch = new WASMVectorSearch(mockDb as unknown as WASMDb, {
+    wasmSearch = new WASMVectorSearch(mockDb as any, {
       enableWASM: false, // Use pure JS for consistent comparison
       enableSIMD: false,
       batchSize: 100,
@@ -196,8 +183,8 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
         totalOverlap += overlapPercentage;
         totalQueries++;
 
-        // Each query should have at least 80% overlap (HNSW is approximate, variance under load)
-        expect(overlap).toBeGreaterThanOrEqual(8); // 80% of 10 = 8
+        // Each query should have at least 90% overlap (HNSW is approximate)
+        expect(overlap).toBeGreaterThanOrEqual(9); // 90% of 10 = 9
       }
 
       // Average overlap should be very high
@@ -232,16 +219,20 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
       const threshold = 0.7;
 
       const hnswResults = await hnswIndex.search(query.embedding, K_RESULTS, { threshold });
+      const wasmResults = await wasmSearch.findKNN(query.embedding, K_RESULTS, { threshold });
 
-      // HNSW should filter by threshold
+      // Both should filter by threshold
       for (const result of hnswResults) {
         expect(result.similarity).toBeGreaterThanOrEqual(threshold);
       }
 
-      // WASMVectorSearch.findKNN does not support threshold as a search option
-      // in the same way - it returns top-k results and threshold filtering
-      // is applied at a different level. Verify HNSW threshold filtering works.
-      expect(hnswResults.every(r => r.similarity >= threshold)).toBe(true);
+      for (const result of wasmResults) {
+        expect(result.similarity).toBeGreaterThanOrEqual(threshold);
+      }
+
+      // Results should have similar counts (within reason for approximate search)
+      const countDiff = Math.abs(hnswResults.length - wasmResults.length);
+      expect(countDiff).toBeLessThanOrEqual(2); // Allow small variance
     });
   });
 
@@ -271,7 +262,7 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
       hnswIndex.removeVector(removeId);
 
       // Search should not return removed vector
-      await hnswIndex.search(vectorToRemove.embedding, K_RESULTS);
+      const results = await hnswIndex.search(vectorToRemove.embedding, K_RESULTS);
 
       // The removed vector should not appear in results
       // Note: HNSW doesn't support true deletion, so we verify it's marked as removed
@@ -311,32 +302,22 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
       const query = queries[0];
       const largeK = NUM_VECTORS * 10;
 
-      // HNSW may throw or clamp k when it exceeds index size — both are valid behaviors
-      let hnswHandled = false;
-      try {
-        const results = await hnswIndex.search(query.embedding, largeK);
-        // If no error, results should be clamped to available elements
-        expect(results.length).toBeLessThanOrEqual(hnswIndex.getStats().numElements);
-        hnswHandled = true;
-      } catch {
-        // Throwing is also acceptable behavior for k > maxElements
-        hnswHandled = true;
-      }
-      expect(hnswHandled).toBe(true);
-
-      // WASM brute-force handles gracefully
+      const hnswResults = await hnswIndex.search(query.embedding, largeK);
       const wasmResults = await wasmSearch.findKNN(query.embedding, largeK);
+
+      // Should return at most the number of vectors in index
+      expect(hnswResults.length).toBeLessThanOrEqual(NUM_VECTORS + 200);
       expect(wasmResults.length).toBeLessThanOrEqual(NUM_VECTORS);
     });
 
     it('should handle zero-vector queries without errors', async () => {
       const zeroVector = new Float32Array(DIMENSION); // All zeros
 
-      // HNSW handles zero vectors without throwing (returns results with NaN similarity)
-      const hnswResults = await hnswIndex.search(zeroVector, K_RESULTS);
-      expect(Array.isArray(hnswResults)).toBe(true);
+      await expect(async () => {
+        await hnswIndex.search(zeroVector, K_RESULTS);
+      }).rejects.toThrow(); // HNSW may error on zero vectors
 
-      // WASM should also handle gracefully
+      // WASM should handle gracefully
       const wasmResults = await wasmSearch.findKNN(zeroVector, K_RESULTS);
       expect(Array.isArray(wasmResults)).toBe(true);
     });
@@ -414,7 +395,7 @@ describe.skipIf(!hnswlibAvailable)('Backend Parity Tests', () => {
     });
 
     it('should handle normalized vs unnormalized vectors', () => {
-      void new Float32Array([3, 4, 0]); // unnormalized input for reference
+      const unnormalized = new Float32Array([3, 4, 0]);
       const normalized = normalizeVector(new Float32Array([3, 4, 0]));
 
       // Self-similarity should always be 1.0 for normalized vectors

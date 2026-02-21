@@ -4,7 +4,7 @@
  * Tests concurrent access and coordination using agentic-flow
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -13,10 +13,8 @@ import * as path from 'path';
 export default {
   description: 'Multi-agent swarm with concurrent database access',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
-    const size = (config.size ?? 5) as number;
-    const parallel = (config.parallel ?? true) as boolean;
+  async run(config: any) {
+    const { verbosity = 2, size = 5, parallel = true } = config;
 
     if (verbosity >= 2) {
       console.log(`   🤖 Initializing ${size}-Agent Swarm Simulation`);
@@ -30,9 +28,10 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'swarm.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const results = {
@@ -48,18 +47,18 @@ export default {
     // Simulate agent tasks
     const agentTask = async (agentId: number) => {
       const reflexion = new ReflexionMemory(
-        db.getGraphDatabase(),
+        db.getGraphDatabase() as any,
         embedder,
         undefined,
         undefined,
-        db.getGraphDatabase()
+        db.getGraphDatabase() as any
       );
 
       const skills = new SkillLibrary(
-        db.getGraphDatabase(),
+        db.getGraphDatabase() as any,
         embedder,
         undefined,  // vectorBackend
-        db.getGraphDatabase()  // graphBackend
+        db.getGraphDatabase() as any  // graphBackend
       );
 
       const taskStart = performance.now();
@@ -107,7 +106,7 @@ export default {
     };
 
     // Execute agent tasks
-    let taskResults: { agentId: number; duration: number; success: boolean; error?: unknown }[];
+    let taskResults: any[];
     if (parallel) {
       // Parallel execution
       taskResults = await Promise.all(

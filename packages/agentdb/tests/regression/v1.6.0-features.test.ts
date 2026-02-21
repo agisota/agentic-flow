@@ -1,8 +1,6 @@
 /**
  * AgentDB v1.6.0 Regression Tests - New v1.6.0 Features
  * Tests vector-search, export/import, stats, and enhanced init command
- *
- * Updated for v3 CLI output format
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -13,14 +11,11 @@ import { createDatabase } from '../../src/db-fallback.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 
-// Check if CLI binary exists before running CLI-dependent tests
-const cliPath = path.join(__dirname, '../../dist/src/cli/agentdb-cli.js');
-const cliAvailable = fs.existsSync(cliPath);
-
 describe('v1.6.0 New Features Regression Tests', () => {
   const testDbPath = './test-v160-features.db';
   const exportPath = './test-export.json';
   const importPath = './test-import.db';
+  const cliPath = path.join(__dirname, '../../dist/cli/agentdb-cli.js');
 
   beforeAll(() => {
     // Clean up any existing test files
@@ -46,24 +41,12 @@ describe('v1.6.0 New Features Regression Tests', () => {
         }
       });
     });
-    // Clean up init command test files
-    const initTestFiles = [
-      './test-dimension.db', './test-preset-small.db',
-      './test-preset-medium.db', './test-preset-large.db',
-      './test-existing.db'
-    ];
-    initTestFiles.forEach(file => {
-      if (fs.existsSync(file)) {
-        fs.unlinkSync(file);
-      }
-    });
   });
 
   describe('Init Command Enhancements', () => {
-    it.skipIf(!cliAvailable)('should support --dimension flag', async () => {
+    it('should support --dimension flag', async () => {
       const output = await runCLI(['init', './test-dimension.db', '--dimension', '768']);
-      // v3 CLI format: "Dimension:     768"
-      expect(output).toContain('768');
+      expect(output).toContain('Embedding dimension: 768');
       expect(output).toContain('initialized successfully');
 
       // Cleanup
@@ -72,10 +55,9 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should support --preset flag (small)', async () => {
+    it('should support --preset flag (small)', async () => {
       const output = await runCLI(['init', './test-preset-small.db', '--preset', 'small']);
-      // v3 CLI format: "Preset:        small"
-      expect(output).toContain('small');
+      expect(output).toContain('SMALL preset');
       expect(output).toContain('initialized successfully');
 
       // Cleanup
@@ -84,10 +66,9 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should support --preset flag (medium)', async () => {
+    it('should support --preset flag (medium)', async () => {
       const output = await runCLI(['init', './test-preset-medium.db', '--preset', 'medium']);
-      // v3 CLI format: "Preset:        medium"
-      expect(output).toContain('medium');
+      expect(output).toContain('MEDIUM preset');
       expect(output).toContain('initialized successfully');
 
       // Cleanup
@@ -96,10 +77,9 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should support --preset flag (large)', async () => {
+    it('should support --preset flag (large)', async () => {
       const output = await runCLI(['init', './test-preset-large.db', '--preset', 'large']);
-      // v3 CLI format: "Preset:        large"
-      expect(output).toContain('large');
+      expect(output).toContain('LARGE preset');
       expect(output).toContain('initialized successfully');
 
       // Cleanup
@@ -108,22 +88,19 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should support --in-memory flag', async () => {
+    it('should support --in-memory flag', async () => {
       const output = await runCLI(['init', '--in-memory']);
-      // v3 CLI format: "Database:      :memory:"
-      expect(output).toContain(':memory:');
+      expect(output).toContain('in-memory database');
       expect(output).toContain('initialized successfully');
     });
 
-    it.skipIf(!cliAvailable)('should initialize database successfully', async () => {
+    it('should warn if database already exists', async () => {
       // Create database first
-      const output1 = await runCLI(['init', './test-existing.db']);
-      expect(output1).toContain('initialized successfully');
+      await runCLI(['init', './test-existing.db']);
 
-      // Initialize again -- v3 may succeed or warn
-      const output2 = await runCLI(['init', './test-existing.db']);
-      // v3 CLI re-initializes without warning; just verify it completes
-      expect(output2).toContain('initialized');
+      // Try to init again
+      const output = await runCLI(['init', './test-existing.db']);
+      expect(output).toContain('already exists');
 
       // Cleanup
       if (fs.existsSync('./test-existing.db')) {
@@ -133,20 +110,18 @@ describe('v1.6.0 New Features Regression Tests', () => {
   });
 
   describe('Vector Search Command', () => {
-    let db: Awaited<ReturnType<typeof createDatabase>>;
+    let db: any;
     let embedder: EmbeddingService;
     let reflexion: ReflexionMemory;
 
     beforeAll(async () => {
       // Initialize database with test data
-      if (cliAvailable) {
-        await runCLI(['init', testDbPath]);
-      }
+      await runCLI(['init', testDbPath]);
 
       db = await createDatabase(testDbPath);
       embedder = new EmbeddingService({
         model: 'Xenova/all-MiniLM-L6-v2',
-        dimension: 384,
+        dimensions: 384,
         provider: 'transformers'
       });
       await embedder.initialize();
@@ -174,64 +149,54 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should perform vector search with cosine metric', async () => {
+    it('should perform vector search with cosine metric', async () => {
       // Generate a test vector
       const embedding = await embedder.embed('authentication');
       const vectorStr = JSON.stringify(Array.from(embedding));
 
       const output = await runCLI(['vector-search', testDbPath, vectorStr, '-k', '5', '-m', 'cosine']);
 
-      // The CLI output may contain JSON results or status messages
-      // Check that the command executed without a "Missing required" error
-      expect(output).not.toContain('Missing required vector');
-
-      // Try to extract JSON from output
-      const jsonMatch = output.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const results = JSON.parse(jsonMatch[0]);
-        expect(Array.isArray(results)).toBe(true);
-        if (results.length > 0) {
-          expect(results[0]).toHaveProperty('similarity');
-        }
-      }
+      // Should return JSON results
+      const results = JSON.parse(output);
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]).toHaveProperty('similarity');
     });
 
-    it.skipIf(!cliAvailable)('should perform vector search with euclidean metric', async () => {
+    it('should perform vector search with euclidean metric', async () => {
       const embedding = await embedder.embed('database');
       const vectorStr = JSON.stringify(Array.from(embedding));
 
       const output = await runCLI(['vector-search', testDbPath, vectorStr, '-k', '5', '-m', 'euclidean']);
 
-      expect(output).not.toContain('Missing required vector');
+      const results = JSON.parse(output);
+      expect(Array.isArray(results)).toBe(true);
+      expect(results[0]).toHaveProperty('similarity');
     });
 
-    it.skipIf(!cliAvailable)('should perform vector search with dot product metric', async () => {
+    it('should perform vector search with dot product metric', async () => {
       const embedding = await embedder.embed('optimization');
       const vectorStr = JSON.stringify(Array.from(embedding));
 
       const output = await runCLI(['vector-search', testDbPath, vectorStr, '-k', '5', '-m', 'dot']);
 
-      expect(output).not.toContain('Missing required vector');
+      const results = JSON.parse(output);
+      expect(Array.isArray(results)).toBe(true);
+      expect(results[0]).toHaveProperty('similarity');
     });
 
-    it.skipIf(!cliAvailable)('should filter by threshold', async () => {
+    it('should filter by threshold', async () => {
       const embedding = await embedder.embed('testing');
       const vectorStr = JSON.stringify(Array.from(embedding));
 
       const output = await runCLI(['vector-search', testDbPath, vectorStr, '-k', '10', '-t', '0.9']);
 
-      expect(output).not.toContain('Missing required vector');
-
-      // Try to extract JSON from output
-      const jsonMatch = output.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const results = JSON.parse(jsonMatch[0]);
-        expect(Array.isArray(results)).toBe(true);
-        // All results should have similarity >= 0.9
-        results.forEach((r: { similarity: number }) => {
-          expect(r.similarity).toBeGreaterThanOrEqual(0.9);
-        });
-      }
+      const results = JSON.parse(output);
+      expect(Array.isArray(results)).toBe(true);
+      // All results should have similarity >= 0.9
+      results.forEach((r: any) => {
+        expect(r.similarity).toBeGreaterThanOrEqual(0.9);
+      });
     });
 
     afterAll(() => {
@@ -242,27 +207,18 @@ describe('v1.6.0 New Features Regression Tests', () => {
   });
 
   describe('Export/Import Commands', () => {
-    let db: Awaited<ReturnType<typeof createDatabase>>;
+    let db: any;
     let embedder: EmbeddingService;
     let reflexion: ReflexionMemory;
 
     beforeAll(async () => {
-      // Clean up from previous test runs
-      [testDbPath, exportPath, importPath].forEach(file => {
-        if (fs.existsSync(file)) {
-          fs.unlinkSync(file);
-        }
-      });
-
       // Create database with test data
-      if (cliAvailable) {
-        await runCLI(['init', testDbPath]);
-      }
+      await runCLI(['init', testDbPath]);
 
       db = await createDatabase(testDbPath);
       embedder = new EmbeddingService({
         model: 'Xenova/all-MiniLM-L6-v2',
-        dimension: 384,
+        dimensions: 384,
         provider: 'transformers'
       });
       await embedder.initialize();
@@ -287,10 +243,9 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should export database to JSON', async () => {
+    it('should export database to JSON', async () => {
       const output = await runCLI(['export', testDbPath, exportPath]);
 
-      // v3 CLI format: "Exported N episodes to <path>"
       expect(output).toContain('Exported');
       expect(output).toContain('episodes');
       expect(fs.existsSync(exportPath)).toBe(true);
@@ -298,43 +253,37 @@ describe('v1.6.0 New Features Regression Tests', () => {
       // Verify export file structure
       const exportData = JSON.parse(fs.readFileSync(exportPath, 'utf-8'));
       expect(Array.isArray(exportData)).toBe(true);
-      expect(exportData.length).toBeGreaterThanOrEqual(5);
+      expect(exportData.length).toBe(5);
+      expect(exportData[0]).toHaveProperty('task');
+      expect(exportData[0]).toHaveProperty('reward');
     });
 
-    it.skipIf(!cliAvailable)('should import database from JSON', async () => {
+    it('should import database from JSON', async () => {
       // First export
       await runCLI(['export', testDbPath, exportPath]);
 
       // Then import to new database
       const output = await runCLI(['import', exportPath, importPath]);
 
-      // v3 CLI format: "Imported N episodes"
       expect(output).toContain('Imported');
       expect(output).toContain('episodes');
       expect(fs.existsSync(importPath)).toBe(true);
+
+      // Verify imported data
+      const importedDb = await createDatabase(importPath);
+      const count = importedDb.prepare('SELECT COUNT(*) as count FROM episodes').get();
+      expect(count.count).toBe(5);
+
+      importedDb.close();
     });
 
-    it.skipIf(!cliAvailable)('should preserve data during export/import', async () => {
-      // Clean up previous import
-      if (fs.existsSync(importPath)) {
-        fs.unlinkSync(importPath);
-      }
-
+    it('should preserve embeddings during export/import', async () => {
       await runCLI(['export', testDbPath, exportPath]);
       await runCLI(['import', exportPath, importPath]);
 
-      // Verify the imported database has episodes
       const importedDb = await createDatabase(importPath);
-
-      // Check if episodes table exists and has data
-      try {
-        const count = importedDb.prepare('SELECT COUNT(*) as count FROM episodes').get();
-        expect(count.count).toBeGreaterThan(0);
-      } catch {
-        // If episodes table doesn't exist in imported db, that's a different format
-        // Just verify the file was created
-        expect(fs.existsSync(importPath)).toBe(true);
-      }
+      const embeddingCount = importedDb.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get();
+      expect(embeddingCount.count).toBeGreaterThan(0);
 
       importedDb.close();
     });
@@ -347,24 +296,17 @@ describe('v1.6.0 New Features Regression Tests', () => {
   });
 
   describe('Stats Command', () => {
-    let db: Awaited<ReturnType<typeof createDatabase>>;
+    let db: any;
     let embedder: EmbeddingService;
     let reflexion: ReflexionMemory;
 
     beforeAll(async () => {
-      // Clean up from previous test runs
-      if (fs.existsSync(testDbPath)) {
-        fs.unlinkSync(testDbPath);
-      }
-
-      if (cliAvailable) {
-        await runCLI(['init', testDbPath]);
-      }
+      await runCLI(['init', testDbPath]);
 
       db = await createDatabase(testDbPath);
       embedder = new EmbeddingService({
         model: 'Xenova/all-MiniLM-L6-v2',
-        dimension: 384,
+        dimensions: 384,
         provider: 'transformers'
       });
       await embedder.initialize();
@@ -386,31 +328,29 @@ describe('v1.6.0 New Features Regression Tests', () => {
       }
     });
 
-    it.skipIf(!cliAvailable)('should show database statistics', async () => {
+    it('should show database statistics', async () => {
       const output = await runCLI(['stats', testDbPath]);
 
-      // v3 CLI format uses "AgentDB Statistics"
-      expect(output).toContain('Statistics');
+      expect(output).toContain('Database Statistics');
       expect(output).toContain('Episodes:');
       expect(output).toContain('Embeddings:');
       expect(output).toContain('Average Reward:');
       expect(output).toContain('Embedding Coverage:');
     });
 
-    it.skipIf(!cliAvailable)('should show episode counts', async () => {
+    it('should show episode counts', async () => {
       const output = await runCLI(['stats', testDbPath]);
-      // Match "Episodes: <number>" pattern (exact count may vary)
-      expect(output).toMatch(/Episodes:\s+\d+/);
+      expect(output).toContain('Episodes: 10');
     });
 
-    it.skipIf(!cliAvailable)('should show top domains', async () => {
+    it('should show top domains', async () => {
       const output = await runCLI(['stats', testDbPath]);
-      expect(output).toContain('Top Domains');
+      expect(output).toContain('Top Domains:');
       expect(output).toContain('task_a');
       expect(output).toContain('task_b');
     });
 
-    it.skipIf(!cliAvailable)('should show database size', async () => {
+    it('should show database size', async () => {
       const output = await runCLI(['stats', testDbPath]);
       expect(output).toContain('Size:');
       expect(output).toContain('KB');
@@ -429,6 +369,8 @@ describe('v1.6.0 New Features Regression Tests', () => {
  */
 async function runCLI(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
+    const cliPath = path.join(__dirname, '../../dist/cli/agentdb-cli.js');
+
     const child = spawn('node', [cliPath, ...args], {
       env: { ...process.env, AGENTDB_PATH: './test-cli.db' }
     });
@@ -444,7 +386,7 @@ async function runCLI(args: string[]): Promise<string> {
       stderr += data.toString();
     });
 
-    child.on('close', (_code) => {
+    child.on('close', (code) => {
       // CLI commands may exit with 0 or 1 depending on the operation
       // We consider both successful for testing purposes
       resolve(stdout + stderr);

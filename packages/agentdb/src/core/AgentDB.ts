@@ -5,19 +5,13 @@
  * - sql.js WASM for relational storage (with better-sqlite3 fallback)
  * - RuVector for optimized vector search (150x faster than SQLite)
  * - Unified integration passing vector backend to all controllers
- *
- * Unified single-file mode (vectorBackend='rvf', the default):
- *   One sql.js Database instance holds BOTH relational tables (episodes,
- *   skills, causal edges — 21+ tables) AND vector tables (rvf_vectors,
- *   rvf_meta). Everything persists to a single .rvf file.
  */
 import { ReflexionMemory } from '../controllers/ReflexionMemory.js';
 import { SkillLibrary } from '../controllers/SkillLibrary.js';
 import { CausalMemoryGraph } from '../controllers/CausalMemoryGraph.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
 import { createBackend } from '../backends/factory.js';
-import { SqlJsRvfBackend } from '../backends/rvf/SqlJsRvfBackend.js';
-import type { VectorBackend, VectorConfig } from '../backends/VectorBackend.js';
+import type { VectorBackend } from '../backends/VectorBackend.js';
 import type { IDatabaseConnection } from '../types/database.types.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,11 +23,11 @@ export interface AgentDBConfig {
   dbPath?: string;
   namespace?: string;
   enableAttention?: boolean;
-  attentionConfig?: Record<string, unknown>;
+  attentionConfig?: Record<string, any>;
   /** Force use of sql.js WASM even if better-sqlite3 is available */
   forceWasm?: boolean;
-  /** Vector backend type: 'auto' | 'ruvector' | 'rvf' | 'hnswlib' */
-  vectorBackend?: 'auto' | 'ruvector' | 'rvf' | 'hnswlib';
+  /** Vector backend type: 'auto' | 'ruvector' | 'hnswlib' */
+  vectorBackend?: 'auto' | 'ruvector' | 'hnswlib';
   /** Vector dimension (default: 384 for MiniLM) */
   vectorDimension?: number;
 }
@@ -48,10 +42,6 @@ export class AgentDB {
   private initialized = false;
   private config: AgentDBConfig;
   private usingWasm = false;
-  /** True when vectors + relational share one sql.js database */
-  private unifiedMode = false;
-  /** Reference to the rvf backend when in unified mode (for save/close) */
-  private rvfBackendRef: SqlJsRvfBackend | null = null;
 
   constructor(config: AgentDBConfig = {}) {
     this.config = config;
@@ -62,83 +52,42 @@ export class AgentDB {
 
     const dbPath = this.config.dbPath || ':memory:';
     const vectorDimension = this.config.vectorDimension || 384;
-    const backendType = this.config.vectorBackend || 'rvf';
 
-    if (backendType === 'rvf') {
-      // ── Unified single-file mode ──
-      // One sql.js database for everything: vectors + relational tables
-      const rvfBackend = new SqlJsRvfBackend({
-        dimension: vectorDimension,
-        metric: 'cosine' as const,
-        storagePath: dbPath,
-      } as VectorConfig & { storagePath: string });
-      await rvfBackend.initialize();
+    // Initialize database with unified fallback system
+    this.db = await this.initializeDatabase(dbPath);
 
-      // Extract the raw sql.js database and wrap it with better-sqlite3 API
-      const rawDb = rvfBackend.getDatabase();
-      const { wrapExistingSqlJsDatabase } = await import('../db-fallback.js');
-      this.db = wrapExistingSqlJsDatabase(rawDb, dbPath) as IDatabaseConnection;
-
-      this.vectorBackend = rvfBackend;
-      this.rvfBackendRef = rvfBackend;
-      this.unifiedMode = true;
-      this.usingWasm = true;
-
-      // Load relational schemas into the same database
-      await this.loadSchemas();
-    } else {
-      // ── Legacy separate-database mode ──
-      this.db = await this.initializeDatabase(dbPath);
-      await this.loadSchemas();
-
-      this.vectorBackend = await createBackend(backendType, {
-        dimensions: vectorDimension,
-        metric: 'cosine',
-      });
-    }
+    // Load schemas
+    await this.loadSchemas();
 
     // Initialize embedder with default Xenova model
     this.embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
       dimension: vectorDimension,
-      provider: 'transformers',
+      provider: 'transformers'
     });
     await this.embedder.initialize();
 
+    // Initialize vector backend (RuVector preferred, HNSWLib fallback)
+    this.vectorBackend = await createBackend(this.config.vectorBackend || 'auto', {
+      dimensions: vectorDimension,
+      metric: 'cosine'
+    });
+
     // Initialize controllers WITH vector backend for optimized search
+    // This enables 150x faster vector search via RuVector instead of SQLite brute-force
     this.reflexion = new ReflexionMemory(this.db, this.embedder, this.vectorBackend);
     this.skills = new SkillLibrary(this.db, this.embedder, this.vectorBackend);
     this.causalGraph = new CausalMemoryGraph(
       this.db,
-      undefined, // graphBackend
+      undefined, // graphBackend - not used in default initialization
       this.embedder,
-      undefined, // config
-      this.vectorBackend,
+      undefined, // config - use defaults
+      this.vectorBackend
     );
 
     this.initialized = true;
 
-    const mode = this.unifiedMode ? 'unified .rvf' : (this.usingWasm ? 'sql.js WASM' : 'better-sqlite3');
-    console.log(`[AgentDB] Initialized with ${mode} + ${this.vectorBackend.name} vector backend`);
-  }
-
-  /**
-   * Save the database to disk.
-   * In unified mode, delegates to SqlJsRvfBackend.save() which exports the
-   * entire database (vectors + relational) to a single .rvf file.
-   * In legacy mode, saves the relational database via the wrapper's save().
-   */
-  async save(savePath?: string): Promise<void> {
-    if (!this.initialized) {
-      throw new Error('AgentDB not initialized. Call initialize() first.');
-    }
-
-    if (this.unifiedMode && this.rvfBackendRef) {
-      const target = savePath || this.config.dbPath || ':memory:';
-      await this.rvfBackendRef.save(target);
-    } else if (this.db && typeof (this.db as unknown as { save?: () => void }).save === 'function') {
-      (this.db as unknown as { save: () => void }).save();
-    }
+    console.log(`[AgentDB] Initialized with ${this.usingWasm ? 'sql.js WASM' : 'better-sqlite3'} + ${this.vectorBackend.name} vector backend`);
   }
 
   /**
@@ -147,17 +96,20 @@ export class AgentDB {
    * 2. Fallback to sql.js WASM (no build tools required)
    */
   private async initializeDatabase(dbPath: string): Promise<IDatabaseConnection> {
+    // Force WASM if requested
     if (this.config.forceWasm) {
       return this.initializeSqlJsWasm(dbPath);
     }
 
+    // Try better-sqlite3 first (native performance)
     try {
       const Database = (await import('better-sqlite3')).default;
       const db = new Database(dbPath);
       db.pragma('journal_mode = WAL');
       this.usingWasm = false;
       return db as unknown as IDatabaseConnection;
-    } catch {
+    } catch (error) {
+      // better-sqlite3 not available or failed, try sql.js WASM
       console.log('[AgentDB] better-sqlite3 not available, using sql.js WASM');
       return this.initializeSqlJsWasm(dbPath);
     }
@@ -190,7 +142,7 @@ export class AgentDB {
     }
   }
 
-  getController(name: string): ReflexionMemory | SkillLibrary | CausalMemoryGraph {
+  getController(name: string): any {
     if (!this.initialized) {
       throw new Error('AgentDB not initialized. Call initialize() first.');
     }
@@ -209,15 +161,8 @@ export class AgentDB {
     }
   }
 
-  /**
-   * Close the database. In unified mode, auto-saves before closing.
-   */
   async close(): Promise<void> {
-    if (this.unifiedMode && this.rvfBackendRef) {
-      // rvfBackendRef.close() flushes pending writes, auto-saves, and closes
-      this.rvfBackendRef.close();
-      this.rvfBackendRef = null;
-    } else if (this.db) {
+    if (this.db) {
       this.db.close();
     }
   }
@@ -230,11 +175,6 @@ export class AgentDB {
   // Check if using WASM backend
   get isWasm(): boolean {
     return this.usingWasm;
-  }
-
-  // Check if running in unified single-file mode
-  get isUnifiedMode(): boolean {
-    return this.unifiedMode;
   }
 
   // Get vector backend info

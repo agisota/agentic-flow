@@ -151,8 +151,6 @@ export async function statusCommand(options: StatusOptions = {}): Promise<void> 
   }
 }
 
-function getBackendColor(backend: 'ruvector' | 'rvf' | 'hnswlib'): string {
-  if (backend === 'ruvector') return colors.green;
-  if (backend === 'rvf') return colors.magenta;
-  return colors.yellow;
+function getBackendColor(backend: 'ruvector' | 'hnswlib'): string {
+  return backend === 'ruvector' ? colors.green : colors.yellow;
 }

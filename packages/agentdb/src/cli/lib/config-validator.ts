@@ -22,7 +22,7 @@ export interface SimulationConfig {
   dimensions?: number;
   iterations?: number;
   useOptimal?: boolean;
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export class ConfigValidator {

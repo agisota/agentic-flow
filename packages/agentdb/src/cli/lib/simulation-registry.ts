@@ -87,7 +87,7 @@ export interface SimulationResult {
     latency: number;
     throughput: number;
     memoryUsage: number;
-    [key: string]: number;
+    [key: string]: any;
   };
   insights: string[];
   recommendations: string[];
@@ -235,8 +235,7 @@ export class SimulationRegistry {
   /**
    * Extract metadata from package.json.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private extractMetadataFromPackage(pkg: Record<string, any>): SimulationMetadata | null {
+  private extractMetadataFromPackage(pkg: any): SimulationMetadata | null {
     if (!pkg.agentdb || !pkg.agentdb.scenario) {
       return null;
     }

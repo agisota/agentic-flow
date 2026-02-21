@@ -4,15 +4,15 @@
  * Tests Cypher queries and graph operations
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import * as path from 'path';
 
 export default {
   description: 'Graph database traversal and Cypher query performance',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
+  async run(config: any) {
+    const { verbosity = 2 } = config;
 
     if (verbosity >= 2) {
       console.log('   📊 Initializing Graph Traversal Simulation');
@@ -26,9 +26,10 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'graph-traversal.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     // Get GraphDatabaseAdapter (not raw graph database)
@@ -55,7 +56,7 @@ export default {
       const embedding = new Float32Array(384).map(() => Math.random());
 
       // Use GraphDatabaseAdapter.createNode API
-      const id = await (graphDb as Record<string, (...args: unknown[]) => unknown>).createNode({
+      const id = await (graphDb as any).createNode({
         id: `test-node-${i}`,
         embedding,
         labels: ['TestNode'],
@@ -65,7 +66,7 @@ export default {
         }
       });
 
-      nodeIds.push(id as string);
+      nodeIds.push(id);
       results.nodesCreated++;
     }
 
@@ -73,7 +74,7 @@ export default {
     for (let i = 0; i < 45; i++) {
       const embedding = new Float32Array(384).map(() => Math.random());
 
-      await (graphDb as Record<string, (...args: unknown[]) => unknown>).createEdge({
+      await (graphDb as any).createEdge({
         from: nodeIds[i],
         to: nodeIds[i + 1],
         description: 'NEXT',
@@ -96,7 +97,7 @@ export default {
     let totalQueryTime = 0;
     for (const query of queries) {
       const queryStart = performance.now();
-      const result = await (graphDb as Record<string, (...args: unknown[]) => unknown>).query(query);
+      const result = await (graphDb as any).query(query);
       const queryEnd = performance.now();
 
       totalQueryTime += (queryEnd - queryStart);
@@ -104,7 +105,7 @@ export default {
 
       if (verbosity >= 3) {
         console.log(`      ✅ Query: ${query.substring(0, 50)}... (${(queryEnd - queryStart).toFixed(2)}ms)`);
-        console.log(`         Results: ${(result as Record<string, unknown[]>).nodes?.length || 0} nodes`);
+        console.log(`         Results: ${result.nodes?.length || 0} nodes`);
       }
     }
 

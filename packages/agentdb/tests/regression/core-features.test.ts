@@ -3,7 +3,7 @@
  * Tests all existing functionality to ensure no regressions
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createDatabase } from '../../src/db-fallback.js';
@@ -13,7 +13,7 @@ import { CausalMemoryGraph } from '../../src/controllers/CausalMemoryGraph.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 
 describe('Core Features Regression Tests', () => {
-  let db: Awaited<ReturnType<typeof createDatabase>>;
+  let db: any;
   let embedder: EmbeddingService;
   let reflexion: ReflexionMemory;
   let skills: SkillLibrary;
@@ -46,7 +46,7 @@ describe('Core Features Regression Tests', () => {
     // Initialize embedding service
     embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
-      dimension: 384,
+      dimensions: 384,
       provider: 'transformers'
     });
     await embedder.initialize();
@@ -224,8 +224,8 @@ describe('Core Features Regression Tests', () => {
   });
 
   describe('Causal Memory Graph', () => {
-    it('should add causal edges', async () => {
-      const edgeId = await causalGraph.addCausalEdge({
+    it('should add causal edges', () => {
+      const edgeId = causalGraph.addCausalEdge({
         fromMemoryId: 1,
         fromMemoryType: 'episode',
         toMemoryId: 2,

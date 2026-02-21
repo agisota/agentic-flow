@@ -115,10 +115,10 @@ describe('ReflexionMemory', () => {
 
       // Verify embedding was stored
       const embedding = db.prepare('SELECT embedding FROM episode_embeddings WHERE episode_id = ?')
-        .get(episodeId) as { embedding: Buffer } | undefined;
+        .get(episodeId) as any;
 
       expect(embedding).toBeDefined();
-      expect(embedding!.embedding).toBeInstanceOf(Buffer);
+      expect(embedding.embedding).toBeInstanceOf(Buffer);
     });
   });
 
@@ -171,7 +171,8 @@ describe('ReflexionMemory', () => {
       expect(episodes[0]).toHaveProperty('id');
       expect(episodes[0]).toHaveProperty('task');
       expect(episodes[0]).toHaveProperty('similarity');
-      expect(typeof episodes[0].similarity).toBe('number');
+      expect(episodes[0].similarity).toBeGreaterThanOrEqual(0);
+      expect(episodes[0].similarity).toBeLessThanOrEqual(1);
     });
 
     it('should filter by minimum reward', async () => {
@@ -295,15 +296,13 @@ describe('ReflexionMemory', () => {
       expect(summary).toContain('lessons learned');
     });
 
-    it('should return formatted critique summary', async () => {
+    it('should return message when no failures found', async () => {
       const summary = await reflexion.getCritiqueSummary({
         task: 'completely unknown task',
         onlyFailures: true,
       });
 
-      // With zero-embedding fallback, all episodes match — verify format
-      expect(typeof summary).toBe('string');
-      expect(summary.length).toBeGreaterThan(0);
+      expect(summary).toContain('No prior failures');
     });
   });
 
@@ -336,15 +335,13 @@ describe('ReflexionMemory', () => {
       expect(strategies).toContain('Successful strategies');
     });
 
-    it('should return formatted strategies summary', async () => {
+    it('should return message when no successes found', async () => {
       const strategies = await reflexion.getSuccessStrategies({
         task: 'unknown task',
         minReward: 0.9,
       });
 
-      // With zero-embedding fallback, all episodes match — verify format
-      expect(typeof strategies).toBe('string');
-      expect(strategies.length).toBeGreaterThan(0);
+      expect(strategies).toContain('No successful strategies');
     });
   });
 

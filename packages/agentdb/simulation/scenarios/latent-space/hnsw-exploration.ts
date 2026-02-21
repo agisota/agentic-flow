@@ -14,6 +14,7 @@
 import type {
   SimulationScenario,
   SimulationReport,
+  PerformanceMetrics,
 } from '../../types';
 
 export interface HNSWGraphMetrics {
@@ -72,23 +73,6 @@ export interface HNSWComparisonMetrics {
  * 4. Compares RuVector vs hnswlib performance
  * 5. Validates sub-millisecond latency claims
  */
-// Internal interfaces for type safety
-interface HNSWIndex {
-  backend: string;
-  vectorCount: number;
-  dimension: number;
-  params: { M: number; efConstruction: number; efSearch: number };
-  vectors: number[][];
-  built: boolean;
-}
-
-interface LatencyEntry {
-  k: number;
-  p50: number;
-  p95: number;
-  p99: number;
-}
-
 export const hnswExplorationScenario: SimulationScenario = {
   id: 'hnsw-exploration',
   name: 'HNSW Latent Space Exploration',
@@ -127,12 +111,12 @@ export const hnswExplorationScenario: SimulationScenario = {
     console.log('🔬 Starting HNSW Latent Space Exploration...\n');
 
     // Test each backend
-    for (const backend of config.backends as string[]) {
+    for (const backend of config.backends) {
       console.log(`\n📊 Testing backend: ${backend}`);
 
-      for (const vectorCount of config.vectorCounts as number[]) {
-        for (const dim of config.dimensions as number[]) {
-          for (const params of config.hnswParams as { M: number; efConstruction: number; efSearch: number }[]) {
+      for (const vectorCount of config.vectorCounts) {
+        for (const dim of config.dimensions) {
+          for (const params of config.hnswParams) {
             console.log(`  └─ ${vectorCount} vectors, ${dim}d, M=${params.M}`);
 
             // Build HNSW index
@@ -147,27 +131,27 @@ export const hnswExplorationScenario: SimulationScenario = {
             // Measure search performance
             const searchMetrics = await measureSearchPerformance(
               index,
-              config.kValues as number[],
-              config.iterations as number
+              config.kValues,
+              config.iterations
             );
 
             // Calculate recall
-            const recallMetrics = await calculateRecall(index, config.kValues as number[]);
+            const recallMetrics = await calculateRecall(index, config.kValues);
 
             // Compute speedup vs baseline (hnswlib)
             const baselineQPS = backend === 'hnswlib' ? searchMetrics.qps :
-              results.find(r => r.backend === 'hnswlib' as HNSWComparisonMetrics['backend'] &&
+              results.find(r => r.backend === 'hnswlib' &&
                              r.vectorCount === vectorCount &&
                              r.dimension === dim)?.qps || 1;
 
             results.push({
-              backend: backend as HNSWComparisonMetrics['backend'],
+              backend,
               vectorCount,
               dimension: dim,
               M: params.M,
               efConstruction: params.efConstruction,
               efSearch: params.efSearch,
-              graphMetrics: { ...graphMetrics, searchLatencyUs: searchMetrics.latencies },
+              graphMetrics,
               recallAtK: recallMetrics,
               qps: searchMetrics.qps,
               speedupVsBaseline: searchMetrics.qps / baselineQPS,
@@ -187,8 +171,10 @@ export const hnswExplorationScenario: SimulationScenario = {
 
       summary: {
         totalTests: results.length,
-        backends: (config.backends as string[]).length,
-        vectorCountsTested: (config.vectorCounts as number[]).length,
+        backends: config.backends.length,
+        vectorCountsT
+
+: config.vectorCounts.length,
         bestPerformance: findBestPerformance(results),
         targetsMet: validateTargets(results),
       },
@@ -222,7 +208,7 @@ async function buildHNSWIndex(
   vectorCount: number,
   dimension: number,
   params: { M: number; efConstruction: number; efSearch: number }
-): Promise<HNSWIndex> {
+): Promise<any> {
   // Implementation would use actual RuVector/hnswlib APIs
   // This is a simulation framework
 
@@ -263,11 +249,11 @@ async function buildHNSWIndex(
 /**
  * Analyze HNSW graph topology and small-world properties
  */
-async function analyzeGraphTopology(index: HNSWIndex): Promise<HNSWGraphMetrics> {
+async function analyzeGraphTopology(index: any): Promise<HNSWGraphMetrics> {
   // Extract graph structure from HNSW index
   const layers = Math.ceil(Math.log2(index.vectorCount)) + 1;
   const nodesPerLayer: number[] = [];
-  const connectivityDistribution: { layer: number; avgDegree: number; maxDegree: number }[] = [];
+  const connectivityDistribution: any[] = [];
 
   // Calculate nodes per layer (exponential decay)
   let remainingNodes = index.vectorCount;
@@ -320,17 +306,17 @@ async function analyzeGraphTopology(index: HNSWIndex): Promise<HNSWGraphMetrics>
  * Measure search performance across different k values
  */
 async function measureSearchPerformance(
-  index: HNSWIndex,
+  index: any,
   kValues: number[],
   iterations: number
-): Promise<{ qps: number; latencies: LatencyEntry[] }> {
-  const latencies: LatencyEntry[] = [];
+): Promise<{ qps: number; latencies: any[] }> {
+  const latencies: any[] = [];
 
   for (const k of kValues) {
     const measurements: number[] = [];
 
     for (let i = 0; i < iterations; i++) {
-      generateRandomVector(index.dimension);
+      const query = generateRandomVector(index.dimension);
       const start = performance.now();
 
       // Perform search (simulated)
@@ -358,15 +344,15 @@ async function measureSearchPerformance(
 /**
  * Calculate recall@k for different k values
  */
-async function calculateRecall(index: HNSWIndex, kValues: number[]): Promise<{ k: number; recall: number }[]> {
-  const recalls: { k: number; recall: number }[] = [];
+async function calculateRecall(index: any, kValues: number[]): Promise<any[]> {
+  const recalls: any[] = [];
   const testQueries = 100;
 
   for (const k of kValues) {
     let totalRecall = 0;
 
     for (let i = 0; i < testQueries; i++) {
-      generateRandomVector(index.dimension);
+      const query = generateRandomVector(index.dimension);
 
       // Ground truth (brute-force exact search)
       // const exact = bruteForceSearch(index.vectors, query, k);
@@ -402,17 +388,17 @@ function generateRandomVector(dimension: number): number[] {
   return vector.map(x => x / norm); // Normalize
 }
 
-function calculateAveragePathLength(index: HNSWIndex): number {
+function calculateAveragePathLength(index: any): number {
   // Simulated calculation
   return Math.log2(index.vectorCount) * 1.2;
 }
 
-function calculateClusteringCoefficient(index: HNSWIndex): number {
+function calculateClusteringCoefficient(index: any): number {
   // Simulated calculation
   return 0.3 + (index.params.M / 100) * 0.2;
 }
 
-function simulateSearchPaths(index: HNSWIndex, iterations: number): number[] {
+function simulateSearchPaths(index: any, iterations: number): number[] {
   // Simulate search path lengths
   const paths: number[] = [];
   const avgHops = Math.log2(index.vectorCount);
@@ -432,7 +418,7 @@ function quantile(values: number[], q: number): number {
   return sorted[index];
 }
 
-function estimateMemoryUsage(index: HNSWIndex): number {
+function estimateMemoryUsage(index: any): number {
   const vectorBytes = index.vectorCount * index.dimension * 4; // float32
   const graphBytes = index.vectorCount * index.params.M * 4; // edge storage
   return vectorBytes + graphBytes;
@@ -504,7 +490,7 @@ function compareBackends(results: HNSWComparisonMetrics[]) {
   }));
 }
 
-function analyzeParameterImpact(_results: HNSWComparisonMetrics[]) {
+function analyzeParameterImpact(results: HNSWComparisonMetrics[]) {
   return {
     MImpact: 'Higher M improves recall but increases memory',
     efConstructionImpact: 'Higher efConstruction improves graph quality but increases build time',
@@ -512,7 +498,7 @@ function analyzeParameterImpact(_results: HNSWComparisonMetrics[]) {
   };
 }
 
-function generateRecommendations(_results: HNSWComparisonMetrics[]): string[] {
+function generateRecommendations(results: HNSWComparisonMetrics[]): string[] {
   return [
     'Use M=32 for optimal balance of recall and memory',
     'Set efConstruction=200 for production deployments',
@@ -521,7 +507,7 @@ function generateRecommendations(_results: HNSWComparisonMetrics[]): string[] {
   ];
 }
 
-async function generateGraphVisualizations(_results: HNSWComparisonMetrics[]) {
+async function generateGraphVisualizations(results: HNSWComparisonMetrics[]) {
   return {
     graphTopology: 'graph-topology.png',
     layerDistribution: 'layer-distribution.png',
@@ -529,7 +515,7 @@ async function generateGraphVisualizations(_results: HNSWComparisonMetrics[]) {
   };
 }
 
-async function generatePerformanceCharts(_results: HNSWComparisonMetrics[]) {
+async function generatePerformanceCharts(results: HNSWComparisonMetrics[]) {
   return {
     qpsComparison: 'qps-comparison.png',
     recallVsLatency: 'recall-vs-latency.png',

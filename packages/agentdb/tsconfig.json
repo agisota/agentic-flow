@@ -30,13 +30,13 @@
   },
   "include": [
     "src/**/*",
-    "tests/**/*",
     "simulation/**/*",
     "simulation/scenarios/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "tests/regression/build-validation.test.ts"
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

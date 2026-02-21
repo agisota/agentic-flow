@@ -4,7 +4,7 @@
  * Tests using lean-agentic npm package for lightweight agent orchestration
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -13,9 +13,8 @@ import * as path from 'path';
 export default {
   description: 'Lean-agentic lightweight swarm with minimal overhead',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
-    const size = (config.size ?? 3) as number;
+  async run(config: any) {
+    const { verbosity = 2, size = 3 } = config;
 
     if (verbosity >= 2) {
       console.log(`   ⚡ Initializing Lean-Agentic ${size}-Agent Swarm`);
@@ -29,9 +28,10 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'lean-agentic.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const results = {
@@ -53,11 +53,11 @@ export default {
         if (role === 'memory') {
           // Memory agent: Store and retrieve patterns
           const reflexion = new ReflexionMemory(
-            db.getGraphDatabase(),
+            db.getGraphDatabase() as any,
             embedder,
             undefined,
             undefined,
-            db.getGraphDatabase()
+            db.getGraphDatabase() as any
           );
 
           await reflexion.storeEpisode({
@@ -82,9 +82,9 @@ export default {
         } else if (role === 'skill') {
           // Skill agent: Create and search skills
           const skills = new SkillLibrary(
-            db.getGraphDatabase(),
+            db.getGraphDatabase() as any,
             embedder,
-            db.getGraphDatabase()
+            db.getGraphDatabase() as any
           );
 
           await skills.createSkill({
@@ -107,11 +107,11 @@ export default {
         } else {
           // Coordinator agent: Query and coordinate
           const reflexion = new ReflexionMemory(
-            db.getGraphDatabase(),
+            db.getGraphDatabase() as any,
             embedder,
             undefined,
             undefined,
-            db.getGraphDatabase()
+            db.getGraphDatabase() as any
           );
 
           const episodes = await reflexion.retrieveRelevant({

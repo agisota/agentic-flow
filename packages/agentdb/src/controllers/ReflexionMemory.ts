@@ -17,7 +17,6 @@ import type { GraphBackend, GraphNode } from '../backends/GraphBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
-import { cosineSimilarity } from '../utils/similarity.js';
 
 export interface Episode {
   id?: number;
@@ -32,7 +31,7 @@ export interface Episode {
   latencyMs?: number;
   tokensUsed?: number;
   tags?: string[];
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface EpisodeWithEmbedding extends Episode {
@@ -85,7 +84,7 @@ export class ReflexionMemory {
     // Use GraphDatabaseAdapter if available (AgentDB v2)
     if (this.graphBackend && 'storeEpisode' in this.graphBackend) {
       // GraphDatabaseAdapter has specialized storeEpisode method
-      const graphAdapter = this.graphBackend as unknown as GraphDatabaseAdapter;
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
 
       // Generate embedding for the task
       const taskEmbedding = await this.embedder.embed(episode.task);
@@ -292,14 +291,13 @@ export class ReflexionMemory {
     query: ReflexionQuery
   ): Promise<EpisodeWithEmbedding[]> {
     const { k = 5, minReward, onlyFailures, onlySuccesses, timeWindowDays } = query;
-    const graphAdapter = this.graphBackend as unknown as GraphDatabaseAdapter;
+    const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
 
     // Search using vector similarity
     const results = await graphAdapter.searchSimilarEpisodes(queryEmbedding, k * 3);
 
-    // Apply filters (cast from graph results to typed format)
-    const typedResults = results as Array<{ reward: number; success: boolean; createdAt: number; [key: string]: unknown }>;
-    const filtered = this.applyEpisodeFilters(typedResults, {
+    // Apply filters
+    const filtered = this.applyEpisodeFilters(results, {
       minReward,
       onlyFailures,
       onlySuccesses,
@@ -307,7 +305,7 @@ export class ReflexionMemory {
     });
 
     // Convert to EpisodeWithEmbedding format
-    return filtered.slice(0, k).map((ep) => this.convertGraphEpisode(ep as Parameters<typeof this.convertGraphEpisode>[0]));
+    return filtered.slice(0, k).map((ep: any) => this.convertGraphEpisode(ep));
   }
 
   /**
@@ -319,7 +317,7 @@ export class ReflexionMemory {
     const result = await this.graphBackend!.execute(cypherQuery);
 
     // Convert to EpisodeWithEmbedding format
-    const episodes: EpisodeWithEmbedding[] = (result.rows as Array<{ e: GraphNode }>).map((row) =>
+    const episodes: EpisodeWithEmbedding[] = result.rows.map((row: any) =>
       this.convertCypherEpisode(row.e)
     );
 
@@ -407,14 +405,14 @@ export class ReflexionMemory {
    * Apply episode filters to search results
    */
   private applyEpisodeFilters(
-    episodes: Array<{ reward: number; success: boolean; createdAt: number; [key: string]: unknown }>,
+    episodes: any[],
     filters: {
       minReward?: number;
       onlyFailures?: boolean;
       onlySuccesses?: boolean;
       timeWindowDays?: number;
     }
-  ): Array<{ reward: number; success: boolean; createdAt: number; [key: string]: unknown }> {
+  ): any[] {
     return episodes.filter((ep) => {
       if (filters.minReward !== undefined && ep.reward < filters.minReward) return false;
       if (filters.onlyFailures && ep.success) return false;
@@ -473,10 +471,10 @@ export class ReflexionMemory {
   /**
    * Build SQL WHERE clause and parameters for filters
    */
-  private buildSQLFilters(query: ReflexionQuery): { whereClause: string; params: Array<string | number> } {
+  private buildSQLFilters(query: ReflexionQuery): { whereClause: string; params: any[] } {
     const { minReward, onlyFailures, onlySuccesses, timeWindowDays } = query;
     const filters: string[] = [];
-    const params: Array<string | number> = [];
+    const params: any[] = [];
 
     if (minReward !== undefined) {
       filters.push('e.reward >= ?');
@@ -515,7 +513,7 @@ export class ReflexionMemory {
   /**
    * Convert GraphDatabaseAdapter episode to EpisodeWithEmbedding
    */
-  private convertGraphEpisode(ep: { id: string; sessionId: string; task: string; input?: string; output?: string; critique?: string; reward: number; success: boolean; latencyMs?: number; tokensUsed?: number; createdAt: number }): EpisodeWithEmbedding {
+  private convertGraphEpisode(ep: any): EpisodeWithEmbedding {
     return {
       id: parseInt(ep.id.split('-').pop() || '0', 36),
       sessionId: ep.sessionId,
@@ -534,28 +532,27 @@ export class ReflexionMemory {
   /**
    * Convert Cypher query result to EpisodeWithEmbedding
    */
-  private convertCypherEpisode(node: GraphNode): EpisodeWithEmbedding {
-    const props = node.properties as Record<string, string | number | boolean | undefined>;
+  private convertCypherEpisode(node: any): EpisodeWithEmbedding {
     return {
       id: parseInt(node.id.split('-').pop() || '0', 36),
-      sessionId: props.sessionId as string,
-      task: props.task as string,
-      input: props.input as string | undefined,
-      output: props.output as string | undefined,
-      critique: props.critique as string | undefined,
+      sessionId: node.properties.sessionId,
+      task: node.properties.task,
+      input: node.properties.input,
+      output: node.properties.output,
+      critique: node.properties.critique,
       reward:
-        typeof props.reward === 'string'
-          ? parseFloat(props.reward)
-          : (props.reward as number),
+        typeof node.properties.reward === 'string'
+          ? parseFloat(node.properties.reward)
+          : node.properties.reward,
       success:
-        typeof props.success === 'string'
-          ? props.success === 'true'
-          : (props.success as boolean),
-      latencyMs: props.latencyMs as number | undefined,
-      tokensUsed: props.tokensUsed as number | undefined,
-      tags: props.tags ? JSON.parse(props.tags as string) : [],
-      metadata: props.metadata ? JSON.parse(props.metadata as string) : {},
-      ts: Math.floor((props.createdAt as number) / 1000),
+        typeof node.properties.success === 'string'
+          ? node.properties.success === 'true'
+          : node.properties.success,
+      latencyMs: node.properties.latencyMs,
+      tokensUsed: node.properties.tokensUsed,
+      tags: node.properties.tags ? JSON.parse(node.properties.tags) : [],
+      metadata: node.properties.metadata ? JSON.parse(node.properties.metadata) : {},
+      ts: Math.floor(node.properties.createdAt / 1000),
     };
   }
 
@@ -653,9 +650,9 @@ export class ReflexionMemory {
       WHERE task = ? ${windowFilter}
     `);
 
-    const trend = trendStmt.get(task) as { recent_reward: number | null; older_reward: number | null } | undefined;
+    const trend = trendStmt.get(task) as any;
     const improvementTrend =
-      trend?.recent_reward && trend?.older_reward
+      trend.recent_reward && trend.older_reward
         ? (trend.recent_reward - trend.older_reward) / trend.older_reward
         : 0;
 
@@ -851,7 +848,17 @@ export class ReflexionMemory {
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   // ========================================================================
@@ -910,7 +917,7 @@ export class ReflexionMemory {
         startTime: episode.ts || Date.now(),
       });
     } else {
-      sessionNodeId = (sessionNodes.rows[0] as { s: { id: string } }).s.id;
+      sessionNodeId = sessionNodes.rows[0].s.id;
     }
 
     await this.graphBackend.createRelationship(nodeId, sessionNodeId, 'BELONGS_TO_SESSION', {
@@ -928,7 +935,7 @@ export class ReflexionMemory {
         { sessionId: episode.sessionId, timestamp: episode.ts || Date.now() }
       );
 
-      for (const prevFailure of previousFailures.rows as Array<{ e: { id: string } }>) {
+      for (const prevFailure of previousFailures.rows) {
         await this.graphBackend.createRelationship(nodeId, prevFailure.e.id, 'LEARNED_FROM', {
           critique: episode.critique,
           improvementAttempt: true,
@@ -973,7 +980,7 @@ export class ReflexionMemory {
         WHERE ee.episode_id IN (${placeholders})
       `
         )
-        .all(...episodeIds) as Array<{ embedding: Buffer; reward: number }>;
+        .all(...episodeIds) as any[];
 
       for (const ep of episodes) {
         const embedding = this.deserializeEmbedding(ep.embedding);
@@ -1019,11 +1026,11 @@ export class ReflexionMemory {
       return { similar: [], session: '', learnedFrom: [] };
     }
 
-    const row = result.rows[0] as { similar?: number[]; session?: string; learnedFrom?: number[] };
+    const row = result.rows[0];
     return {
-      similar: (row.similar || []).filter((id) => id != null),
-      session: (row.session as string) || '',
-      learnedFrom: (row.learnedFrom || []).filter((id) => id != null),
+      similar: (row.similar || []).filter((id: any) => id != null),
+      session: row.session || '',
+      learnedFrom: (row.learnedFrom || []).filter((id: any) => id != null),
     };
   }
 
@@ -1096,10 +1103,10 @@ export class ReflexionMemory {
    * Warm cache with common queries
    */
   async warmCache(sessionId?: string): Promise<void> {
-    await this.queryCache.warm(async (_cache) => {
+    await this.queryCache.warm(async (cache) => {
       // Warm cache with recent sessions if sessionId provided
       if (sessionId) {
-        await this.getRecentEpisodes(sessionId, 10);
+        const recent = await this.getRecentEpisodes(sessionId, 10);
         // Episodes are already loaded, cache will be populated on next access
       }
     });

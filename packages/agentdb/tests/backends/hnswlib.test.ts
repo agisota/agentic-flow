@@ -14,8 +14,8 @@ import * as os from 'os';
 // Mock database interface
 interface MockDatabase {
   prepare: (sql: string) => {
-    all: (..._params: unknown[]) => unknown[];
-    get: (..._params: unknown[]) => unknown;
+    all: (...params: any[]) => any[];
+    get: (...params: any[]) => any;
   };
 }
 
@@ -54,8 +54,6 @@ function generateTestVectors(count: number, dimension: number): TestVector[] {
   }));
 }
 
-type HNSWDb = ConstructorParameters<typeof HNSWIndex>[0];
-
 function createMockDatabase(vectors: TestVector[]): MockDatabase {
   const vectorMap = new Map(
     vectors.map((v, idx) => [
@@ -70,15 +68,19 @@ function createMockDatabase(vectors: TestVector[]): MockDatabase {
 
   return {
     prepare: (sql: string) => ({
-      all: (..._params: unknown[]) => {
+      all: (...params: any[]) => {
         if (sql.includes('SELECT pattern_id')) {
           return Array.from(vectorMap.values());
         }
         return [];
       },
-      get: (..._params: unknown[]) => {
-        const id = _params[0] as number;
-        return vectorMap.get(id);
+      get: (id: number, ...params: any[]) => {
+        const result = vectorMap.get(id);
+        if (result && params.length > 0) {
+          // Simple filter matching for testing
+          return result;
+        }
+        return result;
       },
     }),
   };
@@ -98,7 +100,7 @@ describe('HNSW Backend Tests', () => {
     }
 
     testVectors = generateTestVectors(1000, DIMENSION);
-    mockDb = createMockDatabase(testVectors);
+    mockDb = createMockDatabase(testVectors) as any;
   });
 
   afterAll(() => {
@@ -110,7 +112,7 @@ describe('HNSW Backend Tests', () => {
 
   describe('Initialization', () => {
     it('should initialize with default config', () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb);
+      const index = new HNSWIndex(mockDb as any);
       const stats = index.getStats();
 
       expect(stats.M).toBe(16);
@@ -121,7 +123,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should initialize with custom config', () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         M: 32,
         efConstruction: 400,
         efSearch: 200,
@@ -142,7 +144,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should not build index on initialization', () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, { dimension: DIMENSION });
+      const index = new HNSWIndex(mockDb as any, { dimension: DIMENSION });
       const stats = index.getStats();
 
       expect(stats.indexBuilt).toBe(false);
@@ -152,7 +154,7 @@ describe('HNSW Backend Tests', () => {
 
   describe('Index Building', () => {
     it('should build index from database', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -166,8 +168,8 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should handle empty database gracefully', async () => {
-      const emptyDb = createMockDatabase([]);
-      const index = new HNSWIndex(emptyDb as unknown as HNSWDb, {
+      const emptyDb = createMockDatabase([]) as any;
+      const index = new HNSWIndex(emptyDb, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -180,7 +182,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should track build time', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -195,7 +197,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should rebuild index when called multiple times', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -217,7 +219,7 @@ describe('HNSW Backend Tests', () => {
     let index: HNSWIndex;
 
     beforeEach(async () => {
-      index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -265,7 +267,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should throw error when index not built', async () => {
-      const newIndex = new HNSWIndex(mockDb as unknown as HNSWDb, { dimension: DIMENSION });
+      const newIndex = new HNSWIndex(mockDb as any, { dimension: DIMENSION });
       const query = generateVector(DIMENSION);
 
       await expect(async () => {
@@ -295,9 +297,8 @@ describe('HNSW Backend Tests', () => {
 
       const stats = index.getStats();
       expect(stats.totalSearches).toBe(3);
-      // Search may complete in <1ms (Date.now() granularity), so allow 0
-      expect(stats.avgSearchTimeMs).toBeGreaterThanOrEqual(0);
-      expect(stats.lastSearchTime).toBeGreaterThanOrEqual(0);
+      expect(stats.avgSearchTimeMs).toBeGreaterThan(0);
+      expect(stats.lastSearchTime).toBeGreaterThan(0);
     });
   });
 
@@ -305,7 +306,7 @@ describe('HNSW Backend Tests', () => {
     let index: HNSWIndex;
 
     beforeEach(async () => {
-      index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
         rebuildThreshold: 0.1, // 10% update threshold
@@ -365,6 +366,12 @@ describe('HNSW Backend Tests', () => {
 
   describe('Distance Metrics', () => {
     it('should use cosine metric correctly', async () => {
+      const index = new HNSWIndex(mockDb as any, {
+        dimension: 3,
+        metric: 'cosine',
+        persistIndex: false,
+      });
+
       // Create simple test database
       const simpleVectors = [
         { id: 'x-axis', embedding: new Float32Array([1, 0, 0]) },
@@ -372,8 +379,8 @@ describe('HNSW Backend Tests', () => {
         { id: 'diagonal', embedding: new Float32Array([0.707, 0.707, 0]) },
       ];
 
-      const simpleDb = createMockDatabase(simpleVectors);
-      const simpleIndex = new HNSWIndex(simpleDb as unknown as HNSWDb, {
+      const simpleDb = createMockDatabase(simpleVectors) as any;
+      const simpleIndex = new HNSWIndex(simpleDb, {
         dimension: 3,
         metric: 'cosine',
         persistIndex: false,
@@ -396,8 +403,8 @@ describe('HNSW Backend Tests', () => {
         { id: 'far', embedding: new Float32Array([1, 1, 1]) },
       ];
 
-      const simpleDb = createMockDatabase(simpleVectors);
-      const index = new HNSWIndex(simpleDb as unknown as HNSWDb, {
+      const simpleDb = createMockDatabase(simpleVectors) as any;
+      const index = new HNSWIndex(simpleDb, {
         dimension: 3,
         metric: 'l2',
         persistIndex: false,
@@ -419,8 +426,8 @@ describe('HNSW Backend Tests', () => {
         { id: 'low', embedding: new Float32Array([0.1, 0.1, 0.1]) },
       ];
 
-      const simpleDb = createMockDatabase(simpleVectors);
-      const index = new HNSWIndex(simpleDb as unknown as HNSWDb, {
+      const simpleDb = createMockDatabase(simpleVectors) as any;
+      const index = new HNSWIndex(simpleDb, {
         dimension: 3,
         metric: 'ip',
         persistIndex: false,
@@ -438,7 +445,7 @@ describe('HNSW Backend Tests', () => {
 
   describe('Performance Tuning', () => {
     it('should update efSearch parameter', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         efSearch: 100,
         persistIndex: false,
@@ -453,7 +460,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should maintain search quality with higher efSearch', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -478,7 +485,7 @@ describe('HNSW Backend Tests', () => {
     it('should save and load index', async () => {
       const indexPath = path.join(TEST_DIR, 'test-index.hnsw');
 
-      const index1 = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index1 = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: true,
         indexPath,
@@ -487,13 +494,12 @@ describe('HNSW Backend Tests', () => {
       await index1.buildIndex('pattern_embeddings');
       const stats1 = index1.getStats();
 
-      // Create new instance and load (must call initialize() to trigger deferred load)
-      const index2 = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      // Create new instance and load
+      const index2 = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: true,
         indexPath,
       });
-      await index2.initialize();
 
       const stats2 = index2.getStats();
 
@@ -504,7 +510,7 @@ describe('HNSW Backend Tests', () => {
     it('should create index directory if not exists', async () => {
       const nestedPath = path.join(TEST_DIR, 'nested', 'path', 'index.hnsw');
 
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: true,
         indexPath: nestedPath,
@@ -518,7 +524,7 @@ describe('HNSW Backend Tests', () => {
     it('should save mappings with index', async () => {
       const indexPath = path.join(TEST_DIR, 'mappings-test.hnsw');
 
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: true,
         indexPath,
@@ -544,7 +550,7 @@ describe('HNSW Backend Tests', () => {
       // Create corrupted file
       fs.writeFileSync(indexPath, 'corrupted data');
 
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: true,
         indexPath,
@@ -555,7 +561,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should clear index resources', () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -570,7 +576,7 @@ describe('HNSW Backend Tests', () => {
 
   describe('Statistics and Monitoring', () => {
     it('should report comprehensive statistics', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });
@@ -595,7 +601,7 @@ describe('HNSW Backend Tests', () => {
     });
 
     it('should check readiness status', async () => {
-      const index = new HNSWIndex(mockDb as unknown as HNSWDb, {
+      const index = new HNSWIndex(mockDb as any, {
         dimension: DIMENSION,
         persistIndex: false,
       });

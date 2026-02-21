@@ -6,8 +6,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
-import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
+import { ReflexionMemory, Episode } from '../../src/controllers/ReflexionMemory.js';
+import { SkillLibrary, Skill } from '../../src/controllers/SkillLibrary.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -75,7 +75,7 @@ describe('Vector Search Performance', () => {
       await reflexion.retrieveRelevant({ task: 'Task search', k: 10 });
       const duration = Date.now() - startTime;
 
-      expect(duration).toBeLessThan(100);
+      expect(duration).toBeLessThan(50);
     }, 15000);
 
     it('should search 500 episodes in <200ms', async () => {
@@ -134,7 +134,7 @@ describe('Vector Search Performance', () => {
       await skills.searchSkills({ task: 'task search', k: 10 });
       const duration = Date.now() - startTime;
 
-      expect(duration).toBeLessThan(100);
+      expect(duration).toBeLessThan(50);
     }, 15000);
 
     it('should search 500 skills in <200ms', async () => {
@@ -219,8 +219,8 @@ describe('Vector Search Performance', () => {
       await reflexion.retrieveRelevant({ task: 'search query', k: 10 });
       const cachedDuration = Date.now() - start2;
 
-      // Cached should be at least as fast (both may be 0ms in fast environments)
-      expect(cachedDuration).toBeLessThanOrEqual(uncachedDuration);
+      // Cached should be faster
+      expect(cachedDuration).toBeLessThan(uncachedDuration);
     }, 15000);
   });
 

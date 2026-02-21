@@ -4,10 +4,13 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { DeprecationWarnings } from '../../../compatibility/DeprecationWarnings';
+import type { DeprecationConfig } from '../../../compatibility/types';
+import * as fs from 'fs';
+
 describe('DeprecationWarnings', () => {
   let warnings: DeprecationWarnings;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let consoleWarnSpy: any;
+  let consoleErrorSpy: any;
 
   beforeEach(() => {
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

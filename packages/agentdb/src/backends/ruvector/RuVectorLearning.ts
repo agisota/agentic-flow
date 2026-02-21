@@ -27,14 +27,11 @@ export interface EnhancementOptions {
 }
 
 export class RuVectorLearning {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private gnnLayer: any;  // RuvectorLayer from @ruvector/gnn - FFI boundary
+  private gnnLayer: any;  // RuvectorLayer from @ruvector/gnn
   private config: LearningConfig;
   private initialized = false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private differentiableSearch: any; // @ruvector/gnn export - FFI boundary
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private hierarchicalForward: any; // @ruvector/gnn export - FFI boundary
+  private differentiableSearch: any;
+  private hierarchicalForward: any;
 
   constructor(config: LearningConfig) {
     this.config = {
@@ -51,8 +48,7 @@ export class RuVectorLearning {
 
     try {
       // Dynamic import with runtime property access
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const gnnModule = await import('@ruvector/gnn') as any; // FFI boundary
+      const gnnModule = await import('@ruvector/gnn') as any;
 
       this.gnnLayer = new gnnModule.RuvectorLayer(
         this.config.inputDim,
@@ -215,8 +211,7 @@ export class RuVectorLearning {
     await learning.initialize();
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const gnnModule = await import('@ruvector/gnn') as any; // FFI boundary
+      const gnnModule = await import('@ruvector/gnn') as any;
       learning.gnnLayer = gnnModule.RuvectorLayer.fromJson(json);
       return learning;
     } catch (error) {

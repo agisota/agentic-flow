@@ -7,10 +7,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { WASMVectorSearch } from '../controllers/WASMVectorSearch.js';
 import { EnhancedEmbeddingService } from '../controllers/EnhancedEmbeddingService.js';
-import type { IDatabaseConnection } from '../types/database.types.js';
 
 describe('WASMVectorSearch', () => {
-  let mockDb: Record<string, unknown>;
+  let mockDb: any;
   let wasmSearch: WASMVectorSearch;
 
   beforeEach(() => {
@@ -19,7 +18,7 @@ describe('WASMVectorSearch', () => {
       exec: () => {},
     };
 
-    wasmSearch = new WASMVectorSearch(mockDb as unknown as IDatabaseConnection);
+    wasmSearch = new WASMVectorSearch(mockDb);
   });
 
   describe('Cosine Similarity', () => {
@@ -115,7 +114,7 @@ describe('WASMVectorSearch', () => {
       ];
       const ids = [1, 2, 3, 4];
 
-      wasmSearch = new WASMVectorSearch(mockDb as unknown as IDatabaseConnection, { indexThreshold: 3 });
+      wasmSearch = new WASMVectorSearch(mockDb, { indexThreshold: 3 });
       wasmSearch.buildIndex(vectors, ids);
 
       const query = new Float32Array([1, 0, 0]);
@@ -130,7 +129,7 @@ describe('WASMVectorSearch', () => {
       const vectors = [new Float32Array([1, 0, 0])];
       const ids = [1];
 
-      wasmSearch = new WASMVectorSearch(mockDb as unknown as IDatabaseConnection, { indexThreshold: 0 });
+      wasmSearch = new WASMVectorSearch(mockDb, { indexThreshold: 0 });
       wasmSearch.buildIndex(vectors, ids);
 
       let stats = wasmSearch.getStats();

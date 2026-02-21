@@ -21,3 +21,17 @@ export type {
   VersionDetectionResult
 } from './types';
 
+// Re-export convenience functions for quick migration analysis
+import { MigrationUtilities } from './MigrationUtilities';
+
+export const analyzeMigration = (code: string) => {
+  return MigrationUtilities.analyzeCode(code);
+};
+
+export const migrateCode = (code: string) => {
+  return MigrationUtilities.generateMigrationScript(code);
+};
+
+export const convertConfig = (v1Config: any) => {
+  return MigrationUtilities.convertV1ConfigToV2(v1Config);
+};

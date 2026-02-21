@@ -17,7 +17,7 @@
  * - Performance benchmarks
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
 import { ReflexionMemory, Episode, ReflexionQuery } from '../src/controllers/ReflexionMemory.js';
 import { SkillLibrary, Skill, SkillQuery } from '../src/controllers/SkillLibrary.js';
@@ -50,18 +50,18 @@ interface TestContext {
 }
 
 // Helper function to add simplified causal edge
-async function addSimpleCausalEdge(ctx: TestContext, params: {
+function addSimpleCausalEdge(ctx: TestContext, params: {
   cause: string;
   effect: string;
   uplift: number;
   confidence: number;
   sampleSize: number;
-}): Promise<number> {
+}): number {
   const edge: CausalEdge = {
     fromMemoryId: 1, // Use actual ID instead of 0
-    fromMemoryType: params.cause as CausalEdge['fromMemoryType'],
+    fromMemoryType: params.cause as any,
     toMemoryId: 2, // Use actual ID instead of 0
-    toMemoryType: params.effect as CausalEdge['toMemoryType'],
+    toMemoryType: params.effect as any,
     similarity: 0.9,
     uplift: params.uplift,
     confidence: params.confidence,
@@ -69,7 +69,7 @@ async function addSimpleCausalEdge(ctx: TestContext, params: {
     evidenceIds: []
   };
 
-  const edgeId = await ctx.causalGraph.addCausalEdge(edge);
+  const edgeId = ctx.causalGraph.addCausalEdge(edge);
 
   // Return actual number, not object
   return typeof edgeId === 'number' ? edgeId : parseInt(String(edgeId));
@@ -113,8 +113,8 @@ async function setupTestContext(): Promise<TestContext> {
   const skills = new SkillLibrary(db, embedder);
   const causalGraph = new CausalMemoryGraph(db);
   const explainableRecall = new ExplainableRecall(db);
-  const causalRecall = new CausalRecall(db, embedder, causalGraph as unknown as ConstructorParameters<typeof CausalRecall>[2], explainableRecall as unknown as ConstructorParameters<typeof CausalRecall>[3]);
-  const nightlyLearner = new NightlyLearner(db, embedder, causalGraph as unknown as ConstructorParameters<typeof NightlyLearner>[2]);
+  const causalRecall = new CausalRecall(db, embedder, causalGraph, explainableRecall);
+  const nightlyLearner = new NightlyLearner(db, embedder, causalGraph);
 
   return { db, reflexion, skills, causalGraph, causalRecall, explainableRecall, nightlyLearner, embedder };
 }
@@ -366,8 +366,8 @@ describe('AgentDB MCP Tools - Causal Memory', () => {
   });
 
   describe('causal_add_edge', () => {
-    it('should add causal edge with all fields', async () => {
-      const edgeId = await addSimpleCausalEdge(ctx, {
+    it('should add causal edge with all fields', () => {
+      const edgeId = addSimpleCausalEdge(ctx, {
         cause: 'add_tests',
         effect: 'code_quality',
         uplift: 0.25,
@@ -379,8 +379,8 @@ describe('AgentDB MCP Tools - Causal Memory', () => {
       expect(typeof edgeId).toBe('number');
     });
 
-    it('should add edge with minimal fields', async () => {
-      const edgeId = await addSimpleCausalEdge(ctx, {
+    it('should add edge with minimal fields', () => {
+      const edgeId = addSimpleCausalEdge(ctx, {
         cause: 'add_logging',
         effect: 'debugging_speed',
         uplift: 0.15,
@@ -391,8 +391,8 @@ describe('AgentDB MCP Tools - Causal Memory', () => {
       expect(edgeId).toBeGreaterThan(0);
     });
 
-    it('should handle negative uplift (harmful effect)', async () => {
-      const edgeId = await addSimpleCausalEdge(ctx, {
+    it('should handle negative uplift (harmful effect)', () => {
+      const edgeId = addSimpleCausalEdge(ctx, {
         cause: 'skip_code_review',
         effect: 'bug_rate',
         uplift: -0.3,
@@ -405,7 +405,7 @@ describe('AgentDB MCP Tools - Causal Memory', () => {
   });
 
   describe('causal_query', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       // Seed causal edges
       const edges = [
         { cause: 'add_tests', effect: 'code_quality', uplift: 0.25, confidence: 0.95, sampleSize: 100 },
@@ -413,14 +413,14 @@ describe('AgentDB MCP Tools - Causal Memory', () => {
         { cause: 'add_caching', effect: 'response_time', uplift: 0.4, confidence: 0.85, sampleSize: 60 }
       ];
 
-      for (const edge of edges) {
-        await addSimpleCausalEdge(ctx, edge);
-      }
+      edges.forEach(edge => {
+        addSimpleCausalEdge(ctx, edge);
+      });
     });
 
     it('should query causal edges', () => {
       const edges = ctx.causalGraph.queryCausalEffects({
-        interventionMemoryId: 1,
+        interventionMemoryId: 0,
         interventionMemoryType: 'add_tests',
         minConfidence: 0.0,
         minUplift: 0.0
@@ -473,7 +473,7 @@ describe('AgentDB MCP Tools - Explainable Recall', () => {
       }
 
       // Add causal edge
-      await addSimpleCausalEdge(ctx, {
+      addSimpleCausalEdge(ctx, {
         cause: 'database_optimization',
         effect: 'response_time',
         uplift: 0.4,
@@ -651,7 +651,7 @@ describe('AgentDB MCP Tools - Integration Tests', () => {
     }
 
     // Add causal edge
-    await addSimpleCausalEdge(ctx, {
+    addSimpleCausalEdge(ctx, {
       cause: 'add_tests',
       effect: 'code_quality',
       uplift: 0.2,

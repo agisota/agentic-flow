@@ -2,41 +2,33 @@
  * Backend Factory - Automatic Backend Detection and Selection
  *
  * Detects available vector backends and creates appropriate instances.
- * Priority: RuVector (native/WASM) > RVF (native/WASM) > HNSWLib (Node.js)
+ * Priority: RuVector (native/WASM) > HNSWLib (Node.js)
  *
  * Features:
- * - Automatic detection of @ruvector and @ruvector/rvf packages
- * - Native vs WASM detection for RuVector and RVF
+ * - Automatic detection of @ruvector packages
+ * - Native vs WASM detection for RuVector
  * - GNN and Graph capabilities detection
- * - Graceful fallback chain: RuVector -> RVF -> HNSWLib
+ * - Graceful fallback to HNSWLib
  * - Clear error messages for missing dependencies
  */
 
 import type { VectorBackend, VectorConfig } from './VectorBackend.js';
 import { RuVectorBackend } from './ruvector/RuVectorBackend.js';
 
-// Note: HNSWLibBackend and RvfBackend are lazy-loaded to avoid import failures
-// on systems without build tools. The imports happen in helper functions.
+// Note: HNSWLibBackend is lazy-loaded to avoid import failures on systems
+// without build tools. The import happens in createHNSWLibBackend().
 
-export type BackendType = 'auto' | 'ruvector' | 'rvf' | 'hnswlib';
-
-export interface RvfDetection {
-  sdk: boolean;
-  node: boolean;
-  wasm: boolean;
-}
+export type BackendType = 'auto' | 'ruvector' | 'hnswlib';
 
 export interface BackendDetection {
-  available: 'ruvector' | 'rvf' | 'hnswlib' | 'sqljsrvf' | 'none';
+  available: 'ruvector' | 'hnswlib' | 'none';
   ruvector: {
     core: boolean;
     gnn: boolean;
     graph: boolean;
     native: boolean;
   };
-  rvf: RvfDetection;
   hnswlib: boolean;
-  sqljsRvf: boolean;
 }
 
 /**
@@ -51,13 +43,7 @@ export async function detectBackends(): Promise<BackendDetection> {
       graph: false,
       native: false
     },
-    rvf: {
-      sdk: false,
-      node: false,
-      wasm: false,
-    },
-    hnswlib: false,
-    sqljsRvf: false,
+    hnswlib: false
   };
 
   // Check RuVector packages (main package or scoped packages)
@@ -92,36 +78,8 @@ export async function detectBackends(): Promise<BackendDetection> {
         // Graph not installed - this is optional
       }
     } catch {
-      // RuVector not installed - will try RVF or HNSWLib fallback
+      // RuVector not installed - will try fallback
     }
-  }
-
-  // Check RVF SDK (@ruvector/rvf with N-API or WASM backend)
-  try {
-    await import('@ruvector/rvf');
-    result.rvf.sdk = true;
-
-    // Check for N-API native backend
-    try {
-      await import('@ruvector/rvf-node');
-      result.rvf.node = true;
-    } catch {
-      // N-API backend not available
-    }
-
-    // Check for WASM backend
-    try {
-      await import('@ruvector/rvf-wasm');
-      result.rvf.wasm = true;
-    } catch {
-      // WASM backend not available
-    }
-
-    if (result.available === 'none') {
-      result.available = 'rvf';
-    }
-  } catch {
-    // RVF SDK not installed
   }
 
   // Check HNSWLib
@@ -136,17 +94,6 @@ export async function detectBackends(): Promise<BackendDetection> {
     // HNSWLib not installed
   }
 
-  // Check sql.js (always-available built-in RVF fallback)
-  try {
-    await import('sql.js');
-    result.sqljsRvf = true;
-    if (result.available === 'none') {
-      result.available = 'sqljsrvf';
-    }
-  } catch {
-    result.sqljsRvf = false;
-  }
-
   return result;
 }
 
@@ -159,26 +106,9 @@ async function createHNSWLibBackend(config: VectorConfig): Promise<VectorBackend
 }
 
 /**
- * Lazy-load RvfBackend to avoid import failures when @ruvector/rvf is not installed
- */
-async function createRvfBackend(config: VectorConfig): Promise<VectorBackend> {
-  const { RvfBackend } = await import('./rvf/RvfBackend.js');
-  return new RvfBackend(config);
-}
-
-/**
- * Lazy-load SqlJsRvfBackend - built-in RVF persistence using sql.js WASM.
- * Always available since sql.js is a hard dependency.
- */
-async function createSqlJsRvfBackend(config: VectorConfig): Promise<VectorBackend> {
-  const { SqlJsRvfBackend } = await import('./rvf/SqlJsRvfBackend.js');
-  return new SqlJsRvfBackend(config);
-}
-
-/**
  * Create vector backend with automatic detection
  *
- * @param type - Backend type: 'auto', 'ruvector', 'rvf', or 'hnswlib'
+ * @param type - Backend type: 'auto', 'ruvector', or 'hnswlib'
  * @param config - Vector configuration
  * @returns Initialized VectorBackend instance
  */
@@ -201,24 +131,6 @@ export async function createBackend(
       );
     }
     backend = new RuVectorBackend(config);
-  } else if (type === 'rvf') {
-    // Try native @ruvector/rvf first, fall back to sql.js-rvf
-    if (detection.rvf.sdk) {
-      backend = await createRvfBackend(config);
-      console.log(
-        `[AgentDB] Using RVF backend (${detection.rvf.node ? 'N-API native' : 'WASM'})`
-      );
-    } else if (detection.sqljsRvf) {
-      backend = await createSqlJsRvfBackend(config);
-      console.log('[AgentDB] Using sql.js RVF backend (built-in)');
-    } else {
-      throw new Error(
-        'RVF backend not available.\n' +
-        'Install with: npm install @ruvector/rvf\n' +
-        'Native backend: npm install @ruvector/rvf-node\n' +
-        'WASM backend: npm install @ruvector/rvf-wasm'
-      );
-    }
   } else if (type === 'hnswlib') {
     if (!detection.hnswlib) {
       throw new Error(
@@ -226,73 +138,56 @@ export async function createBackend(
         'Install with: npm install hnswlib-node'
       );
     }
+    // Lazy-load HNSWLibBackend to avoid module-level import failures
     backend = await createHNSWLibBackend(config);
   } else {
-    // Auto-detect best available backend (priority: ruvector > rvf > hnswlib)
+    // Auto-detect best available backend
     if (detection.ruvector.core) {
       backend = new RuVectorBackend(config);
       console.log(
         `[AgentDB] Using RuVector backend (${detection.ruvector.native ? 'native' : 'WASM'})`
       );
 
-      // Try to initialize RuVector, fallback to RVF then HNSWLib if it fails
+      // Try to initialize RuVector, fallback to HNSWLib if it fails
       try {
-        await (backend as unknown as { initialize(): Promise<void> }).initialize();
+        await (backend as any).initialize();
         return backend;
       } catch (error) {
         const errorMessage = (error as Error).message;
 
-        // Try RVF as first fallback
-        if (detection.rvf.sdk) {
-          console.log('[AgentDB] RuVector initialization failed, trying RVF backend');
-          console.log(`[AgentDB] Reason: ${errorMessage.split('\n')[0]}`);
-          try {
-            backend = await createRvfBackend(config);
-            await (backend as unknown as { initialize(): Promise<void> }).initialize();
-            console.log(`[AgentDB] Using RVF backend (${detection.rvf.node ? 'N-API' : 'WASM'} fallback)`);
-            return backend;
-          } catch {
-            // RVF also failed, try HNSWLib
-          }
-        }
-
-        // Try HNSWLib as next fallback
+        // If RuVector fails due to :memory: path or other initialization issues,
+        // try falling back to HNSWLib
         if (detection.hnswlib) {
-          console.log('[AgentDB] Falling back to HNSWLib');
+          console.log('[AgentDB] RuVector initialization failed, falling back to HNSWLib');
+          console.log(`[AgentDB] Reason: ${errorMessage.split('\n')[0]}`);
+          // Lazy-load HNSWLibBackend for fallback
           backend = await createHNSWLibBackend(config);
           console.log('[AgentDB] Using HNSWLib backend (fallback)');
-        } else if (detection.sqljsRvf) {
-          console.log('[AgentDB] Falling back to sql.js RVF backend');
-          backend = await createSqlJsRvfBackend(config);
-          console.log('[AgentDB] Using sql.js RVF backend (built-in fallback)');
         } else {
+          // No fallback available, re-throw error
           throw error;
         }
       }
-    } else if (detection.rvf.sdk) {
-      backend = await createRvfBackend(config);
-      console.log(`[AgentDB] Using RVF backend (${detection.rvf.node ? 'N-API native' : 'WASM'})`);
     } else if (detection.hnswlib) {
+      // Lazy-load HNSWLibBackend when it's the only option
       backend = await createHNSWLibBackend(config);
       console.log('[AgentDB] Using HNSWLib backend (fallback)');
-    } else if (detection.sqljsRvf) {
-      backend = await createSqlJsRvfBackend(config);
-      console.log('[AgentDB] Using sql.js RVF backend (built-in)');
     } else {
       throw new Error(
         'No vector backend available.\n' +
         'Install one of:\n' +
         '  - npm install @ruvector/core (recommended)\n' +
-        '  - npm install @ruvector/rvf (single-file format)\n' +
         '  - npm install hnswlib-node (fallback)'
       );
     }
   }
 
   // Initialize the backend (if not already initialized)
+  // Note: RuVector may already be initialized in the try block above
   try {
-    await (backend as unknown as { initialize(): Promise<void> }).initialize();
+    await (backend as any).initialize();
   } catch (error) {
+    // Ignore if already initialized
     if (!(error as Error).message.includes('already initialized')) {
       throw error;
     }
@@ -309,26 +204,21 @@ export async function getRecommendedBackend(): Promise<BackendType> {
 
   if (detection.ruvector.core) {
     return 'ruvector';
-  } else if (detection.rvf.sdk) {
-    return 'rvf';
   } else if (detection.hnswlib) {
     return 'hnswlib';
   } else {
-    return 'auto';
+    return 'auto'; // Will throw error in createBackend
   }
 }
 
 /**
  * Check if a specific backend is available
  */
-export async function isBackendAvailable(backend: 'ruvector' | 'rvf' | 'hnswlib'): Promise<boolean> {
+export async function isBackendAvailable(backend: 'ruvector' | 'hnswlib'): Promise<boolean> {
   const detection = await detectBackends();
 
   if (backend === 'ruvector') {
     return detection.ruvector.core;
-  }
-  if (backend === 'rvf') {
-    return detection.rvf.sdk;
   }
 
   return detection.hnswlib;
@@ -337,8 +227,8 @@ export async function isBackendAvailable(backend: 'ruvector' | 'rvf' | 'hnswlib'
 /**
  * Get installation instructions for a backend
  */
-export function getInstallCommand(backend: 'ruvector' | 'rvf' | 'hnswlib'): string {
-  if (backend === 'ruvector') return 'npm install ruvector';
-  if (backend === 'rvf') return 'npm install @ruvector/rvf @ruvector/rvf-node';
-  return 'npm install hnswlib-node';
+export function getInstallCommand(backend: 'ruvector' | 'hnswlib'): string {
+  return backend === 'ruvector'
+    ? 'npm install ruvector'
+    : 'npm install hnswlib-node';
 }

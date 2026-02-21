@@ -21,7 +21,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Lazy-loaded hnswlib-node to avoid import failures on systems without build tools
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- optional native dependency with no exported type
 let HierarchicalNSW: any = null;
 let hnswlibLoadAttempted = false;
 let hnswlibLoadError: Error | null = null;
@@ -39,9 +38,8 @@ async function loadHnswlib(): Promise<boolean> {
 
   try {
     const hnswlibNode = await import('hnswlib-node');
-    const mod = hnswlibNode as Record<string, unknown>;
-    const defaultExport = mod.default as Record<string, unknown> | undefined;
-    HierarchicalNSW = defaultExport?.HierarchicalNSW || mod.HierarchicalNSW;
+    HierarchicalNSW = (hnswlibNode as any).default?.HierarchicalNSW
+      || (hnswlibNode as any).HierarchicalNSW;
     return true;
   } catch (error) {
     hnswlibLoadError = new Error(
@@ -69,7 +67,8 @@ export async function isHnswlibAvailable(): Promise<boolean> {
   }
 }
 
-import type { IDatabaseConnection } from '../types/database.types.js';
+// Database type from db-fallback
+type Database = any;
 
 export interface HNSWConfig {
   /** Maximum number of connections per layer (default: 16) */
@@ -104,7 +103,7 @@ export interface HNSWSearchResult {
   id: number;
   distance: number;
   similarity: number;
-  metadata?: Record<string, unknown>;
+  metadata?: any;
 }
 
 export interface HNSWStats {
@@ -123,9 +122,8 @@ export interface HNSWStats {
 }
 
 export class HNSWIndex {
-  private db: IDatabaseConnection;
+  private db: Database;
   private config: HNSWConfig;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- hnswlib-node HierarchicalNSW instance, no exported type
   private index: any | null = null;
   private vectorCache: Map<number, Float32Array> = new Map();
   private idToLabel: Map<number, number> = new Map();
@@ -142,7 +140,7 @@ export class HNSWIndex {
   private pendingPersistentLoad: boolean = false;
   private initializePromise: Promise<void> | null = null;
 
-  constructor(db: IDatabaseConnection, config?: Partial<HNSWConfig>) {
+  constructor(db: Database, config?: Partial<HNSWConfig>) {
     this.db = db;
     this.config = {
       M: 16,
@@ -204,7 +202,7 @@ export class HNSWIndex {
         FROM ${tableName}
       `);
 
-      const rows = stmt.all() as Array<{ id: number; embedding: Buffer }>;
+      const rows = stmt.all() as any[];
 
       if (rows.length === 0) {
         console.warn('[HNSWIndex] No vectors found in database');
@@ -232,9 +230,9 @@ export class HNSWIndex {
       for (const row of rows) {
         const id = row.id;
         const embedding = new Float32Array(
-          row.embedding.buffer,
-          row.embedding.byteOffset,
-          row.embedding.byteLength / 4
+          (row.embedding as Buffer).buffer,
+          (row.embedding as Buffer).byteOffset,
+          (row.embedding as Buffer).byteLength / 4
         );
 
         // Add to index with label (convert Float32Array to number[])
@@ -277,7 +275,7 @@ export class HNSWIndex {
     k: number,
     options?: {
       threshold?: number;
-      filters?: Record<string, unknown>;
+      filters?: Record<string, any>;
     }
   ): Promise<HNSWSearchResult[]> {
     // Ensure any pending initialization is complete (may load persisted index)
@@ -411,8 +409,8 @@ export class HNSWIndex {
         fs.mkdirSync(indexDir, { recursive: true });
       }
 
-      // Save HNSW index (writeIndex returns a Promise that must be awaited)
-      await this.index.writeIndex(this.config.indexPath);
+      // Save HNSW index
+      this.index.writeIndex(this.config.indexPath);
 
       // Save mappings
       const mappingsPath = this.config.indexPath + '.mappings.json';
@@ -445,9 +443,9 @@ export class HNSWIndex {
       // Lazy-load hnswlib-node first
       await loadHnswlib();
 
-      // Load HNSW index (readIndex returns a Promise that must be awaited)
+      // Load HNSW index
       this.index = new HierarchicalNSW(this.config.metric, this.config.dimension);
-      await this.index.readIndex(this.config.indexPath);
+      this.index.readIndex(this.config.indexPath);
       this.index.setEf(this.config.efSearch);
 
       // Load mappings
@@ -498,15 +496,15 @@ export class HNSWIndex {
    */
   private applyFilters(
     results: HNSWSearchResult[],
-    filters: Record<string, unknown>
+    filters: Record<string, any>
   ): HNSWSearchResult[] {
     // Build WHERE clause for filters
     const conditions: string[] = [];
-    const params: Array<string | number | boolean> = [];
+    const params: any[] = [];
 
     Object.entries(filters).forEach(([key, value]) => {
       conditions.push(`${key} = ?`);
-      params.push(value as string | number | boolean);
+      params.push(value);
     });
 
     const whereClause = conditions.join(' AND ');

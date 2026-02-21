@@ -7,20 +7,20 @@ export interface SimulationScenario {
   name: string;
   category: string;
   description: string;
-  config: Record<string, unknown>;
-  run(config: Record<string, unknown>): Promise<SimulationReport>;
+  config: any;
+  run(config: any): Promise<SimulationReport>;
 }
 
 export interface SimulationReport {
   scenarioId: string;
   timestamp: string;
   executionTimeMs: number;
-  summary: Record<string, unknown>;
-  metrics: Record<string, unknown>;
-  detailedResults?: unknown[];
+  summary: Record<string, any>;
+  metrics: Record<string, any>;
+  detailedResults?: any[];
   analysis?: string;
   recommendations?: string[];
-  artifacts?: Record<string, unknown>;
+  artifacts?: Record<string, any>;
 }
 
 // Unified metrics interface for all scenarios
@@ -45,26 +45,26 @@ export interface PerformanceMetrics {
   latencyMs?: number;
   memoryMB?: number;
   cpuPercent?: number;
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export interface SearchResult {
   id: string;
   distance: number;
-  metadata?: Record<string, unknown>;
+  metadata?: any;
 }
 
 export interface TrainingExample {
-  input: unknown;
-  output: unknown;
-  metadata?: Record<string, unknown>;
+  input: any;
+  output: any;
+  metadata?: any;
 }
 
 export interface SearchOptions {
   k?: number;
   ef?: number;
-  filter?: unknown;
-  [key: string]: unknown;
+  filter?: any;
+  [key: string]: any;
 }
 
 export interface GraphPath {
@@ -86,7 +86,7 @@ export interface LouvainConfig {
 
 export interface Community {
   id: string;
-  nodes: unknown[];
+  nodes: any[];
   internalEdges: number;
   totalDegree: number;
   modularity: number;

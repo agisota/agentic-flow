@@ -112,7 +112,6 @@ export function validateTaskString(task: unknown, fieldName: string = 'task'): s
     /<script/i,
     /javascript:/i,
     /on\w+\s*=/i, // onclick=, onload=, etc.
-    // eslint-disable-next-line no-control-regex -- intentional null byte detection for security
     /\x00/, // Null bytes
   ];
 
@@ -188,7 +187,7 @@ export function validateObject(
   obj: unknown,
   fieldName: string,
   required: boolean = true
-): Record<string, unknown> {
+): Record<string, any> {
   if (obj === null || obj === undefined) {
     if (required) {
       throw new ValidationError(`${fieldName} is required`, 'MISSING_REQUIRED_FIELD', fieldName);
@@ -200,7 +199,7 @@ export function validateObject(
     throw new ValidationError(`${fieldName} must be an object`, 'INVALID_OBJECT', fieldName);
   }
 
-  return obj as Record<string, unknown>;
+  return obj as Record<string, any>;
 }
 
 /**
@@ -348,7 +347,7 @@ export function validateSessionId(sessionId: string): string {
 /**
  * Validate numeric ID
  */
-export function validateId(id: unknown, fieldName: string = 'id'): number {
+export function validateId(id: any, fieldName: string = 'id'): number {
   const numId = Number(id);
 
   if (!Number.isFinite(numId) || numId < 0 || !Number.isInteger(numId)) {
@@ -361,7 +360,7 @@ export function validateId(id: unknown, fieldName: string = 'id'): number {
 /**
  * Validate timestamp
  */
-export function validateTimestamp(timestamp: unknown, fieldName: string = 'timestamp'): number {
+export function validateTimestamp(timestamp: any, fieldName: string = 'timestamp'): number {
   const numTs = Number(timestamp);
 
   if (!Number.isFinite(numTs) || numTs < 0) {
@@ -386,7 +385,7 @@ export function validateTimestamp(timestamp: unknown, fieldName: string = 'times
 /**
  * Validate reward value (0-1)
  */
-export function validateReward(reward: unknown): number {
+export function validateReward(reward: any): number {
   const numReward = Number(reward);
 
   if (!Number.isFinite(numReward)) {
@@ -403,7 +402,7 @@ export function validateReward(reward: unknown): number {
 /**
  * Validate success flag
  */
-export function validateSuccess(success: unknown): boolean {
+export function validateSuccess(success: any): boolean {
   if (typeof success === 'boolean') {
     return success;
   }
@@ -449,8 +448,8 @@ export function sanitizeText(text: string, maxLength: number = 100000, fieldName
  */
 export function buildSafeWhereClause(
   tableName: string,
-  conditions: Record<string, unknown>
-): { clause: string; values: unknown[] } {
+  conditions: Record<string, any>
+): { clause: string; values: any[] } {
   const validatedTable = validateTableName(tableName);
 
   if (!conditions || typeof conditions !== 'object' || Object.keys(conditions).length === 0) {
@@ -458,7 +457,7 @@ export function buildSafeWhereClause(
   }
 
   const clauses: string[] = [];
-  const values: unknown[] = [];
+  const values: any[] = [];
 
   for (const [column, value] of Object.entries(conditions)) {
     const validatedColumn = validateColumnName(validatedTable, column);
@@ -477,8 +476,8 @@ export function buildSafeWhereClause(
  */
 export function buildSafeSetClause(
   tableName: string,
-  updates: Record<string, unknown>
-): { clause: string; values: unknown[] } {
+  updates: Record<string, any>
+): { clause: string; values: any[] } {
   const validatedTable = validateTableName(tableName);
 
   if (!updates || typeof updates !== 'object' || Object.keys(updates).length === 0) {
@@ -486,7 +485,7 @@ export function buildSafeSetClause(
   }
 
   const clauses: string[] = [];
-  const values: unknown[] = [];
+  const values: any[] = [];
 
   for (const [column, value] of Object.entries(updates)) {
     const validatedColumn = validateColumnName(validatedTable, column);
@@ -503,7 +502,7 @@ export function buildSafeSetClause(
 /**
  * Validate JSON data
  */
-export function validateJSON(data: unknown, fieldName: string = 'json'): string {
+export function validateJSON(data: any, fieldName: string = 'json'): string {
   try {
     return JSON.stringify(data);
   } catch (error) {
@@ -514,7 +513,7 @@ export function validateJSON(data: unknown, fieldName: string = 'json'): string 
 /**
  * Validate array of tags
  */
-export function validateTags(tags: unknown): string[] {
+export function validateTags(tags: any): string[] {
   if (!Array.isArray(tags)) {
     throw new ValidationError('Tags must be an array', 'INVALID_TAGS', 'tags');
   }
@@ -532,7 +531,7 @@ export function validateTags(tags: unknown): string[] {
 /**
  * Safe error handler that doesn't leak sensitive information
  */
-export function handleSecurityError(error: unknown): string {
+export function handleSecurityError(error: any): string {
   if (error instanceof ValidationError) {
     // Safe to return validation errors
     return error.message;

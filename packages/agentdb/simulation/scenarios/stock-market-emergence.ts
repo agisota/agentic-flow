@@ -13,10 +13,10 @@
  * and adaptive learning in high-frequency financial systems.
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
-import { PerformanceOptimizer } from '../utils/PerformanceOptimizer.js';
+import { PerformanceOptimizer, executeParallel } from '../utils/PerformanceOptimizer.js';
 import * as path from 'path';
 
 interface Trader {
@@ -37,7 +37,7 @@ interface Trade {
   traderId: string;
 }
 
-export interface MarketState {
+interface MarketState {
   tick: number;
   price: number;
   volume: number;
@@ -49,10 +49,8 @@ export interface MarketState {
 export default {
   description: 'Stock market with multi-strategy traders, herding, flash crashes, and adaptive learning',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
-    const ticks = (config.ticks ?? 100) as number;
-    const traderCount = (config.traderCount ?? 100) as number;
+  async run(config: any) {
+    const { verbosity = 2, ticks = 100, traderCount = 100 } = config;
 
     if (verbosity >= 2) {
       console.log(`   📈 Initializing Stock Market: ${traderCount} traders, ${ticks} ticks`);
@@ -68,17 +66,18 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'stock-market.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
     const results = {
@@ -99,7 +98,7 @@ export default {
     const strategyDistribution = ['momentum', 'value', 'contrarian', 'HFT', 'index'];
     const traders: Trader[] = Array.from({ length: traderCount }, (_, i) => ({
       id: `trader-${i}`,
-      strategy: strategyDistribution[i % strategyDistribution.length] as Trader['strategy'],
+      strategy: strategyDistribution[i % strategyDistribution.length] as any,
       cash: 10000,
       shares: Math.floor(Math.random() * 50),
       profitLoss: 0,

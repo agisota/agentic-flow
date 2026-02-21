@@ -10,7 +10,7 @@
  * - Hybrid reasoning paths
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { CausalMemoryGraph } from '../../src/controllers/CausalMemoryGraph.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
@@ -19,8 +19,8 @@ import * as path from 'path';
 export default {
   description: 'BMSSP symbolic-subsymbolic processing with dedicated graph database',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
+  async run(config: any) {
+    const { verbosity = 2 } = config;
 
     if (verbosity >= 2) {
       console.log('   🧠 Initializing BMSSP Integration Simulation');
@@ -34,27 +34,26 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'advanced', 'bmssp.graph'),
+      embedder,
       {
-        embedder,
         forceMode: 'graph'
         // Note: Distance metric configured in RuVector backend
       }
     );
 
     const reflexion = new ReflexionMemory(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
-    // Initialize causal graph for side-effect registration
-    void new CausalMemoryGraph(
-      db.getGraphDatabase(),
-      db.getGraphDatabase()
+    const causal = new CausalMemoryGraph(
+      db.getGraphDatabase() as any,
+      db.getGraphDatabase() as any
     );
 
     const results = {
@@ -114,7 +113,9 @@ export default {
       { symbolic: 2, subsymbolic: 2, inference: 'power_reduction_optimized' }
     ];
 
-    results.hybridInferences += hybridLinks.length;
+    for (const link of hybridLinks) {
+      results.hybridInferences++;
+    }
 
     results.avgConfidence /= (symbolicRules.length + subsymbolicPatterns.length);
 

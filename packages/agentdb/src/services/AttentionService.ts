@@ -18,7 +18,6 @@
  */
 
 // Database type from db-fallback
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Database = any;
 
 // Performance logging utility
@@ -58,9 +57,7 @@ export function clearPerformanceLogs(): void {
 }
 
 // Lazy-loaded WASM/NAPI modules
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let wasmModule: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let napiModule: any = null;
 let wasmInitialized = false;
 let napiInitialized = false;
@@ -671,9 +668,9 @@ export class AttentionService {
         // Compute hop-aware encodings using the attention mechanism
         for (let q = 0; q < numQueries; q++) {
           const query = queries.slice(q * dim, (q + 1) * dim);
-          rope.computeRaw(query, keysArray, valuesArray);
+          const result = rope.computeRaw(query, keysArray, valuesArray);
 
-          // The _ropeResult gives us position-encoded output
+          // The result gives us position-encoded output
           // Extract encoding strength from the result
           for (let k = 0; k < numKeys; k++) {
             const hopDistance = hopDistances[q]?.[k] || 0;

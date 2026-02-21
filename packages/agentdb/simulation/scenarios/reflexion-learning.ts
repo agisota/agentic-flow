@@ -4,7 +4,7 @@
  * Tests ReflexionMemory with multi-agent learning and self-improvement
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
 import { PerformanceOptimizer } from '../utils/PerformanceOptimizer.js';
@@ -13,8 +13,8 @@ import * as path from 'path';
 export default {
   description: 'Multi-agent reflexion learning with episodic memory',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
+  async run(config: any) {
+    const { verbosity = 2 } = config;
 
     if (verbosity >= 2) {
       console.log('   🧠 Initializing Reflexion Learning Simulation');
@@ -31,17 +31,18 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'reflexion.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
     // Simulate learning episodes

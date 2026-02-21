@@ -61,42 +61,6 @@ export interface NeuralStrategy {
  * 4. Measures attention-based layer routing benefits
  * 5. Evaluates full neural augmentation pipeline
  */
-// Internal interfaces for type safety
-interface NeuralGraph {
-  vectors: number[][];
-  edges: Map<number, number[]>;
-  strategy: NeuralStrategy;
-  neuralComponents: {
-    gnn?: unknown;
-    rlPolicy?: { episodes: number; quality: number; convergedAt: number };
-    jointOptimized?: boolean;
-    jointGain?: number;
-  };
-}
-
-interface NeuralResultEntry {
-  strategy: string;
-  parameters: NeuralStrategy['parameters'];
-  size: number;
-  dimension: number;
-  metrics: NeuralAugmentationMetrics & { avgLatencyMs?: number; p95LatencyMs?: number };
-}
-
-interface NeuralParams {
-  gnnLayers?: number;
-  hiddenDim?: number;
-  rlEpisodes?: number;
-  learningRate?: number;
-  convergenceEpisodes?: number;
-  refinementCycles?: number;
-}
-
-interface NavigationResult {
-  hops: number;
-  neighbors?: number[];
-  distanceComputations?: number;
-}
-
 export const neuralAugmentationScenario: SimulationScenario = {
   id: 'neural-augmentation',
   name: 'Neural-Augmented HNSW',
@@ -124,16 +88,16 @@ export const neuralAugmentationScenario: SimulationScenario = {
   },
 
   async run(config: typeof neuralAugmentationScenario.config): Promise<SimulationReport> {
-    const results: NeuralResultEntry[] = [];
+    const results: any[] = [];
     const startTime = Date.now();
 
     console.log('🧠 Starting Neural Augmentation Analysis...\n');
 
-    for (const strategy of config.strategies as NeuralStrategy[]) {
+    for (const strategy of config.strategies) {
       console.log(`\n🎯 Testing strategy: ${strategy.name}`);
 
-      for (const size of config.graphSizes as number[]) {
-        for (const dim of config.dimensions as number[]) {
+      for (const size of config.graphSizes) {
+        for (const dim of config.dimensions) {
           console.log(`  └─ ${size} nodes, ${dim}d`);
 
           // Build graph with strategy
@@ -160,12 +124,12 @@ export const neuralAugmentationScenario: SimulationScenario = {
             size,
             dimension: dim,
             metrics: {
-              ...(edgeMetrics as Partial<NeuralAugmentationMetrics>),
-              ...(navMetrics as Partial<NeuralAugmentationMetrics>),
-              ...(jointMetrics as Partial<NeuralAugmentationMetrics>),
-              ...(routingMetrics as Partial<NeuralAugmentationMetrics>),
-              ...(e2eMetrics as Record<string, number>),
-            } as NeuralResultEntry['metrics'],
+              ...edgeMetrics,
+              ...navMetrics,
+              ...jointMetrics,
+              ...routingMetrics,
+              ...e2eMetrics,
+            },
           });
         }
       }
@@ -180,7 +144,7 @@ export const neuralAugmentationScenario: SimulationScenario = {
 
       summary: {
         totalTests: results.length,
-        strategies: (config.strategies as NeuralStrategy[]).length,
+        strategies: config.strategies.length,
         bestStrategy: findBestStrategy(results),
         avgNavigationImprovement: averageNavigationImprovement(results),
         avgSparsityGain: averageSparsityGain(results),
@@ -214,14 +178,14 @@ async function buildNeuralAugmentedGraph(
   size: number,
   dim: number,
   strategy: NeuralStrategy
-): Promise<NeuralGraph> {
+): Promise<any> {
   const vectors = Array(size).fill(0).map(() => generateRandomVector(dim));
 
-  const graph: NeuralGraph = {
+  const graph = {
     vectors,
     edges: new Map<number, number[]>(),
     strategy,
-    neuralComponents: {},
+    neuralComponents: {} as any,
   };
 
   // Build with neural components
@@ -241,16 +205,16 @@ async function buildNeuralAugmentedGraph(
   return graph;
 }
 
-function buildBaseline(graph: NeuralGraph, M: number): void {
+function buildBaseline(graph: any, M: number): void {
   for (let i = 0; i < graph.vectors.length; i++) {
     const neighbors = findNearestNeighbors(graph.vectors, i, M);
     graph.edges.set(i, neighbors);
   }
 }
 
-async function buildWithGNNEdges(graph: NeuralGraph, params: NeuralParams): Promise<void> {
+async function buildWithGNNEdges(graph: any, params: any): Promise<void> {
   // Simulate GNN-based edge selection
-  const gnn = initializeGNN(params.gnnLayers || 3, params.hiddenDim || 128);
+  const gnn = initializeGNN(params.gnnLayers, params.hiddenDim);
 
   for (let i = 0; i < graph.vectors.length; i++) {
     // GNN predicts adaptive M for this node
@@ -264,7 +228,7 @@ async function buildWithGNNEdges(graph: NeuralGraph, params: NeuralParams): Prom
   graph.neuralComponents.gnn = gnn;
 }
 
-function initializeGNN(layers: number, hiddenDim: number): unknown {
+function initializeGNN(layers: number, hiddenDim: number): any {
   return {
     layers,
     hiddenDim,
@@ -272,7 +236,7 @@ function initializeGNN(layers: number, hiddenDim: number): unknown {
   };
 }
 
-function computeNodeContext(graph: NeuralGraph, nodeId: number): number[] {
+function computeNodeContext(graph: any, nodeId: number): number[] {
   // Compute local graph statistics
   return [
     graph.vectors[nodeId].reduce((sum, x) => sum + x * x, 0), // Embedding norm
@@ -281,7 +245,7 @@ function computeNodeContext(graph: NeuralGraph, nodeId: number): number[] {
   ];
 }
 
-function predictAdaptiveM(_gnn: unknown, context: number[], _embedding: number[]): number {
+function predictAdaptiveM(gnn: any, context: number[], embedding: number[]): number {
   // Simulate GNN prediction
   const baseM = 16;
   const adjustment = context[1] > 0.5 ? 4 : -2; // Dense regions get more edges
@@ -291,17 +255,17 @@ function predictAdaptiveM(_gnn: unknown, context: number[], _embedding: number[]
 /**
  * OPTIMIZED RL: Converges at 340 episodes to 94.2% of optimal, -26% hop reduction
  */
-async function trainRLNavigator(graph: NeuralGraph, params: NeuralParams): Promise<void> {
+async function trainRLNavigator(graph: any, params: any): Promise<void> {
   // Simulate RL training for navigation policy
-  // Validated convergence point: params.convergenceEpisodes || 340
+  const convergenceEpisodes = params.convergenceEpisodes || 340; // Validated convergence point
   const policy = {
-    episodes: params.rlEpisodes || 1000,
+    episodes: params.rlEpisodes,
     quality: 0,
     convergedAt: 0,
   };
 
   // Training loop (simulated)
-  for (let episode = 0; episode < (params.rlEpisodes || 1000); episode++) {
+  for (let episode = 0; episode < params.rlEpisodes; episode++) {
     const improvement = 1.0 / (1 + episode / 100); // Diminishing returns
     policy.quality += improvement * 0.001;
 
@@ -321,7 +285,7 @@ async function trainRLNavigator(graph: NeuralGraph, params: NeuralParams): Promi
 /**
  * OPTIMIZED Joint Opt: 10 refinement cycles, +9.1% end-to-end gain
  */
-async function buildWithJointOptimization(graph: NeuralGraph, params: NeuralParams): Promise<void> {
+async function buildWithJointOptimization(graph: any, params: any): Promise<void> {
   // Simulate joint embedding-topology optimization
   buildBaseline(graph, 16);
 
@@ -330,8 +294,8 @@ async function buildWithJointOptimization(graph: NeuralGraph, params: NeuralPara
 
   // Refine embeddings to align with topology
   for (let iter = 0; iter < refinementCycles; iter++) {
-    await refineEmbeddings(graph, params.learningRate || 0.0005);
-    await refineTopology(graph, params.learningRate || 0.0005);
+    await refineEmbeddings(graph, params.learningRate);
+    await refineTopology(graph, params.learningRate);
 
     if ((iter + 1) % 3 === 0) {
       // Log progress every 3 cycles
@@ -345,7 +309,7 @@ async function buildWithJointOptimization(graph: NeuralGraph, params: NeuralPara
   graph.neuralComponents.jointGain = 0.091; // 9.1% end-to-end gain
 }
 
-async function refineEmbeddings(graph: NeuralGraph, lr: number): Promise<void> {
+async function refineEmbeddings(graph: any, lr: number): Promise<void> {
   // Gradient descent on embedding quality
   for (let i = 0; i < graph.vectors.length; i++) {
     const neighbors = graph.edges.get(i) || [];
@@ -359,7 +323,7 @@ async function refineEmbeddings(graph: NeuralGraph, lr: number): Promise<void> {
   }
 }
 
-async function refineTopology(graph: NeuralGraph, _lr: number): Promise<void> {
+async function refineTopology(graph: any, lr: number): Promise<void> {
   // Refine edge selection based on current embeddings
   for (let i = 0; i < Math.min(1000, graph.vectors.length); i++) {
     const currentNeighbors = graph.edges.get(i) || [];
@@ -375,7 +339,7 @@ async function refineTopology(graph: NeuralGraph, _lr: number): Promise<void> {
   }
 }
 
-async function buildFullNeuralGraph(graph: NeuralGraph, params: NeuralParams): Promise<void> {
+async function buildFullNeuralGraph(graph: any, params: any): Promise<void> {
   // Combine all neural components
   await buildWithGNNEdges(graph, params);
   await trainRLNavigator(graph, params);
@@ -385,8 +349,8 @@ async function buildFullNeuralGraph(graph: NeuralGraph, params: NeuralParams): P
 /**
  * Measure edge selection quality
  */
-async function measureEdgeSelectionQuality(graph: NeuralGraph, _strategy: NeuralStrategy): Promise<Partial<NeuralAugmentationMetrics>> {
-  const degrees = [...graph.edges.values()].map((neighbors: number[]) => neighbors.length);
+async function measureEdgeSelectionQuality(graph: any, strategy: NeuralStrategy): Promise<any> {
+  const degrees = [...graph.edges.values()].map(neighbors => neighbors.length);
   const avgDegree = degrees.reduce((sum, d) => sum + d, 0) / degrees.length;
 
   const variance = degrees.reduce((sum, d) => sum + (d - avgDegree) ** 2, 0) / degrees.length;
@@ -407,14 +371,14 @@ async function measureEdgeSelectionQuality(graph: NeuralGraph, _strategy: Neural
 /**
  * Test navigation efficiency
  */
-async function testNavigationEfficiency(graph: NeuralGraph, strategy: NeuralStrategy): Promise<Partial<NeuralAugmentationMetrics>> {
+async function testNavigationEfficiency(graph: any, strategy: NeuralStrategy): Promise<any> {
   const queries = Array(100).fill(0).map(() => generateRandomVector(128));
 
   let totalHops = 0;
   let greedyHops = 0;
 
   for (const query of queries) {
-    const result: NavigationResult = strategy.name === 'rl-nav' || strategy.name === 'full-neural'
+    const result = strategy.name === 'rl-nav' || strategy.name === 'full-neural'
       ? rlNavigate(graph, query)
       : greedyNavigate(graph, query);
 
@@ -434,7 +398,7 @@ async function testNavigationEfficiency(graph: NeuralGraph, strategy: NeuralStra
   };
 }
 
-function rlNavigate(graph: NeuralGraph, query: number[]): NavigationResult {
+function rlNavigate(graph: any, query: number[]): any {
   // Simulate RL-guided navigation (better than greedy)
   const greedy = greedyNavigate(graph, query);
   const improvement = graph.neuralComponents.rlPolicy?.quality || 0;
@@ -444,7 +408,7 @@ function rlNavigate(graph: NeuralGraph, query: number[]): NavigationResult {
   };
 }
 
-function greedyNavigate(graph: NeuralGraph, query: number[]): NavigationResult {
+function greedyNavigate(graph: any, query: number[]): any {
   let current = 0;
   let hops = 0;
   const visited = new Set<number>();
@@ -477,7 +441,7 @@ function greedyNavigate(graph: NeuralGraph, query: number[]): NavigationResult {
 /**
  * Analyze joint optimization
  */
-async function analyzeJointOptimization(_graph: NeuralGraph, strategy: NeuralStrategy): Promise<Partial<NeuralAugmentationMetrics>> {
+async function analyzeJointOptimization(graph: any, strategy: NeuralStrategy): Promise<any> {
   const isJoint = strategy.name === 'joint-opt' || strategy.name === 'full-neural';
 
   return {
@@ -490,7 +454,7 @@ async function analyzeJointOptimization(_graph: NeuralGraph, strategy: NeuralStr
 /**
  * Measure layer routing
  */
-async function measureLayerRouting(_graph: NeuralGraph, strategy: NeuralStrategy): Promise<Partial<NeuralAugmentationMetrics>> {
+async function measureLayerRouting(graph: any, strategy: NeuralStrategy): Promise<any> {
   const hasRouting = strategy.name === 'full-neural';
 
   return {
@@ -503,7 +467,7 @@ async function measureLayerRouting(_graph: NeuralGraph, strategy: NeuralStrategy
 /**
  * Benchmark end-to-end
  */
-async function benchmarkEndToEnd(graph: NeuralGraph, _strategy: NeuralStrategy): Promise<Record<string, number>> {
+async function benchmarkEndToEnd(graph: any, strategy: NeuralStrategy): Promise<any> {
   const queries = Array(100).fill(0).map(() => generateRandomVector(128));
   const latencies: number[] = [];
 
@@ -543,47 +507,47 @@ function percentile(values: number[], p: number): number {
   return sorted[Math.floor(sorted.length * p)];
 }
 
-function findBestStrategy(results: NeuralResultEntry[]): NeuralResultEntry {
+function findBestStrategy(results: any[]): any {
   return results.reduce((best, current) =>
     current.metrics.navigationEfficiency > best.metrics.navigationEfficiency ? current : best
   );
 }
 
-function averageNavigationImprovement(results: NeuralResultEntry[]): number {
+function averageNavigationImprovement(results: any[]): number {
   return results.reduce((sum, r) => sum + r.metrics.navigationEfficiency, 0) / results.length;
 }
 
-function averageSparsityGain(results: NeuralResultEntry[]): number {
+function averageSparsityGain(results: any[]): number {
   return results.reduce((sum, r) => sum + r.metrics.sparsityGain, 0) / results.length;
 }
 
-function aggregateEdgeMetrics(results: NeuralResultEntry[]) {
+function aggregateEdgeMetrics(results: any[]) {
   return {
     avgSparsityGain: averageSparsityGain(results),
     avgAdaptiveConnectivity: results.reduce((sum, r) => sum + r.metrics.adaptiveConnectivity, 0) / results.length,
   };
 }
 
-function aggregateNavigationMetrics(results: NeuralResultEntry[]) {
+function aggregateNavigationMetrics(results: any[]) {
   return {
     avgNavigationImprovement: averageNavigationImprovement(results),
     avgHopsReduction: results.reduce((sum, r) => sum + r.metrics.avgHopsReduction, 0) / results.length,
   };
 }
 
-function aggregateJointMetrics(results: NeuralResultEntry[]) {
+function aggregateJointMetrics(results: any[]) {
   return {
     avgJointGain: results.reduce((sum, r) => sum + r.metrics.jointOptimizationGain, 0) / results.length,
   };
 }
 
-function aggregateRoutingMetrics(results: NeuralResultEntry[]) {
+function aggregateRoutingMetrics(results: any[]) {
   return {
     avgLayerSkipRate: results.reduce((sum, r) => sum + r.metrics.layerSkipRate, 0) / results.length,
   };
 }
 
-function generateNeuralAugmentationAnalysis(results: NeuralResultEntry[]): string {
+function generateNeuralAugmentationAnalysis(results: any[]): string {
   const best = findBestStrategy(results);
 
   return `
@@ -607,7 +571,7 @@ function generateNeuralAugmentationAnalysis(results: NeuralResultEntry[]): strin
   `.trim();
 }
 
-function generateNeuralRecommendations(_results: NeuralResultEntry[]): string[] {
+function generateNeuralRecommendations(results: any[]): string[] {
   return [
     'GNN edge selection reduces memory by 18% with better search quality',
     'RL navigation achieves 25-32% fewer hops than greedy search',
@@ -616,21 +580,21 @@ function generateNeuralRecommendations(_results: NeuralResultEntry[]): string[] 
   ];
 }
 
-async function generateGNNDiagrams(_results: NeuralResultEntry[]) {
+async function generateGNNDiagrams(results: any[]) {
   return {
     gnnArchitecture: 'gnn-architecture.png',
     edgeSelection: 'gnn-edge-selection.png',
   };
 }
 
-async function generateNavigationVisualizations(_results: NeuralResultEntry[]) {
+async function generateNavigationVisualizations(results: any[]) {
   return {
     rlPolicy: 'rl-navigation-policy.png',
     greedyVsRL: 'greedy-vs-rl-comparison.png',
   };
 }
 
-async function generateOptimizationCurves(_results: NeuralResultEntry[]) {
+async function generateOptimizationCurves(results: any[]) {
   return {
     trainingCurves: 'joint-optimization-training.png',
     convergence: 'convergence-analysis.png',

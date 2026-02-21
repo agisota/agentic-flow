@@ -63,72 +63,6 @@ export interface AdaptationStrategy {
  * 4. Measures self-healing from deletion artifacts
  * 5. Evaluates long-term stability and efficiency
  */
-// Internal interfaces for type safety
-interface HNSWLayer {
-  edges: Map<number, number[]>;
-  size: number;
-}
-
-interface HNSWGraph {
-  vectors: number[][];
-  M: number;
-  efConstruction: number;
-  maxLayer: number;
-  layers: HNSWLayer[];
-  deletions: Set<number>;
-  parameters: { M: number; efConstruction: number };
-  performanceHistory: PerformanceMetrics[];
-}
-
-interface PerformanceMetrics {
-  latencyP50: number;
-  latencyP95: number;
-  latencyP99: number;
-  avgRecall: number;
-  avgHops: number;
-}
-
-interface WorkloadShift {
-  day: number;
-  type: string;
-}
-
-interface TimelineEntry {
-  day: number;
-  metrics: PerformanceMetrics;
-  parameters: { M: number; efConstruction: number };
-  degradation: boolean;
-  numDeletions: number;
-}
-
-interface SelfOrgResultEntry {
-  strategy: string;
-  parameters: AdaptationStrategy['parameters'];
-  size: number;
-  deletionRate: number;
-  initialMetrics: PerformanceMetrics;
-  finalMetrics: PerformanceMetrics;
-  improvement: {
-    latencyImprovement: number;
-    recallImprovement: number;
-    hopsReduction: number;
-  };
-  evolution: TimelineEntry[];
-  healing: {
-    fragmentationRate: number;
-    healingTimeMs: number;
-    postHealingRecall: number;
-    reconnectedEdges: number;
-  };
-  parameterEvolution: {
-    optimalMFound: number;
-    optimalEfConstructionFound: number;
-    parameterStability: number;
-    mTrajectory: number[];
-    efTrajectory: number[];
-  };
-}
-
 export const selfOrganizingHNSWScenario: SimulationScenario = {
   id: 'self-organizing-hnsw',
   name: 'Self-Organizing Adaptive HNSW',
@@ -163,16 +97,16 @@ export const selfOrganizingHNSWScenario: SimulationScenario = {
   },
 
   async run(config: typeof selfOrganizingHNSWScenario.config): Promise<SimulationReport> {
-    const results: SelfOrgResultEntry[] = [];
+    const results: any[] = [];
     const startTime = Date.now();
 
     console.log('🤖 Starting Self-Organizing HNSW Analysis...\n');
 
-    for (const strategy of config.strategies as AdaptationStrategy[]) {
+    for (const strategy of config.strategies) {
       console.log(`\n🧠 Testing strategy: ${strategy.name}`);
 
-      for (const size of config.graphSizes as number[]) {
-        for (const deletionRate of config.deletionRates as number[]) {
+      for (const size of config.graphSizes) {
+        for (const deletionRate of config.deletionRates) {
           console.log(`  └─ ${size} nodes, ${(deletionRate * 100).toFixed(0)}% deletion rate`);
 
           // Initialize HNSW
@@ -185,8 +119,8 @@ export const selfOrganizingHNSWScenario: SimulationScenario = {
           const evolution = await simulateTimeEvolution(
             hnsw,
             strategy,
-            config.simulationDays as number,
-            config.workloadShifts as WorkloadShift[],
+            config.simulationDays,
+            config.workloadShifts,
             deletionRate
           );
 
@@ -207,12 +141,12 @@ export const selfOrganizingHNSWScenario: SimulationScenario = {
             parameters: strategy.parameters,
             size,
             deletionRate,
-            initialMetrics: initialMetrics as PerformanceMetrics,
-            finalMetrics: finalMetrics as PerformanceMetrics,
-            improvement: improvement as SelfOrgResultEntry['improvement'],
-            evolution: evolution as TimelineEntry[],
-            healing: healingMetrics as SelfOrgResultEntry['healing'],
-            parameterEvolution: parameterMetrics as SelfOrgResultEntry['parameterEvolution'],
+            initialMetrics,
+            finalMetrics,
+            improvement,
+            evolution,
+            healing: healingMetrics,
+            parameterEvolution: parameterMetrics,
           });
         }
       }
@@ -227,7 +161,7 @@ export const selfOrganizingHNSWScenario: SimulationScenario = {
 
       summary: {
         totalTests: results.length,
-        strategies: (config.strategies as AdaptationStrategy[]).length,
+        strategies: config.strategies.length,
         bestStrategy: findBestStrategy(results),
         avgDegradationPrevented: averageDegradationPrevented(results),
         avgHealingTime: averageHealingTime(results),
@@ -257,7 +191,7 @@ export const selfOrganizingHNSWScenario: SimulationScenario = {
 /**
  * Initialize HNSW graph
  */
-async function initializeHNSW(size: number, dim: number): Promise<HNSWGraph> {
+async function initializeHNSW(size: number, dim: number): Promise<any> {
   const vectors = Array(size).fill(0).map(() => generateRandomVector(dim));
 
   // Build HNSW with initial parameters
@@ -265,15 +199,15 @@ async function initializeHNSW(size: number, dim: number): Promise<HNSWGraph> {
   const efConstruction = 200;
   const maxLayer = Math.floor(Math.log2(size));
 
-  const hnsw: HNSWGraph = {
+  const hnsw = {
     vectors,
     M,
     efConstruction,
     maxLayer,
-    layers: [],
+    layers: [] as any[],
     deletions: new Set<number>(),
     parameters: { M, efConstruction },
-    performanceHistory: [],
+    performanceHistory: [] as any[],
   };
 
   // Build layers
@@ -304,7 +238,7 @@ function findNearestNeighbors(vectors: number[][], queryIdx: number, k: number):
 /**
  * Measure HNSW performance
  */
-async function measurePerformance(hnsw: HNSWGraph): Promise<PerformanceMetrics> {
+async function measurePerformance(hnsw: any): Promise<any> {
   // Simulate query workload
   const queries = Array(100).fill(0).map(() => generateRandomVector(128));
   const latencies: number[] = [];
@@ -312,7 +246,7 @@ async function measurePerformance(hnsw: HNSWGraph): Promise<PerformanceMetrics> 
 
   for (const query of queries) {
     const start = Date.now();
-    searchHNSW(hnsw, query, 10);
+    const results = searchHNSW(hnsw, query, 10);
     latencies.push(Date.now() - start);
     recalls.push(0.92 + Math.random() * 0.05); // Simulated recall
   }
@@ -326,7 +260,7 @@ async function measurePerformance(hnsw: HNSWGraph): Promise<PerformanceMetrics> 
   };
 }
 
-function searchHNSW(hnsw: HNSWGraph, query: number[], _k: number): number[] {
+function searchHNSW(hnsw: any, query: number[], k: number): any[] {
   // Simplified greedy search
   let current = 0;
   const visited = new Set<number>();
@@ -360,17 +294,17 @@ function searchHNSW(hnsw: HNSWGraph, query: number[], _k: number): number[] {
  * Simulate time evolution with adaptation
  */
 async function simulateTimeEvolution(
-  hnsw: HNSWGraph,
+  hnsw: any,
   strategy: AdaptationStrategy,
   days: number,
-  workloadShifts: WorkloadShift[],
+  workloadShifts: any[],
   deletionRate: number
-): Promise<TimelineEntry[]> {
-  const timeline: TimelineEntry[] = [];
+): Promise<any> {
+  const timeline: any[] = [];
 
   for (let day = 0; day < days; day++) {
     // Check for workload shift
-    const shift = workloadShifts.find((s: WorkloadShift) => s.day === day);
+    const shift = workloadShifts.find(s => s.day === day);
     if (shift) {
       console.log(`    Day ${day}: Workload shift to ${shift.type}`);
     }
@@ -408,7 +342,7 @@ async function simulateTimeEvolution(
   return timeline;
 }
 
-function detectDegradation(hnsw: HNSWGraph, currentMetrics: PerformanceMetrics): boolean {
+function detectDegradation(hnsw: any, currentMetrics: any): boolean {
   if (hnsw.performanceHistory.length === 0) return false;
 
   const initialMetrics = hnsw.performanceHistory[0];
@@ -422,10 +356,10 @@ function detectDegradation(hnsw: HNSWGraph, currentMetrics: PerformanceMetrics):
  * Apply adaptation strategy
  */
 async function applyAdaptationStrategy(
-  hnsw: HNSWGraph,
+  hnsw: any,
   strategy: AdaptationStrategy,
-  _currentMetrics: PerformanceMetrics,
-  _workloadType?: string
+  currentMetrics: any,
+  workloadType?: string
 ): Promise<void> {
   switch (strategy.name) {
     case 'mpc':
@@ -454,13 +388,13 @@ async function applyAdaptationStrategy(
  * OPTIMIZED MPC: 97.9% degradation prevention, <100ms adaptation
  * Prediction horizon: 10 steps, Control horizon: 5 steps
  */
-async function applyMPCAdaptation(hnsw: HNSWGraph, horizon: number): Promise<void> {
+async function applyMPCAdaptation(hnsw: any, horizon: number): Promise<void> {
   // Model Predictive Control: optimize parameters over horizon
   const currentM = hnsw.parameters.M;
   const controlHorizon = 5; // Control actions over next 5 steps
 
   // Predict degradation over horizon
-  predictDegradation(hnsw, horizon);
+  const forecast = predictDegradation(hnsw, horizon);
 
   // Optimize M over control horizon
   const candidates = [currentM - 2, currentM, currentM + 2, currentM + 4].filter(m => m >= 8 && m <= 64);
@@ -481,7 +415,7 @@ async function applyMPCAdaptation(hnsw: HNSWGraph, horizon: number): Promise<voi
   }
 }
 
-function predictDegradation(hnsw: HNSWGraph, horizon: number): number[] {
+function predictDegradation(hnsw: any, horizon: number): number[] {
   // State-space model: x(k+1) = A*x(k) + B*u(k)
   // Predict latency degradation over horizon
   const forecast: number[] = [];
@@ -499,7 +433,7 @@ function predictDegradation(hnsw: HNSWGraph, horizon: number): number[] {
   return forecast;
 }
 
-async function simulateMChange(hnsw: HNSWGraph, newM: number, _horizon: number): Promise<number> {
+async function simulateMChange(hnsw: any, newM: number, horizon: number): Promise<number> {
   // Simulate performance with new M value
   const oldM = hnsw.parameters.M;
   hnsw.parameters.M = newM;
@@ -511,7 +445,7 @@ async function simulateMChange(hnsw: HNSWGraph, newM: number, _horizon: number):
   return score;
 }
 
-async function applyOnlineLearning(hnsw: HNSWGraph, learningRate: number): Promise<void> {
+async function applyOnlineLearning(hnsw: any, learningRate: number): Promise<void> {
   // Gradient-based parameter optimization
   const gradient = estimateGradient(hnsw);
 
@@ -523,7 +457,7 @@ async function applyOnlineLearning(hnsw: HNSWGraph, learningRate: number): Promi
   );
 }
 
-function estimateGradient(hnsw: HNSWGraph): { M: number; ef: number } {
+function estimateGradient(hnsw: any): any {
   // Simulated gradient based on recent performance
   const recent = hnsw.performanceHistory.slice(-5);
   if (recent.length < 2) return { M: 0, ef: 0 };
@@ -536,7 +470,7 @@ function estimateGradient(hnsw: HNSWGraph): { M: number; ef: number } {
   };
 }
 
-async function applyEvolutionaryAdaptation(hnsw: HNSWGraph, mutationRate: number): Promise<void> {
+async function applyEvolutionaryAdaptation(hnsw: any, mutationRate: number): Promise<void> {
   // Evolutionary algorithm: mutate parameters
   if (Math.random() < mutationRate) {
     hnsw.parameters.M += Math.floor((Math.random() - 0.5) * 4);
@@ -552,7 +486,7 @@ async function applyEvolutionaryAdaptation(hnsw: HNSWGraph, mutationRate: number
 /**
  * Test self-healing
  */
-async function testSelfHealing(hnsw: HNSWGraph, _deletionRate: number): Promise<SelfOrgResultEntry['healing']> {
+async function testSelfHealing(hnsw: any, deletionRate: number): Promise<any> {
   // Analyze fragmentation
   const fragments = detectFragmentation(hnsw);
 
@@ -572,7 +506,7 @@ async function testSelfHealing(hnsw: HNSWGraph, _deletionRate: number): Promise<
   };
 }
 
-function detectFragmentation(hnsw: HNSWGraph): number[] {
+function detectFragmentation(hnsw: any): number[] {
   // Find disconnected nodes
   const disconnected: number[] = [];
 
@@ -590,7 +524,7 @@ function detectFragmentation(hnsw: HNSWGraph): number[] {
   return disconnected;
 }
 
-async function healFragmentation(hnsw: HNSWGraph, disconnected: number[]): Promise<void> {
+async function healFragmentation(hnsw: any, disconnected: number[]): Promise<void> {
   // Reconnect isolated nodes
   for (const node of disconnected) {
     const newNeighbors = findNearestNeighbors(hnsw.vectors, node, hnsw.parameters.M);
@@ -601,9 +535,9 @@ async function healFragmentation(hnsw: HNSWGraph, disconnected: number[]): Promi
 /**
  * Analyze parameter evolution
  */
-function analyzeParameterEvolution(evolution: TimelineEntry[]): SelfOrgResultEntry['parameterEvolution'] {
-  const mValues = evolution.map((e: TimelineEntry) => e.parameters.M);
-  const efValues = evolution.map((e: TimelineEntry) => e.parameters.efConstruction);
+function analyzeParameterEvolution(evolution: any[]): any {
+  const mValues = evolution.map(e => e.parameters.M);
+  const efValues = evolution.map(e => e.parameters.efConstruction);
 
   return {
     optimalMFound: mValues[mValues.length - 1],
@@ -624,7 +558,7 @@ function calculateStability(values: number[]): number {
   return 1.0 - Math.min(1.0, stdDev / mean);
 }
 
-function calculateImprovement(initial: PerformanceMetrics, final: PerformanceMetrics): SelfOrgResultEntry['improvement'] {
+function calculateImprovement(initial: any, final: any): any {
   return {
     latencyImprovement: (1 - final.latencyP95 / initial.latencyP95) * 100,
     recallImprovement: (final.avgRecall - initial.avgRecall) * 100,
@@ -648,49 +582,49 @@ function percentile(values: number[], p: number): number {
   return sorted[index];
 }
 
-function findBestStrategy(results: SelfOrgResultEntry[]): SelfOrgResultEntry {
+function findBestStrategy(results: any[]): any {
   return results.reduce((best, current) =>
     current.improvement.latencyImprovement > best.improvement.latencyImprovement ? current : best
   );
 }
 
-function averageDegradationPrevented(results: SelfOrgResultEntry[]): number {
+function averageDegradationPrevented(results: any[]): number {
   return results.reduce((sum, r) => sum + Math.max(0, r.improvement.latencyImprovement), 0) / results.length;
 }
 
-function averageHealingTime(results: SelfOrgResultEntry[]): number {
+function averageHealingTime(results: any[]): number {
   return results.reduce((sum, r) => sum + r.healing.healingTimeMs, 0) / results.length;
 }
 
-function aggregateAdaptationMetrics(results: SelfOrgResultEntry[]) {
+function aggregateAdaptationMetrics(results: any[]) {
   return {
     avgDegradationPrevented: averageDegradationPrevented(results),
-    avgAdaptationSpeed: results.reduce((sum, _r) => sum + 5.5, 0) / results.length, // Simulated
+    avgAdaptationSpeed: results.reduce((sum, r) => sum + 5.5, 0) / results.length, // Simulated
   };
 }
 
-function aggregateParameterMetrics(results: SelfOrgResultEntry[]) {
+function aggregateParameterMetrics(results: any[]) {
   return {
-    avgOptimalM: results.reduce((sum, r) => sum + r.parameterEvolution.optimalMFound, 0) / results.length,
-    avgStability: results.reduce((sum, r) => sum + r.parameterEvolution.parameterStability, 0) / results.length,
+    avgOptimalM: results.reduce((sum, r) => sum + r.parameters.optimalMFound, 0) / results.length,
+    avgStability: results.reduce((sum, r) => sum + r.parameters.parameterStability, 0) / results.length,
   };
 }
 
-function aggregateHealingMetrics(results: SelfOrgResultEntry[]) {
+function aggregateHealingMetrics(results: any[]) {
   return {
     avgFragmentationRate: results.reduce((sum, r) => sum + r.healing.fragmentationRate, 0) / results.length,
     avgHealingTime: averageHealingTime(results),
   };
 }
 
-function analyzeLongTermStability(_results: SelfOrgResultEntry[]): unknown {
+function analyzeLongTermStability(results: any[]): any {
   return {
     stabilityScore: 0.88 + Math.random() * 0.1,
     convergenceTime: 8 + Math.random() * 4, // days
   };
 }
 
-function generateSelfOrganizingAnalysis(results: SelfOrgResultEntry[]): string {
+function generateSelfOrganizingAnalysis(results: any[]): string {
   const best = findBestStrategy(results);
 
   return `
@@ -699,7 +633,7 @@ function generateSelfOrganizingAnalysis(results: SelfOrgResultEntry[]): string {
 ## Best Strategy
 - Strategy: ${best.strategy}
 - Latency Improvement: ${best.improvement.latencyImprovement.toFixed(1)}%
-- Optimal M: ${best.parameterEvolution.optimalMFound}
+- Optimal M: ${best.parameters.optimalMFound}
 
 ## Key Findings
 - Degradation Prevention: ${averageDegradationPrevented(results).toFixed(1)}%
@@ -713,7 +647,7 @@ function generateSelfOrganizingAnalysis(results: SelfOrgResultEntry[]): string {
   `.trim();
 }
 
-function generateSelfOrganizingRecommendations(_results: SelfOrgResultEntry[]): string[] {
+function generateSelfOrganizingRecommendations(results: any[]): string[] {
   return [
     'MPC-based adaptation prevents 87% of performance degradation',
     'Self-healing reconnects fragmented graphs in < 100ms',
@@ -722,21 +656,21 @@ function generateSelfOrganizingRecommendations(_results: SelfOrgResultEntry[]): 
   ];
 }
 
-async function generateEvolutionTimelines(_results: SelfOrgResultEntry[]) {
+async function generateEvolutionTimelines(results: any[]) {
   return {
     latencyEvolution: 'latency-evolution.png',
     parameterEvolution: 'parameter-evolution.png',
   };
 }
 
-async function generateParameterTrajectories(_results: SelfOrgResultEntry[]) {
+async function generateParameterTrajectories(results: any[]) {
   return {
     mTrajectory: 'm-parameter-trajectory.png',
     efTrajectory: 'ef-parameter-trajectory.png',
   };
 }
 
-async function generateHealingVisualizations(_results: SelfOrgResultEntry[]) {
+async function generateHealingVisualizations(results: any[]) {
   return {
     fragmentationRate: 'fragmentation-rate.png',
     healingPerformance: 'healing-performance.png',

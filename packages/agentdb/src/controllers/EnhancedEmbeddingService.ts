@@ -7,8 +7,6 @@
 
 import { EmbeddingService, EmbeddingConfig } from './EmbeddingService.js';
 import { WASMVectorSearch } from './WASMVectorSearch.js';
-import { cosineSimilarity } from '../utils/similarity.js';
-import type { IDatabaseConnection } from '../types/database.types.js';
 
 export interface EnhancedEmbeddingConfig extends EmbeddingConfig {
   enableWASM?: boolean;
@@ -43,7 +41,7 @@ export class EnhancedEmbeddingService extends EmbeddingService {
       exec: () => {},
     };
 
-    this.wasmSearch = new WASMVectorSearch(mockDb as unknown as IDatabaseConnection, {
+    this.wasmSearch = new WASMVectorSearch(mockDb, {
       enableWASM: true,
       batchSize: this.enhancedConfig.batchSize || 100,
     });
@@ -135,8 +133,7 @@ export class EnhancedEmbeddingService extends EmbeddingService {
     const wasmStats = this.wasmSearch?.getStats();
 
     return {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing parent's private cache property
-      cacheSize: (this as unknown as { cache: Map<string, unknown> }).cache.size,
+      cacheSize: (this as any).cache.size,
       wasmEnabled: wasmStats?.wasmAvailable ?? false,
       simdEnabled: wasmStats?.simdAvailable ?? false,
     };
@@ -146,6 +143,17 @@ export class EnhancedEmbeddingService extends EmbeddingService {
    * Cosine similarity fallback
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom === 0 ? 0 : dotProduct / denom;
   }
 }

@@ -9,38 +9,18 @@
  *   - Feature flag behavior
  *   - Existing API stability
  *   - Performance regression
- *
- * NOTE: AgentDB.getController('memory') returns ReflexionMemory, not MemoryController.
- * AgentDB does not expose attention controllers via getController().
- * Tests that need MemoryController use it directly as a standalone class.
- * Tests that need AgentDB internal methods (listControllers, query, beginTransaction)
- * are skipped because those methods do not exist on AgentDB.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AgentDB } from '../../src/index';
 import { MemoryController } from '../../src/controllers/MemoryController';
-import type { ReflexionMemory } from '../../src/controllers/ReflexionMemory';
-import type { SkillLibrary } from '../../src/controllers/SkillLibrary';
+import { ReflexionMemory } from '../../src/controllers/ReflexionMemory';
+import { SkillLibrary } from '../../src/controllers/SkillLibrary';
 import fs from 'fs';
 import path from 'path';
 
-// Check if ruvector native bindings actually load (not just installed)
-let ruvectorAvailable = false;
-try {
-  await import('ruvector');
-  ruvectorAvailable = true;
-} catch {
-  try {
-    await import('@ruvector/core');
-    ruvectorAvailable = true;
-  } catch {
-    /* native bindings not functional */
-  }
-}
-
 // MemoryController is now implemented with attention support
-describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () => {
+describe('Attention Mechanism Regression Tests', () => {
   let db: AgentDB;
   const testDbPath = path.join(__dirname, '../fixtures/test-regression.db');
 
@@ -67,13 +47,16 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       }
     });
 
-    it.skip('should initialize AgentDB without attention controllers - AgentDB.listControllers() does not exist', () => {
-      // AgentDB does not have a listControllers() method
+    it('should initialize AgentDB without attention controllers', async () => {
+      const controllers = db.listControllers();
+
+      expect(controllers).not.toContain('self-attention');
+      expect(controllers).not.toContain('cross-attention');
+      expect(controllers).not.toContain('multi-head-attention');
     });
 
-    it('should store and retrieve memories normally using standalone MemoryController', async () => {
-      // Use MemoryController directly since getController('memory') returns ReflexionMemory
-      const memoryController = new MemoryController(null, { enableAttention: false });
+    it('should store and retrieve memories normally', async () => {
+      const memoryController = db.getController('memory') as MemoryController;
 
       const memory = {
         id: 'test-memory',
@@ -85,12 +68,12 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       const retrieved = await memoryController.retrieve(memory.id);
 
       expect(retrieved).toBeDefined();
-      expect(retrieved!.id).toBe(memory.id);
-      expect(retrieved!.content).toBe(memory.content);
+      expect(retrieved.id).toBe(memory.id);
+      expect(retrieved.content).toBe(memory.content);
     });
 
-    it('should perform vector search without attention using standalone MemoryController', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: false });
+    it('should perform vector search without attention', async () => {
+      const memoryController = db.getController('memory') as MemoryController;
 
       await memoryController.store({
         id: 'm1',
@@ -113,23 +96,47 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     it('should maintain existing ReflexionMemory functionality', async () => {
       const reflexion = db.getController('reflexion') as ReflexionMemory;
 
-      // ReflexionMemory uses storeEpisode / getRecentEpisodes, not storeTrajectory
-      expect(reflexion).toBeDefined();
-      expect(typeof reflexion.storeEpisode).toBe('function');
-      expect(typeof reflexion.getRecentEpisodes).toBe('function');
+      const trajectory = {
+        sessionId: 'session1',
+        task: 'Complete task',
+        steps: ['step1', 'step2'],
+        reward: 0.8,
+        success: true
+      };
+
+      await reflexion.storeTrajectory(trajectory);
+      const retrieved = await reflexion.getTrajectory('session1');
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved.reward).toBe(0.8);
+      expect(retrieved.success).toBe(true);
     });
 
     it('should maintain existing SkillLibrary functionality', async () => {
       const skillLib = db.getController('skills') as SkillLibrary;
 
-      // SkillLibrary uses createSkill / searchSkills
-      expect(skillLib).toBeDefined();
-      expect(typeof skillLib.createSkill).toBe('function');
-      expect(typeof skillLib.searchSkills).toBe('function');
+      const skill = {
+        name: 'test-skill',
+        description: 'Test skill',
+        code: 'function test() { return true; }',
+        successRate: 0.9
+      };
+
+      await skillLib.storeSkill(skill);
+      const retrieved = await skillLib.getSkill('test-skill');
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved.name).toBe(skill.name);
+      expect(retrieved.successRate).toBe(skill.successRate);
     });
 
-    it.skip('should not impact database schema - AgentDB.query() does not exist', () => {
-      // AgentDB does not have a query() method
+    it('should not impact database schema', async () => {
+      const tables = await db.query('SELECT name FROM sqlite_master WHERE type="table"');
+
+      // Should not have attention-specific tables when disabled
+      const tableNames = tables.map(t => t.name);
+      expect(tableNames).not.toContain('attention_scores');
+      expect(tableNames).not.toContain('attention_cache');
     });
   });
 
@@ -161,12 +168,16 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       }
     });
 
-    it.skip('should initialize attention controllers when enabled - AgentDB.listControllers() does not exist', () => {
-      // AgentDB does not have a listControllers() method
+    it('should initialize attention controllers when enabled', async () => {
+      const controllers = db.listControllers();
+
+      expect(controllers).toContain('self-attention');
+      expect(controllers).toContain('cross-attention');
+      expect(controllers).toContain('multi-head-attention');
     });
 
-    it('should enhance memory retrieval with attention scores using standalone MemoryController', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+    it('should enhance memory retrieval with attention scores', async () => {
+      const memoryController = db.getController('memory') as MemoryController;
 
       await memoryController.store({
         id: 'enhanced-mem',
@@ -180,8 +191,8 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       expect(results[0].attentionScore).toBeGreaterThanOrEqual(0);
     });
 
-    it('should still support legacy search API using standalone MemoryController', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+    it('should still support legacy search API', async () => {
+      const memoryController = db.getController('memory') as MemoryController;
 
       await memoryController.store({
         id: 'legacy-search',
@@ -195,8 +206,29 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       expect(results.length).toBeGreaterThan(0);
     });
 
-    it.skip('should selectively enable attention mechanisms - AgentDB.listControllers() does not exist', () => {
-      // AgentDB does not have a listControllers() method
+    it('should selectively enable attention mechanisms', async () => {
+      await db.close();
+      if (fs.existsSync(testDbPath)) {
+        fs.unlinkSync(testDbPath);
+      }
+
+      // Only self-attention enabled
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: true,
+        attentionConfig: {
+          selfAttention: { enabled: true },
+          crossAttention: { enabled: false },
+          multiHeadAttention: { enabled: false }
+        }
+      });
+
+      await db.initialize();
+
+      const controllers = db.listControllers();
+      expect(controllers).toContain('self-attention');
+      expect(controllers).not.toContain('cross-attention');
+      expect(controllers).not.toContain('multi-head-attention');
     });
   });
 
@@ -225,11 +257,12 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       expect(db).toBeInstanceOf(AgentDB);
       expect(db.initialize).toBeInstanceOf(Function);
       expect(db.getController).toBeInstanceOf(Function);
+      expect(db.query).toBeInstanceOf(Function);
       expect(db.close).toBeInstanceOf(Function);
     });
 
     it('should maintain stable MemoryController API', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+      const memoryController = db.getController('memory') as MemoryController;
 
       expect(memoryController.store).toBeInstanceOf(Function);
       expect(memoryController.retrieve).toBeInstanceOf(Function);
@@ -239,7 +272,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     });
 
     it('should not break existing method signatures', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+      const memoryController = db.getController('memory') as MemoryController;
 
       // Test that all existing parameters still work
       const memory = {
@@ -255,7 +288,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     });
 
     it('should maintain backward-compatible search options', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+      const memoryController = db.getController('memory') as MemoryController;
 
       await memoryController.store({
         id: 'compat-test',
@@ -305,11 +338,13 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     });
 
     it('should not impact memory storage performance', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
-
-      // Need db for afterEach
-      db = new AgentDB({ dbPath: testDbPath });
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: true
+      });
       await db.initialize();
+
+      const memoryController = db.getController('memory') as MemoryController;
 
       const start = performance.now();
 
@@ -335,7 +370,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       });
       await db.initialize();
 
-      const memoryController = new MemoryController(null, { enableAttention: true });
+      const memoryController = db.getController('memory') as MemoryController;
 
       // Store 1000 items
       for (let i = 0; i < 1000; i++) {
@@ -354,11 +389,17 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     });
 
     it('should not degrade search performance', async () => {
-      // Without attention
-      const mc1 = new MemoryController(null, { enableAttention: false });
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: false
+      });
+      await db.initialize();
 
+      const memoryController = db.getController('memory') as MemoryController;
+
+      // Store test data
       for (let i = 0; i < 500; i++) {
-        await mc1.store({
+        await memoryController.store({
           id: `search-perf-${i}`,
           embedding: [Math.random(), Math.random(), Math.random()]
         });
@@ -366,41 +407,114 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
 
       const query = [0.5, 0.5, 0.5];
 
+      // Baseline without attention
       const start1 = performance.now();
-      await mc1.search(query);
+      await memoryController.search(query);
       const baseline = performance.now() - start1;
 
+      await db.close();
+      fs.unlinkSync(testDbPath);
+
       // With attention enabled
-      const mc2 = new MemoryController(null, { enableAttention: true });
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: true
+      });
+      await db.initialize();
+
+      const memoryController2 = db.getController('memory') as MemoryController;
 
       for (let i = 0; i < 500; i++) {
-        await mc2.store({
+        await memoryController2.store({
           id: `search-perf-${i}`,
           embedding: [Math.random(), Math.random(), Math.random()]
         });
       }
 
       const start2 = performance.now();
-      await mc2.search(query);
+      await memoryController2.search(query);
       const withAttention = performance.now() - start2;
 
-      // With attention should not be more than 3x slower (relaxed margin for CI)
-      expect(withAttention).toBeLessThan(Math.max(baseline * 3, 100));
-
-      // Need db for afterEach
-      db = new AgentDB({ dbPath: testDbPath });
-      await db.initialize();
+      // With attention should not be more than 2x slower
+      expect(withAttention).toBeLessThan(baseline * 2);
     });
   });
 
   describe('Database Migration', () => {
-    it.skip('should upgrade existing database to support attention - MemoryController is in-memory only, does not persist through AgentDB', () => {
-      // MemoryController uses an in-memory Map, not backed by AgentDB's SQLite.
-      // Persisting MemoryController state across DB sessions is not yet implemented.
+    it('should upgrade existing database to support attention', async () => {
+      // Create old database without attention
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: false
+      });
+      await db.initialize();
+
+      const memoryController = db.getController('memory') as MemoryController;
+      await memoryController.store({
+        id: 'migration-test',
+        embedding: [0.1, 0.2, 0.3]
+      });
+
+      await db.close();
+
+      // Reopen with attention enabled
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: true
+      });
+      await db.initialize();
+
+      // Should still be able to retrieve old data
+      const memoryController2 = db.getController('memory') as MemoryController;
+      const retrieved = await memoryController2.retrieve('migration-test');
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved.id).toBe('migration-test');
+
+      // Should be able to use attention features
+      const results = await memoryController2.retrieveWithAttention([0.1, 0.2, 0.3]);
+      expect(results).toBeDefined();
     });
 
-    it.skip('should preserve data integrity during migration - MemoryController is in-memory only', () => {
-      // Same reason as above
+    it('should preserve data integrity during migration', async () => {
+      // Create database with sample data
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: false
+      });
+      await db.initialize();
+
+      const memoryController = db.getController('memory') as MemoryController;
+
+      const memories = [];
+      for (let i = 0; i < 100; i++) {
+        const memory = {
+          id: `integrity-${i}`,
+          content: `Memory ${i}`,
+          embedding: [Math.random(), Math.random(), Math.random()]
+        };
+        await memoryController.store(memory);
+        memories.push(memory);
+      }
+
+      await db.close();
+
+      // Reopen with attention
+      db = new AgentDB({
+        dbPath: testDbPath,
+        enableAttention: true
+      });
+      await db.initialize();
+
+      const memoryController2 = db.getController('memory') as MemoryController;
+
+      // Verify all data is intact
+      for (const memory of memories) {
+        const retrieved = await memoryController2.retrieve(memory.id);
+        expect(retrieved).toBeDefined();
+        expect(retrieved.id).toBe(memory.id);
+        expect(retrieved.content).toBe(memory.content);
+      }
     });
   });
 
@@ -425,7 +539,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
     });
 
     it('should handle missing attention controllers gracefully', async () => {
-      const memoryController = new MemoryController(null, { enableAttention: true });
+      const memoryController = db.getController('memory') as MemoryController;
 
       await memoryController.store({
         id: 'error-test',
@@ -437,8 +551,33 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Regression Tests', () =
       expect(results).toBeDefined();
     });
 
-    it.skip('should maintain transaction integrity with attention - AgentDB.beginTransaction() does not exist', () => {
-      // AgentDB does not have transaction methods
+    it('should maintain transaction integrity with attention', async () => {
+      const memoryController = db.getController('memory') as MemoryController;
+
+      await db.beginTransaction();
+
+      try {
+        await memoryController.store({
+          id: 'tx-test-1',
+          embedding: [0.1, 0.2, 0.3]
+        });
+
+        await memoryController.store({
+          id: 'tx-test-2',
+          embedding: [0.4, 0.5, 0.6]
+        });
+
+        await db.commitTransaction();
+      } catch (error) {
+        await db.rollbackTransaction();
+        throw error;
+      }
+
+      const result1 = await memoryController.retrieve('tx-test-1');
+      const result2 = await memoryController.retrieve('tx-test-2');
+
+      expect(result1).toBeDefined();
+      expect(result2).toBeDefined();
     });
   });
 });

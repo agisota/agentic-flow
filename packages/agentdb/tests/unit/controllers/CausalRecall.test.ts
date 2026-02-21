@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { CausalRecall, RerankConfig } from '../../../src/controllers/CausalRecall.js';
+import { CausalRecall, RerankConfig, CausalRecallResult } from '../../../src/controllers/CausalRecall.js';
 import { EmbeddingService } from '../../../src/controllers/EmbeddingService.js';
 import * as fs from 'fs';
 
@@ -143,7 +143,7 @@ describe('CausalRecall', () => {
         search: vi.fn().mockReturnValue([]),
       };
 
-      const recallWithBackend = new CausalRecall(db, embedder, mockBackend as unknown as ConstructorParameters<typeof CausalRecall>[2]);
+      const recallWithBackend = new CausalRecall(db, embedder, mockBackend as any);
       expect(recallWithBackend).toBeDefined();
     });
   });
@@ -460,7 +460,7 @@ describe('CausalRecall', () => {
           db.prepare(`
             INSERT INTO causal_edges (from_memory_id, from_memory_type, to_memory_id, to_memory_type, similarity, uplift, confidence, sample_size)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(episodeId, 'episode', (episodeId as number) - 1, 'episode', 0.8, 0.1 * i, 0.7, 10);
+          `).run(episodeId, 'episode', episodeId - 1, 'episode', 0.8, 0.1 * i, 0.7, 10);
         }
       }
     });
@@ -474,7 +474,7 @@ describe('CausalRecall', () => {
 
       // Candidates should have uplift values
       if (result.candidates.length > 0) {
-        void result.candidates.some(c => c.uplift !== undefined && c.uplift !== 0);
+        const hasUplift = result.candidates.some(c => c.uplift !== undefined && c.uplift !== 0);
         // Not all candidates will have uplift, but if edges exist some should
         expect(result.candidates).toBeDefined();
       }

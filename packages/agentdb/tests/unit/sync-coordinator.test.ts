@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 /**
  * SyncCoordinator Unit Tests
@@ -18,7 +18,7 @@ interface VersionVector {
 interface SyncItem {
   id: string;
   version: VersionVector;
-  data: Record<string, unknown>;
+  data: any;
   timestamp: number;
 }
 
@@ -26,16 +26,16 @@ interface SyncItem {
 class MockSyncCoordinator {
   private localVersion: VersionVector = {};
   private nodeId: string;
-  private syncState: Map<string, SyncItem> = new Map();
-  private conflictResolver: (local: SyncItem, remote: SyncItem) => SyncItem;
+  private syncState: Map<string, any> = new Map();
+  private conflictResolver: (local: any, remote: any) => any;
 
-  constructor(nodeId: string, conflictResolver?: (local: SyncItem, remote: SyncItem) => SyncItem) {
+  constructor(nodeId: string, conflictResolver?: (local: any, remote: any) => any) {
     this.nodeId = nodeId;
     this.localVersion[nodeId] = 0;
     this.conflictResolver = conflictResolver || this.defaultConflictResolver;
   }
 
-  private defaultConflictResolver(local: SyncItem, remote: SyncItem): SyncItem {
+  private defaultConflictResolver(local: any, remote: any): any {
     // Last-write-wins by timestamp
     return local.timestamp > remote.timestamp ? local : remote;
   }
@@ -78,7 +78,7 @@ class MockSyncCoordinator {
     return 'concurrent'; // Equal versions
   }
 
-  async syncItem(item: SyncItem): Promise<{ action: string; result: SyncItem }> {
+  async syncItem(item: SyncItem): Promise<{ action: string; result: any }> {
     const existing = this.syncState.get(item.id);
 
     if (!existing) {
@@ -101,13 +101,12 @@ class MockSyncCoordinator {
         this.mergeVersions(item.version);
         return { action: 'updated', result: item };
 
-      case 'concurrent': {
+      case 'concurrent':
         // Conflict - use resolver
         const resolved = this.conflictResolver(existing, item);
         this.syncState.set(item.id, resolved);
         this.mergeVersions(item.version);
         return { action: 'resolved_conflict', result: resolved };
-      }
     }
   }
 
@@ -177,7 +176,7 @@ class MockSyncCoordinator {
     return conflicts;
   }
 
-  getSyncState(): Map<string, SyncItem> {
+  getSyncState(): Map<string, any> {
     return new Map(this.syncState);
   }
 
@@ -326,7 +325,7 @@ describe('SyncCoordinator', () => {
     });
 
     it('should resolve conflicts with custom resolver', async () => {
-      const customResolver = (_local: SyncItem, remote: SyncItem): SyncItem => ({
+      const customResolver = (local: any, remote: any) => ({
         ...remote,
         data: { content: 'merged' }
       });

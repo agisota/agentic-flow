@@ -18,7 +18,8 @@
  * - 100% backward compatible with fallback to standard retrieval
  */
 
-import type { IDatabaseConnection } from '../types/database.types.js';
+// Database type from db-fallback
+type Database = any;
 import * as crypto from 'crypto';
 import { AttentionService, type GraphRoPEConfig } from '../services/AttentionService.js';
 import { EmbeddingService } from './EmbeddingService.js';
@@ -58,7 +59,7 @@ export interface RecallCertificate {
   accessLevel: 'public' | 'internal' | 'confidential' | 'restricted';
 
   latencyMs?: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface MerkleProof {
@@ -82,11 +83,11 @@ export interface ProvenanceSource {
   parentHash?: string;
   derivedFrom?: string[];
   creator?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export class ExplainableRecall {
-  private db: IDatabaseConnection;
+  private db: Database;
   private attentionService?: AttentionService;
   private embedder?: EmbeddingService;
   private config: ExplainableRecallConfig;
@@ -98,7 +99,7 @@ export class ExplainableRecall {
    * v2 mode: new ExplainableRecall(db, embedder, config)
    */
   constructor(
-    db: IDatabaseConnection,
+    db: Database,
     embedder?: EmbeddingService,
     config?: ExplainableRecallConfig
   ) {
@@ -204,7 +205,7 @@ export class ExplainableRecall {
       merkleRoot,
       sourceHashes,
       proofChain,
-      accessLevel: accessLevel as RecallCertificate['accessLevel'],
+      accessLevel: accessLevel as any,
       latencyMs: Date.now() - startTime
     };
 
@@ -220,7 +221,7 @@ export class ExplainableRecall {
   } {
     const cert = this.db.prepare(
       'SELECT * FROM recall_certificates WHERE id = ?'
-    ).get(certificateId) as { id: string; query_id: string; query_text: string; chunk_ids: string; chunk_types: string; minimal_why: string; redundancy_ratio: number; completeness_score: number; merkle_root: string; source_hashes: string; proof_chain: string; access_level: string; latency_ms: number; policy_proof: string | null; policy_version: string | null } | undefined;
+    ).get(certificateId) as any;
 
     if (!cert) {
       return { valid: false, issues: ['Certificate not found'] };
@@ -271,14 +272,14 @@ export class ExplainableRecall {
     const row = this.db.prepare(`
       SELECT * FROM justification_paths
       WHERE certificate_id = ? AND chunk_id = ?
-    `).get(certificateId, chunkId) as { chunk_id: string; chunk_type: string; reason: string; necessity_score: number; path_elements: string } | undefined;
+    `).get(certificateId, chunkId) as any;
 
     if (!row) return null;
 
     return {
       chunkId: row.chunk_id,
       chunkType: row.chunk_type,
-      reason: row.reason as JustificationPath['reason'],
+      reason: row.reason,
       necessityScore: row.necessity_score,
       pathElements: JSON.parse(row.path_elements)
     };
@@ -294,18 +295,18 @@ export class ExplainableRecall {
     while (currentHash) {
       const source = this.db.prepare(`
         SELECT * FROM provenance_sources WHERE content_hash = ?
-      `).get(currentHash) as { id: number; source_type: string; source_id: number; content_hash: string; parent_hash: string | null; derived_from: string | null; creator: string | null; metadata: string | null } | undefined;
+      `).get(currentHash) as any;
 
       if (!source) break;
 
       lineage.push({
         id: source.id,
-        sourceType: source.source_type as ProvenanceSource['sourceType'],
+        sourceType: source.source_type,
         sourceId: source.source_id,
         contentHash: source.content_hash,
-        parentHash: source.parent_hash ?? undefined,
+        parentHash: source.parent_hash,
         derivedFrom: source.derived_from ? JSON.parse(source.derived_from) : undefined,
-        creator: source.creator ?? undefined,
+        creator: source.creator,
         metadata: source.metadata ? JSON.parse(source.metadata) : undefined
       });
 
@@ -329,7 +330,7 @@ export class ExplainableRecall {
   } {
     const certRow = this.db.prepare(
       'SELECT * FROM recall_certificates WHERE id = ?'
-    ).get(certificateId) as { id: string; query_id: string; query_text: string; chunk_ids: string; chunk_types: string; minimal_why: string; redundancy_ratio: number; completeness_score: number; merkle_root: string; source_hashes: string; proof_chain: string; access_level: string; latency_ms: number; policy_proof: string | null; policy_version: string | null } | undefined;
+    ).get(certificateId) as any;
 
     if (!certRow) {
       throw new Error(`Certificate ${certificateId} not found`);
@@ -347,9 +348,9 @@ export class ExplainableRecall {
       merkleRoot: certRow.merkle_root,
       sourceHashes: JSON.parse(certRow.source_hashes),
       proofChain: JSON.parse(certRow.proof_chain),
-      policyProof: certRow.policy_proof ?? undefined,
-      policyVersion: certRow.policy_version ?? undefined,
-      accessLevel: certRow.access_level as RecallCertificate['accessLevel'],
+      policyProof: certRow.policy_proof,
+      policyVersion: certRow.policy_version,
+      accessLevel: certRow.access_level,
       latencyMs: certRow.latency_ms
     };
 
@@ -371,7 +372,7 @@ export class ExplainableRecall {
     });
 
     // Add source nodes and edges
-    for (const lineage of sources.values()) {
+    for (const [hash, lineage] of sources.entries()) {
       for (let i = 0; i < lineage.length; i++) {
         const source = lineage[i];
         const nodeId = `${source.sourceType}-${source.sourceId}`;
@@ -428,7 +429,7 @@ export class ExplainableRecall {
   } {
     const certRow = this.db.prepare(
       'SELECT * FROM recall_certificates WHERE id = ?'
-    ).get(certificateId) as { id: string; query_id: string; query_text: string; chunk_ids: string; chunk_types: string; minimal_why: string; redundancy_ratio: number; completeness_score: number; merkle_root: string; source_hashes: string; proof_chain: string; access_level: string; latency_ms: number; policy_proof: string | null; policy_version: string | null } | undefined;
+    ).get(certificateId) as any;
 
     if (!certRow) {
       throw new Error(`Certificate ${certificateId} not found`);
@@ -446,21 +447,21 @@ export class ExplainableRecall {
       merkleRoot: certRow.merkle_root,
       sourceHashes: JSON.parse(certRow.source_hashes),
       proofChain: JSON.parse(certRow.proof_chain),
-      policyProof: certRow.policy_proof ?? undefined,
-      policyVersion: certRow.policy_version ?? undefined,
-      accessLevel: certRow.access_level as RecallCertificate['accessLevel'],
+      policyProof: certRow.policy_proof,
+      policyVersion: certRow.policy_version,
+      accessLevel: certRow.access_level,
       latencyMs: certRow.latency_ms
     };
 
     // Get justifications
     const justRows = this.db.prepare(`
       SELECT * FROM justification_paths WHERE certificate_id = ?
-    `).all(certificateId) as Array<{ chunk_id: string; chunk_type: string; reason: string; necessity_score: number; path_elements: string }>;
+    `).all(certificateId) as any[];
 
-    const justifications: JustificationPath[] = justRows.map(row => ({
+    const justifications = justRows.map(row => ({
       chunkId: row.chunk_id,
       chunkType: row.chunk_type,
-      reason: row.reason as JustificationPath['reason'],
+      reason: row.reason,
       necessityScore: row.necessity_score,
       pathElements: JSON.parse(row.path_elements)
     }));
@@ -507,7 +508,7 @@ export class ExplainableRecall {
 
     // Greedy: select chunk that covers most uncovered requirements
     while (uncovered.size > 0 && chunks.length > 0) {
-      let bestChunk: { id: string; content: string; relevance: number } | null = null;
+      let bestChunk: any = null;
       let bestCoverage = 0;
 
       for (const chunk of chunks) {
@@ -550,7 +551,7 @@ export class ExplainableRecall {
     const chunks = minimalWhy.map(id => {
       // Get chunk content
       const episode = stmt.get(parseInt(id));
-      return episode ? (episode as { output: string }).output : '';
+      return episode ? (episode as any).output : '';
     });
 
     const satisfied = requirements.filter(req =>
@@ -568,7 +569,7 @@ export class ExplainableRecall {
     const existing = this.db.prepare(`
       SELECT content_hash FROM provenance_sources
       WHERE source_type = ? AND source_id = ?
-    `).get(sourceType, sourceId) as { content_hash: string } | undefined;
+    `).get(sourceType, sourceId) as any;
 
     if (existing) {
       return existing.content_hash;
@@ -586,14 +587,10 @@ export class ExplainableRecall {
   }
 
   // Prepare statement ONCE outside loop (better-sqlite3 best practice)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cached prepared statement from better-sqlite3
-  private _episodeStmt?: { get: (...args: unknown[]) => Record<string, unknown> | undefined };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cached prepared statement from better-sqlite3
-  private _skillStmt?: { get: (...args: unknown[]) => Record<string, unknown> | undefined };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cached prepared statement from better-sqlite3
-  private _noteStmt?: { get: (...args: unknown[]) => Record<string, unknown> | undefined };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cached prepared statement from better-sqlite3
-  private _factStmt?: { get: (...args: unknown[]) => Record<string, unknown> | undefined };
+  private _episodeStmt?: any;
+  private _skillStmt?: any;
+  private _noteStmt?: any;
+  private _factStmt?: any;
 
   /**
    * Get content hash for a memory
@@ -602,38 +599,34 @@ export class ExplainableRecall {
     let content = '';
 
     switch (sourceType) {
-      case 'episode': {
+      case 'episode':
         if (!this._episodeStmt) {
           this._episodeStmt = this.db.prepare('SELECT task, output FROM episodes WHERE id = ?');
         }
-        const episode = this._episodeStmt.get(sourceId) as { task: string; output: string } | undefined;
+        const episode = this._episodeStmt.get(sourceId) as any;
         content = episode ? `${episode.task}:${episode.output}` : '';
         break;
-      }
-      case 'skill': {
+      case 'skill':
         if (!this._skillStmt) {
           this._skillStmt = this.db.prepare('SELECT name, code FROM skills WHERE id = ?');
         }
-        const skill = this._skillStmt.get(sourceId) as { name: string; code: string } | undefined;
+        const skill = this._skillStmt.get(sourceId) as any;
         content = skill ? `${skill.name}:${skill.code}` : '';
         break;
-      }
-      case 'note': {
+      case 'note':
         if (!this._noteStmt) {
           this._noteStmt = this.db.prepare('SELECT text FROM notes WHERE id = ?');
         }
-        const note = this._noteStmt.get(sourceId) as { text: string } | undefined;
+        const note = this._noteStmt.get(sourceId) as any;
         content = note ? note.text : '';
         break;
-      }
-      case 'fact': {
+      case 'fact':
         if (!this._factStmt) {
           this._factStmt = this.db.prepare('SELECT subject, predicate, object FROM facts WHERE id = ?');
         }
-        const fact = this._factStmt.get(sourceId) as { subject: string; predicate: string; object: string } | undefined;
+        const fact = this._factStmt.get(sourceId) as any;
         content = fact ? `${fact.subject}:${fact.predicate}:${fact.object}` : '';
         break;
-      }
     }
 
     return crypto.createHash('sha256').update(content).digest('hex');
@@ -743,7 +736,7 @@ export class ExplainableRecall {
    */
   private determineReason(
     chunk: { id: string; relevance: number },
-    _requirements: string[]
+    requirements: string[]
   ): string {
     if (chunk.relevance > 0.9) return 'semantic_match';
     if (chunk.relevance > 0.7) return 'causal_link';

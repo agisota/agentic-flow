@@ -4,18 +4,17 @@
  * Provides PostgreSQL backend using Supabase for:
  * - Hub persistence
  * - Agent metadata
- * - Memory storage (vector search via @ruvector/rvf, NOT pgvector)
+ * - Memory storage (optional pgvector)
  * - Real-time subscriptions
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseConfig {
   url: string;
   anonKey: string;
   serviceRoleKey?: string;
-  vectorBackend?: 'ruvector' | 'agentdb' | 'hybrid';
+  vectorBackend?: 'pgvector' | 'agentdb' | 'hybrid';
   syncInterval?: number; // ms
 }
 
@@ -52,8 +51,8 @@ export class SupabaseFederationAdapter {
     // Check if tables exist, create if needed
     await this.ensureTables();
 
-    if (this.config.vectorBackend === 'ruvector') {
-      await this.ensureRuvectorBackend();
+    if (this.config.vectorBackend === 'pgvector') {
+      await this.ensureVectorExtension();
     }
 
     console.log('✅ Supabase Federation Schema Ready');
@@ -66,7 +65,7 @@ export class SupabaseFederationAdapter {
     // Note: In production, use Supabase migrations
     // This is a runtime check for development
 
-    const { error } = await this.client
+    const { data, error } = await this.client
       .from('agent_sessions')
       .select('id')
       .limit(1);
@@ -78,18 +77,21 @@ export class SupabaseFederationAdapter {
   }
 
   /**
-   * Ensure @ruvector/rvf backend is available for vector operations.
-   * Vector search uses @ruvector/rvf (NOT pgvector) per ADR-006.
+   * Ensure pgvector extension is enabled
    */
-  private async ensureRuvectorBackend(): Promise<void> {
+  private async ensureVectorExtension(): Promise<void> {
     try {
-      const { RvfDatabase } = await import('@ruvector/rvf');
-      if (!RvfDatabase) {
-        console.warn('@ruvector/rvf loaded but RvfDatabase not found');
+      // This requires service role key with proper permissions
+      const { error } = await this.client.rpc('exec_sql', {
+        sql: 'CREATE EXTENSION IF NOT EXISTS vector;'
+      });
+
+      if (error) {
+        console.warn('⚠️  pgvector extension check failed:', error.message);
+        console.log('📖 Enable manually: CREATE EXTENSION vector;');
       }
-    } catch {
-      console.warn('@ruvector/rvf not available — install with: npm i @ruvector/rvf');
-      console.warn('Vector search will fall back to AgentDB brute-force');
+    } catch (err) {
+      console.warn('⚠️  Could not verify pgvector extension');
     }
   }
 
@@ -145,21 +147,18 @@ export class SupabaseFederationAdapter {
   }
 
   /**
-   * Semantic search using @ruvector/rvf (NOT pgvector — see ADR-006).
-   * Vector search is delegated to AgentDB's RVF backend which uses
-   * @ruvector/rvf-node (N-API) or @ruvector/rvf-wasm for HNSW search.
-   * Supabase/PostgreSQL handles only metadata coordination.
+   * Semantic search using pgvector
    */
   async semanticSearch(
     embedding: number[],
     tenantId: string,
     limit: number = 10
   ): Promise<AgentMemory[]> {
-    if (this.config.vectorBackend !== 'ruvector') {
-      throw new Error('@ruvector backend not enabled — set vectorBackend: "ruvector"');
+    if (this.config.vectorBackend !== 'pgvector') {
+      throw new Error('pgvector backend not enabled');
     }
 
-    // Vector search via Supabase RPC that delegates to @ruvector backend
+    // Use pgvector cosine similarity search
     const { data, error } = await this.client.rpc('search_memories', {
       query_embedding: embedding,
       query_tenant_id: tenantId,

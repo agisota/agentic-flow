@@ -45,7 +45,7 @@
           },
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.claude/helpers/auto-memory-hook.mjs\" import",
+            "command": "node .claude/helpers/auto-memory-hook.mjs import",
             "timeout": 8000
           }
         ]
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.claude/helpers/auto-memory-hook.mjs\" sync",
+            "command": "node .claude/helpers/auto-memory-hook.mjs sync",
             "timeout": 10000
           }
         ]
@@ -154,7 +154,7 @@
   },
   "attribution": {
     "commit": "Co-Authored-By: claude-flow <ruv@ruv.net>",
-    "pr": "Generated with [claude-flow](https://github.com/ruvnet/claude-flow)"
+    "pr": "🤖 Generated with [claude-flow](https://github.com/ruvnet/claude-flow)"
   },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",

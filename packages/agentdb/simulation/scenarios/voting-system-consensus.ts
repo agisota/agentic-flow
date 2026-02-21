@@ -12,10 +12,10 @@
  * and preference learning across voting cycles.
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { EmbeddingService } from '../../src/controllers/EmbeddingService.js';
-import { PerformanceOptimizer } from '../utils/PerformanceOptimizer.js';
+import { PerformanceOptimizer, executeParallel } from '../utils/PerformanceOptimizer.js';
 import * as path from 'path';
 
 interface Voter {
@@ -30,7 +30,7 @@ interface Candidate {
   endorsements: string[];
 }
 
-export interface VotingRound {
+interface VotingRound {
   roundId: number;
   candidates: Candidate[];
   voters: Voter[];
@@ -42,11 +42,8 @@ export interface VotingRound {
 export default {
   description: 'Democratic voting system with ranked-choice, coalition formation, and consensus emergence',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
-    const rounds = (config.rounds ?? 5) as number;
-    const voterCount = (config.voterCount ?? 50) as number;
-    const candidateCount = (config.candidateCount ?? 7) as number;
+  async run(config: any) {
+    const { verbosity = 2, rounds = 5, voterCount = 50, candidateCount = 7 } = config;
 
     if (verbosity >= 2) {
       console.log(`   🗳️  Initializing Voting System: ${voterCount} voters, ${candidateCount} candidates, ${rounds} rounds`);
@@ -62,17 +59,18 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'voting-consensus.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
     const results = {
@@ -126,13 +124,13 @@ export default {
       // Ranked-Choice Voting algorithm
       const eliminated = new Set<string>();
       let winner: string | null = null;
-      const voteCounts = new Map<string, number>();
+      let voteCounts = new Map<string, number>();
 
       while (!winner && eliminated.size < candidates.length - 1) {
         voteCounts.clear();
 
         // Count first-choice votes (excluding eliminated)
-        for (const ranked of ballots.values()) {
+        for (const [voterId, ranked] of ballots.entries()) {
           const firstChoice = ranked.find(c => !eliminated.has(c));
           if (firstChoice) {
             voteCounts.set(firstChoice, (voteCounts.get(firstChoice) || 0) + 1);

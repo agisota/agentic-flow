@@ -14,7 +14,7 @@ export interface MemoryPattern {
   input?: string;
   output?: string;
   similarity?: number;
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export interface SynthesizedContext {

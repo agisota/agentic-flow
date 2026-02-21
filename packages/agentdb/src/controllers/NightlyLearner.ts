@@ -18,14 +18,13 @@
  * - 100% backward compatible with fallback to standard consolidation
  */
 
-import type { IDatabaseConnection } from '../types/database.types.js';
+// Database type from db-fallback
+type Database = any;
 import { CausalMemoryGraph, CausalEdge } from './CausalMemoryGraph.js';
 import { ReflexionMemory } from './ReflexionMemory.js';
 import { SkillLibrary } from './SkillLibrary.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import { AttentionService, type FlashAttentionConfig } from '../services/AttentionService.js';
-import { cosineSimilarity } from '../utils/similarity.js';
-import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface LearnerConfig {
   minSimilarity: number; // Min similarity to consider for causal edge (default: 0.7)
@@ -57,16 +56,15 @@ export interface LearnerReport {
 }
 
 export class NightlyLearner {
-  private db: IDatabaseConnection;
+  private db: Database;
   private causalGraph: CausalMemoryGraph;
   private reflexion: ReflexionMemory;
   private skillLibrary: SkillLibrary;
   private embedder: EmbeddingService;
   private attentionService?: AttentionService;
-  private bandit: SolverBandit | null = null;
 
   constructor(
-    db: IDatabaseConnection,
+    db: Database,
     embedder: EmbeddingService,
     private config: LearnerConfig = {
       minSimilarity: 0.7,
@@ -78,12 +76,10 @@ export class NightlyLearner {
       autoExperiments: true,
       experimentBudget: 10,
       ENABLE_FLASH_CONSOLIDATION: false,
-    },
-    bandit?: SolverBandit
+    }
   ) {
     this.db = db;
     this.embedder = embedder;
-    this.bandit = bandit || null;
     this.causalGraph = new CausalMemoryGraph(db);
     this.reflexion = new ReflexionMemory(db, embedder);
     this.skillLibrary = new SkillLibrary(db, embedder);
@@ -184,7 +180,7 @@ export class NightlyLearner {
     dryRun?: boolean;
   }): Promise<CausalEdge[]> {
     const edges: CausalEdge[] = [];
-    await this.discoverCausalEdges();
+    const count = await this.discoverCausalEdges();
 
     // If dryRun, return empty array since we didn't actually create edges
     if (config.dryRun) {
@@ -229,12 +225,12 @@ export class NightlyLearner {
           SELECT id, task, output, reward FROM episodes
           WHERE session_id = ?
           ORDER BY ts ASC
-        `).all(sessionId) as Array<{ id: number; task: string; output: string; reward: number }>
+        `).all(sessionId) as any[]
       : this.db.prepare(`
           SELECT id, task, output, reward FROM episodes
           ORDER BY ts ASC
           LIMIT 1000
-        `).all() as Array<{ id: number; task: string; output: string; reward: number }>;
+        `).all() as any[];
 
     if (episodes.length === 0) {
       return { edgesDiscovered: 0, episodesProcessed: 0 };
@@ -327,7 +323,18 @@ export class NightlyLearner {
    * Helper: Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom === 0 ? 0 : dotProduct / denom;
   }
 
   private async discoverCausalEdges(): Promise<number> {
@@ -350,7 +357,7 @@ export class NightlyLearner {
         AND e2.ts - e1.ts < 3600 -- Within 1 hour
       ORDER BY e1.id, e2.ts
       LIMIT 1000
-    `).all() as Array<{ from_id: number; from_task: string; from_reward: number; to_id: number; to_task: string; to_reward: number; time_diff: number }>;
+    `).all() as any[];
 
     // Better-sqlite3 best practice: Prepare statements OUTSIDE loops for better performance
     const checkExistingStmt = this.db.prepare(`
@@ -413,8 +420,7 @@ export class NightlyLearner {
    * Calculate propensity score e(x) - probability of treatment given context
    */
   private calculatePropensity(episodeId: number): number {
-    const episode = this.db.prepare('SELECT task, session_id FROM episodes WHERE id = ?').get(episodeId) as { task: string; session_id: string } | undefined;
-    if (!episode) return 0.5;
+    const episode = this.db.prepare('SELECT task, session_id FROM episodes WHERE id = ?').get(episodeId) as any;
 
     // Count occurrences of this task type in session
     const counts = this.db.prepare(`
@@ -423,8 +429,7 @@ export class NightlyLearner {
         SUM(CASE WHEN task = ? THEN 1 ELSE 0 END) as task_count
       FROM episodes
       WHERE session_id = ?
-    `).get(episode.task, episode.session_id) as { total: number; task_count: number } | undefined;
-    if (!counts) return 0.5;
+    `).get(episode.task, episode.session_id) as any;
 
     const propensity = counts.task_count / Math.max(counts.total, 1);
 
@@ -446,7 +451,7 @@ export class NightlyLearner {
           AND e2.task = ?
           AND e2.ts < episodes.ts
       )
-    `).get(task) as { avg_reward: number | null } | undefined;
+    `).get(task) as any;
 
     return avgReward?.avg_reward || 0.5;
   }
@@ -459,9 +464,9 @@ export class NightlyLearner {
       SELECT COUNT(*) as count
       FROM episodes
       WHERE task = ?
-    `).get(task) as { count: number } | undefined;
+    `).get(task) as any;
 
-    return count?.count || 0;
+    return count.count;
   }
 
   /**
@@ -487,7 +492,7 @@ export class NightlyLearner {
       FROM causal_experiments
       WHERE status = 'running'
         AND sample_size >= ?
-    `).all(this.config.minSampleSize) as Array<{ id: number; start_time: number; sample_size: number }>;
+    `).all(this.config.minSampleSize) as any[];
 
     let completed = 0;
 
@@ -511,15 +516,15 @@ export class NightlyLearner {
       SELECT COUNT(*) as count
       FROM causal_experiments
       WHERE status = 'running'
-    `).get() as { count: number } | undefined;
+    `).get() as any;
 
-    const available = this.config.experimentBudget - (currentExperiments?.count || 0);
+    const available = this.config.experimentBudget - currentExperiments.count;
     if (available <= 0) {
       return 0;
     }
 
     // Find promising task pairs that don't have experiments yet
-    let candidates = this.db.prepare(`
+    const candidates = this.db.prepare(`
       SELECT DISTINCT
         e1.task as treatment_task,
         e1.id as treatment_id,
@@ -535,20 +540,12 @@ export class NightlyLearner {
       HAVING COUNT(e2.id) >= ?
       ORDER BY COUNT(e2.id) DESC
       LIMIT ?
-    `).all(this.config.minSampleSize, available) as Array<{ treatment_task: string; treatment_id: number; potential_outcomes: number }>;
-
-    // ADR-010: Bandit-guided experiment prioritization
-    if (this.bandit && candidates.length > 1) {
-      const armKeys = candidates.map((c) => c.treatment_task);
-      const ranked = this.bandit.rerank('experiment', armKeys);
-      const byTask = new Map(candidates.map((c) => [c.treatment_task, c]));
-      candidates = ranked.map(k => byTask.get(k)!).filter(Boolean);
-    }
+    `).all(this.config.minSampleSize, available) as any[];
 
     let created = 0;
 
     for (const candidate of candidates) {
-      this.causalGraph.createExperiment({
+      const expId = this.causalGraph.createExperiment({
         name: `Auto: ${candidate.treatment_task} Impact`,
         hypothesis: `${candidate.treatment_task} affects downstream outcomes`,
         treatmentId: candidate.treatment_id,
@@ -594,7 +591,7 @@ export class NightlyLearner {
         AVG(confidence) as avg_confidence
       FROM causal_edges
       WHERE uplift IS NOT NULL
-    `).get() as { avg_uplift: number | null; avg_confidence: number | null } | undefined;
+    `).get() as any;
 
     return {
       avgUplift: stats?.avg_uplift || 0,

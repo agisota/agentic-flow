@@ -71,9 +71,9 @@ export interface AnomalyAlert {
 // Example: Distributed anomaly detection
 export async function detectAnomalies(
   sensorReading: Float32Array & { id: string },
-  normalPatterns: unknown,             // HNSWGraph type
+  normalPatterns: any,             // HNSWGraph type
   neighborSensors: Sensor[],
-  applyAttention: (data: Float32Array, config: unknown) => Promise<Float32Array>,
+  applyAttention: (data: Float32Array, config: any) => Promise<Float32Array>,
   createHyperedge: (readings: Float32Array[]) => Promise<Float32Array>,
   severityThreshold: number = 0.8
 ): Promise<AnomalyAlert[]> {
@@ -84,13 +84,13 @@ export async function detectAnomalies(
   const enhanced = await applyAttention(sensorReading, config);
 
   // Hypergraph: Correlate with neighbor sensors (multi-sensor patterns)
-  await createHyperedge([
+  const hyperedge = await createHyperedge([
     sensorReading,
     ...neighborSensors.map(s => s.reading)
   ]);
 
   // Search for normal patterns
-  const matches = await (normalPatterns as { search: (query: Float32Array, k: number) => Promise<{ score: number }[]> }).search(enhanced, 10);
+  const matches = await normalPatterns.search(enhanced, 10);
 
   // Anomaly = low similarity to normal patterns
   const anomalyScore = 1 - matches[0].score;
@@ -98,7 +98,7 @@ export async function detectAnomalies(
   if (anomalyScore > severityThreshold) {
     // Dynamic-k: Get more candidates for anomaly analysis
     const k = Math.round(3 + anomalyScore * 12);  // 3-15 range
-    await (normalPatterns as { search: (query: Float32Array, k: number) => Promise<unknown[]> }).search(enhanced, k);
+    const detailedMatches = await normalPatterns.search(enhanced, k);
 
     return [{
       sensorId: sensorReading.id,

@@ -54,7 +54,7 @@ export interface CausalEdge {
 
   // Explanation
   mechanism?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface CausalExperiment {
@@ -79,7 +79,7 @@ export interface CausalExperiment {
   confidenceIntervalHigh?: number;
 
   status: 'running' | 'completed' | 'failed';
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface CausalObservation {
@@ -88,7 +88,7 @@ export interface CausalObservation {
   isTreatment: boolean;
   outcomeValue: number;
   outcomeType: 'reward' | 'success' | 'latency';
-  context?: Record<string, unknown>;
+  context?: Record<string, any>;
 }
 
 export interface CausalQuery {
@@ -101,8 +101,7 @@ export interface CausalQuery {
 
 export class CausalMemoryGraph {
   private db: IDatabaseConnection;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GraphBackend or GraphDatabaseAdapter, type varies at runtime
-  private graphBackend?: unknown;
+  private graphBackend?: any; // GraphBackend or GraphDatabaseAdapter
   private attentionService?: AttentionService;
   private embedder?: EmbeddingService;
   private vectorBackend?: VectorBackend;
@@ -122,7 +121,7 @@ export class CausalMemoryGraph {
    */
   constructor(
     db: IDatabaseConnection,
-    graphBackend?: unknown,
+    graphBackend?: any,
     embedder?: EmbeddingService,
     config?: CausalMemoryGraphConfig,
     vectorBackend?: VectorBackend
@@ -166,8 +165,8 @@ export class CausalMemoryGraph {
     }
 
     // Use GraphDatabaseAdapter if available (AgentDB v2)
-    if (this.graphBackend && typeof this.graphBackend === 'object' && 'createCausalEdge' in this.graphBackend) {
-      const graphAdapter = this.graphBackend as unknown as GraphDatabaseAdapter;
+    if (this.graphBackend && 'createCausalEdge' in this.graphBackend) {
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
 
       // Convert episode IDs to string format expected by graph database
       // Use NodeIdMapper to get full node IDs from numeric IDs
@@ -396,7 +395,7 @@ export class CausalMemoryGraph {
         AND ABS(uplift) >= ?
     `;
 
-    const params: Array<string | number> = [
+    const params: any[] = [
       interventionMemoryId,
       interventionMemoryType,
       minConfidence,
@@ -612,20 +611,20 @@ export class CausalMemoryGraph {
       FROM chain
       WHERE to_id = ?
       LIMIT 50
-    `).all(fromMemoryId, maxDepth, toMemoryId) as Array<{ path: string; total_uplift: number; min_confidence: number }>;
+    `).all(fromMemoryId, maxDepth, toMemoryId) as any[];
 
     if (candidateChains.length === 0) {
       return [];
     }
 
     // Get embeddings for query (from node)
-    const fromEpisode = this.db.prepare('SELECT task, output FROM episodes WHERE id = ?').get(fromMemoryId) as { task: string; output: string } | undefined;
+    const fromEpisode = this.db.prepare('SELECT task, output FROM episodes WHERE id = ?').get(fromMemoryId) as any;
     const queryText = fromEpisode ? `${fromEpisode.task}: ${fromEpisode.output}` : '';
     const queryEmbedding = await this.embedder!.embed(queryText);
 
     // Get embeddings and hierarchy levels for all chain nodes
     const allNodeIds = new Set<number>();
-    candidateChains.forEach((chain) => {
+    candidateChains.forEach((chain: any) => {
       const path = chain.path.split('->').map(Number);
       path.forEach(id => allNodeIds.add(id));
     });
@@ -634,7 +633,7 @@ export class CausalMemoryGraph {
     const hierarchyLevels = new Map<number, number>();
 
     for (const nodeId of allNodeIds) {
-      const episode = this.db.prepare('SELECT task, output FROM episodes WHERE id = ?').get(nodeId) as { task: string; output: string } | undefined;
+      const episode = this.db.prepare('SELECT task, output FROM episodes WHERE id = ?').get(nodeId) as any;
       if (episode) {
         const text = `${episode.task}: ${episode.output}`;
         const embedding = await this.embedder!.embed(text);
@@ -642,8 +641,8 @@ export class CausalMemoryGraph {
 
         // Calculate hierarchy level (depth from root)
         const level = candidateChains
-          .filter((chain) => chain.path.includes(String(nodeId)))
-          .reduce((minDepth: number, chain) => {
+          .filter((chain: any) => chain.path.includes(String(nodeId)))
+          .reduce((minDepth: number, chain: any) => {
             const path = chain.path.split('->').map(Number);
             const idx = path.indexOf(nodeId);
             return Math.min(minDepth, idx);
@@ -679,7 +678,7 @@ export class CausalMemoryGraph {
 
     // Re-rank chains by attention weights
     const rankedChains = candidateChains
-      .map((chain) => {
+      .map((chain: any) => {
         const path = chain.path.split('->').map(Number);
 
         // Calculate average attention weight for nodes in path
@@ -723,7 +722,7 @@ export class CausalMemoryGraph {
         SELECT to_memory_id FROM causal_edges
         WHERE from_memory_id = ? AND confidence >= 0.6
       )
-    `).get(outcomeType, outcomeType, outcomeType, treatmentId) as { avg_outcome: number | null } | undefined;
+    `).get(outcomeType, outcomeType, outcomeType, treatmentId) as any;
 
     // Get baseline (no treatment)
     const baseline = this.db.prepare(`
@@ -736,7 +735,7 @@ export class CausalMemoryGraph {
         SELECT to_memory_id FROM causal_edges
         WHERE from_memory_id = ?
       )
-    `).get(outcomeType, outcomeType, outcomeType, treatmentId) as { avg_outcome: number | null } | undefined;
+    `).get(outcomeType, outcomeType, outcomeType, treatmentId) as any;
 
     const causalGain = (withTreatment?.avg_outcome || 0) - (baseline?.avg_outcome || 0);
 
@@ -747,7 +746,7 @@ export class CausalMemoryGraph {
       WHERE from_memory_id = ?
       ORDER BY confidence DESC
       LIMIT 1
-    `).get(treatmentId) as { mechanism: string | null; confidence: number } | undefined;
+    `).get(treatmentId) as any;
 
     return {
       causalGain,
@@ -767,7 +766,7 @@ export class CausalMemoryGraph {
       confounderScore: number;
     }>;
   } {
-    const edge = this.db.prepare('SELECT * FROM causal_edges WHERE id = ?').get(edgeId) as { from_memory_id: number; to_memory_id: number } | undefined;
+    const edge = this.db.prepare('SELECT * FROM causal_edges WHERE id = ?').get(edgeId) as any;
 
     if (!edge) {
       return { confounders: [] };
@@ -784,9 +783,9 @@ export class CausalMemoryGraph {
           UNION
           SELECT session_id FROM episodes WHERE id = ?
         )
-    `).all(edge.from_memory_id, edge.to_memory_id, edge.from_memory_id, edge.to_memory_id) as Array<{ id: number; task: string }>;
+    `).all(edge.from_memory_id, edge.to_memory_id, edge.from_memory_id, edge.to_memory_id) as any[];
 
-    const confounders = potentialConfounders.map((conf) => {
+    const confounders = potentialConfounders.map((conf: any) => {
       // Calculate correlation scores (simplified)
       const treatmentCorr = this.calculateCorrelation(conf.id, edge.from_memory_id);
       const outcomeCorr = this.calculateCorrelation(conf.id, edge.to_memory_id);
@@ -855,7 +854,7 @@ export class CausalMemoryGraph {
     return 0.5 + 0.5 * Math.sign(t) * (1 - Math.pow(1 + t * t / df, -df / 2));
   }
 
-  private tInverse(_p: number, _df: number): number {
+  private tInverse(p: number, df: number): number {
     // Simplified inverse t-distribution (use proper stats library)
     // Approximation for 95% CI
     return 1.96; // Standard normal approximation
@@ -869,7 +868,7 @@ export class CausalMemoryGraph {
       FROM episodes e1
       JOIN episodes e2 ON e1.session_id = e2.session_id
       WHERE e1.id = ? AND e2.id = ?
-    `).get(id1, id2) as { shared: number } | undefined;
+    `).get(id1, id2) as any;
 
     return Math.min(sharedSessions?.shared || 0, 1.0);
   }

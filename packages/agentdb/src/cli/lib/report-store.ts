@@ -7,13 +7,11 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { SimulationResult } from './simulation-registry';
+import { AgentDBConfig, SimulationResult } from './simulation-registry';
 
 // Use better-sqlite3 if available (optional dependency)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let Database: any = null;
+let Database: any;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   Database = require('better-sqlite3');
 } catch {
   // Fallback to in-memory store if better-sqlite3 not installed
@@ -62,7 +60,6 @@ export interface Regression {
 // ============================================================================
 
 export class ReportStore {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private db: any = null;
   private dbPath: string;
 
@@ -193,7 +190,7 @@ export class ReportStore {
       result.timestamp.toISOString(),
       JSON.stringify(result.config),
       result.config.profile,
-      '3.0.0',
+      '2.0.0', // TODO: Get from package.json
       result.duration || 0,
       result.iterations || 1,
       'completed'
@@ -262,12 +259,12 @@ export class ReportStore {
       scenario: simulation.scenario_id,
       timestamp: new Date(simulation.timestamp),
       config: JSON.parse(simulation.config_json),
-      metrics: metrics.reduce((acc: Record<string, number>, m: { metric_name: string; metric_value: number }) => {
+      metrics: metrics.reduce((acc: any, m: any) => {
         acc[m.metric_name] = m.metric_value;
         return acc;
-      }, {} as Record<string, number>),
-      insights: insights.map((i: { content: string }) => i.content),
-      recommendations: recommendations.map((r: { content: string }) => r.content),
+      }, {} as any),
+      insights: insights.map((i: any) => i.content),
+      recommendations: recommendations.map((r: any) => r.content),
       iterations: simulation.iterations,
       duration: simulation.duration_ms
     };

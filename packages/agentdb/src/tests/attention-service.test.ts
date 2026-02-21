@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { AttentionService } from '../controllers/AttentionService.js';
-import type { AttentionConfig } from '../controllers/AttentionService.js';
+import type { AttentionConfig, AttentionResult } from '../controllers/AttentionService.js';
 
 describe('AttentionService', () => {
   let service: AttentionService;
@@ -241,25 +241,15 @@ describe('AttentionService', () => {
       const result2 = await service.hyperbolicAttention(query, key, value, -0.5);
 
       expect(result1.output.length).toBe(result2.output.length);
-
-      // When using native NAPI/WASM, different curvatures produce different results.
-      // The JS fallback ignores curvature (delegates to standard MHA), so results
-      // will be identical. We check based on which runtime is in use.
-      if (result1.runtime === 'fallback') {
-        // Fallback does not use curvature; just verify outputs are valid
-        expect(result1.output.length).toBeGreaterThan(0);
-        expect(result2.output.length).toBeGreaterThan(0);
-      } else {
-        // Native implementation should produce different results for different curvatures
-        let different = false;
-        for (let i = 0; i < result1.output.length; i++) {
-          if (Math.abs(result1.output[i] - result2.output[i]) > 1e-5) {
-            different = true;
-            break;
-          }
+      // Different curvatures should produce different results
+      let different = false;
+      for (let i = 0; i < result1.output.length; i++) {
+        if (Math.abs(result1.output[i] - result2.output[i]) > 1e-5) {
+          different = true;
+          break;
         }
-        expect(different).toBe(true);
       }
+      expect(different).toBe(true);
     });
   });
 

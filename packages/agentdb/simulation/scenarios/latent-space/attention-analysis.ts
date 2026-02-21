@@ -10,7 +10,7 @@
  * and learning convergence rates to validate AgentDB's unique GNN integration.
  */
 
-import type { SimulationScenario } from '../../types';
+import type { SimulationScenario, SimulationReport } from '../../types';
 
 export interface AttentionMetrics {
   // Attention weight analysis
@@ -51,29 +51,6 @@ export interface MultiHeadAttentionConfig {
   attentionType: 'gat' | 'transformer' | 'hybrid';
 }
 
-// Internal type for the attention model object used throughout this module
-interface AttentionModel {
-  backend: string;
-  dimension: number;
-  config: MultiHeadAttentionConfig;
-  weights: { queryWeights: number[][][]; keyWeights: number[][][]; valueWeights: number[][][] };
-  trained: boolean;
-}
-
-// Internal type for individual result entries
-interface AttentionResultEntry {
-  backend: string;
-  attentionConfig: MultiHeadAttentionConfig;
-  vectorCount: number;
-  dimension: number;
-  metrics: {
-    weightDistribution: { entropy: number; concentration: number; sparsity: number; headDiversity: number };
-    queryEnhancement: { recallImprovement: number; ndcgImprovement: number; cosineSimilarityGain: number };
-    learning: { convergenceEpochs: number; sampleEfficiency: number; transferability: number };
-    performance: { forwardPassMs: number; backwardPassMs: number; memoryMB: number };
-  };
-}
-
 export const attentionAnalysisScenario: SimulationScenario = {
   id: 'attention-analysis',
   name: 'Multi-Head Attention Mechanism Analysis',
@@ -109,32 +86,26 @@ export const attentionAnalysisScenario: SimulationScenario = {
   async run(config) {
     console.log('🧠 Starting Multi-Head Attention Analysis...\n');
 
-    const results: AttentionResultEntry[] = [];
+    const results: any[] = [];
     const startTime = Date.now();
-    const backends = config.backends as string[];
-    const attentionConfigs = config.attentionConfigs as MultiHeadAttentionConfig[];
-    const vectorCounts = config.vectorCounts as number[];
-    const dimensions = config.dimensions as number[];
-    const trainingExamples = config.trainingExamples as number;
-    const testQueries = config.testQueries as number;
 
-    for (const backend of backends) {
+    for (const backend of config.backends) {
       console.log(`\n📊 Testing backend: ${backend}`);
 
-      for (const attConfig of attentionConfigs) {
-        for (const vectorCount of vectorCounts) {
-          for (const dim of dimensions) {
+      for (const attConfig of config.attentionConfigs) {
+        for (const vectorCount of config.vectorCounts) {
+          for (const dim of config.dimensions) {
             console.log(`  └─ ${attConfig.heads} heads, ${vectorCount} vectors, ${dim}d`);
 
             // Initialize attention model
-            const model = await initializeAttentionModel(backend, dim, attConfig) as AttentionModel;
+            const model = await initializeAttentionModel(backend, dim, attConfig);
 
             // Train attention weights
             const trainingMetrics = await trainAttentionModel(
               model,
               vectorCount,
               dim,
-              trainingExamples
+              config.trainingExamples
             );
 
             // Analyze attention weight distribution
@@ -143,7 +114,7 @@ export const attentionAnalysisScenario: SimulationScenario = {
             // Measure query enhancement quality
             const enhancementMetrics = await measureQueryEnhancement(
               model,
-              testQueries,
+              config.testQueries,
               dim
             );
 
@@ -156,10 +127,10 @@ export const attentionAnalysisScenario: SimulationScenario = {
               vectorCount,
               dimension: dim,
               metrics: {
-                weightDistribution: weightAnalysis as AttentionResultEntry['metrics']['weightDistribution'],
-                queryEnhancement: enhancementMetrics as AttentionResultEntry['metrics']['queryEnhancement'],
-                learning: trainingMetrics as AttentionResultEntry['metrics']['learning'],
-                performance: perfMetrics as AttentionResultEntry['metrics']['performance'],
+                weightDistribution: weightAnalysis,
+                queryEnhancement: enhancementMetrics,
+                learning: trainingMetrics,
+                performance: perfMetrics,
               },
             });
           }
@@ -206,7 +177,7 @@ async function initializeAttentionModel(
   backend: string,
   dimension: number,
   config: MultiHeadAttentionConfig
-): Promise<unknown> {
+): Promise<any> {
   // Simulated model initialization
   return {
     backend,
@@ -238,14 +209,14 @@ function initializeWeights(heads: number, hiddenDim: number, inputDim: number) {
  * OPTIMIZED: Validated convergence at 35 epochs, 91% transferability
  */
 async function trainAttentionModel(
-  model: AttentionModel,
+  model: any,
   vectorCount: number,
   dimension: number,
   trainingExamples: number
-): Promise<unknown> {
+): Promise<any> {
   console.log('    🎓 Training attention model...');
 
-  generateTrainingData(vectorCount, dimension);
+  const vectors = generateTrainingData(vectorCount, dimension);
   const metrics = {
     convergenceEpochs: 0,
     sampleEfficiency: 0,
@@ -293,7 +264,7 @@ async function trainAttentionModel(
 /**
  * Analyze attention weight distribution properties
  */
-async function analyzeAttentionWeights(model: AttentionModel): Promise<unknown> {
+async function analyzeAttentionWeights(model: any): Promise<any> {
   // Generate sample attention weights
   const attentionWeights = generateSampleAttentionWeights(model.config.heads, 100);
 
@@ -321,10 +292,10 @@ async function analyzeAttentionWeights(model: AttentionModel): Promise<unknown> 
  * OPTIMIZED: Validated +12.4% recall@10 improvement for 8-head attention
  */
 async function measureQueryEnhancement(
-  model: AttentionModel,
+  model: any,
   testQueries: number,
   dimension: number
-): Promise<unknown> {
+): Promise<any> {
   const gains = {
     cosineSimilarityGains: [] as number[],
     recallImprovements: [] as number[],
@@ -364,7 +335,7 @@ async function measureQueryEnhancement(
  * Benchmark attention mechanism performance
  * OPTIMIZED: Validated 3.8ms forward pass for 8-head (24% better than 5ms baseline)
  */
-async function benchmarkPerformance(model: AttentionModel, dimension: number): Promise<unknown> {
+async function benchmarkPerformance(model: any, dimension: number): Promise<any> {
   const iterations = 100;
   const forwardTimes: number[] = [];
   const backwardTimes: number[] = [];
@@ -380,7 +351,7 @@ async function benchmarkPerformance(model: AttentionModel, dimension: number): P
     // Backward pass (simulated)
     const backwardStart = performance.now();
     // Gradient computation simulation
-    model.weights.queryWeights.forEach((w: unknown[][]) =>
+    const gradients = model.weights.queryWeights.map((w: any[][]) =>
       w.map(row => row.map(() => Math.random() * 0.01))
     );
     backwardTimes.push(performance.now() - backwardStart);
@@ -479,7 +450,7 @@ function klDivergence(p: number[], q: number[]): number {
   );
 }
 
-function applyAttentionEnhancement(model: AttentionModel, query: number[]): number[] {
+function applyAttentionEnhancement(model: any, query: number[]): number[] {
   // Simplified attention mechanism
   const heads = model.config.heads;
   const headOutputs: number[][] = [];
@@ -489,7 +460,7 @@ function applyAttentionEnhancement(model: AttentionModel, query: number[]): numb
     const q = matrixVectorMultiply(model.weights.queryWeights[h], query);
 
     // Simulate attention-weighted output
-    const attended = q.map((val) => val * (1 + Math.random() * 0.2));
+    const attended = q.map((val, i) => val * (1 + Math.random() * 0.2));
     headOutputs.push(attended);
   }
 
@@ -515,14 +486,14 @@ function average(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function findBestAttentionConfig(results: AttentionResultEntry[]) {
+function findBestAttentionConfig(results: any[]) {
   return results.reduce((best, current) =>
     current.metrics.queryEnhancement.recallImprovement >
     best.metrics.queryEnhancement.recallImprovement ? current : best
   );
 }
 
-function compareWithIndustry(results: AttentionResultEntry[]) {
+function compareWithIndustry(results: any[]) {
   const bestRecallGain = Math.max(...results.map(r =>
     r.metrics.queryEnhancement.recallImprovement
   ));
@@ -535,7 +506,7 @@ function compareWithIndustry(results: AttentionResultEntry[]) {
   };
 }
 
-function aggregateAttentionMetrics(results: AttentionResultEntry[]) {
+function aggregateAttentionMetrics(results: any[]) {
   return {
     avgEntropy: average(results.map(r => r.metrics.weightDistribution.entropy)),
     avgConcentration: average(results.map(r => r.metrics.weightDistribution.concentration)),
@@ -543,7 +514,7 @@ function aggregateAttentionMetrics(results: AttentionResultEntry[]) {
   };
 }
 
-function aggregateEnhancementGains(results: AttentionResultEntry[]) {
+function aggregateEnhancementGains(results: any[]) {
   return {
     avgRecallGain: average(results.map(r => r.metrics.queryEnhancement.recallImprovement)),
     avgNDCGGain: average(results.map(r => r.metrics.queryEnhancement.ndcgImprovement)),
@@ -551,21 +522,21 @@ function aggregateEnhancementGains(results: AttentionResultEntry[]) {
   };
 }
 
-function analyzeScalability(results: AttentionResultEntry[]) {
+function analyzeScalability(results: any[]) {
   const groupedByVectorCount = results.reduce((acc, r) => {
     if (!acc[r.vectorCount]) acc[r.vectorCount] = [];
     acc[r.vectorCount].push(r);
     return acc;
-  }, {} as Record<number, AttentionResultEntry[]>);
+  }, {} as Record<number, any[]>);
 
   return Object.entries(groupedByVectorCount).map(([count, group]) => ({
     vectorCount: parseInt(count),
-    avgForwardPassMs: average(group.map(r => r.metrics.performance.forwardPassMs)),
-    avgMemoryMB: average(group.map(r => r.metrics.performance.memoryMB)),
+    avgForwardPassMs: average((group as any[]).map((r: any) => r.metrics.performance.forwardPassMs)),
+    avgMemoryMB: average((group as any[]).map((r: any) => r.metrics.performance.memoryMB)),
   }));
 }
 
-function generateAttentionAnalysis(results: AttentionResultEntry[]): string {
+function generateAttentionAnalysis(results: any[]): string {
   const best = findBestAttentionConfig(results);
   const industry = compareWithIndustry(results);
 
@@ -592,7 +563,7 @@ function generateAttentionAnalysis(results: AttentionResultEntry[]): string {
   `.trim();
 }
 
-function generateAttentionRecommendations(_results: AttentionResultEntry[]): string[] {
+function generateAttentionRecommendations(results: any[]): string[] {
   return [
     'Use 8-head attention for optimal recall/performance balance',
     'Enable dropout (0.1-0.2) to prevent overfitting',
@@ -601,13 +572,14 @@ function generateAttentionRecommendations(_results: AttentionResultEntry[]): str
   ];
 }
 
-async function generateAttentionHeatmaps(_results: AttentionResultEntry[]) {
-  return {
-    heatmap: 'attention-heatmap.png',
-  };
+async function generateAttentionHeatmaps(results: any[]) {
+  return results.map(r => ({
+    config: r.attentionConfig,
+    heatmap: 'attention-heatmap-' + r.attentionConfig.heads + 'h.png',
+  }));
 }
 
-async function generateWeightDistributions(_results: AttentionResultEntry[]) {
+async function generateWeightDistributions(results: any[]) {
   return {
     entropyDistribution: 'entropy-distribution.png',
     concentrationAnalysis: 'concentration-analysis.png',
@@ -615,7 +587,7 @@ async function generateWeightDistributions(_results: AttentionResultEntry[]) {
   };
 }
 
-async function generateEnhancementCharts(_results: AttentionResultEntry[]) {
+async function generateEnhancementCharts(results: any[]) {
   return {
     recallImprovement: 'recall-improvement.png',
     ndcgImprovement: 'ndcg-improvement.png',

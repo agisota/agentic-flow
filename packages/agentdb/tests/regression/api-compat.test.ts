@@ -50,14 +50,14 @@ describe('API Backward Compatibility', () => {
     // Initialize embedder
     embedder = new EmbeddingService({
       model: 'mock-model',
-      dimension: 384,
+      dimensions: 384,
       provider: 'local',
     });
     await embedder.initialize();
 
     // Initialize vector backend (required for v2)
     vectorBackend = await createBackend('auto', {
-      dimension: 384,
+      dimensions: 384,
       metric: 'cosine',
     });
 
@@ -65,7 +65,7 @@ describe('API Backward Compatibility', () => {
     reasoningBank = new ReasoningBank(db, embedder);
     skillLibrary = new SkillLibrary(db, embedder, vectorBackend);
     hnswIndex = new HNSWIndex(db, {
-      dimension: 384,
+      dimensions: 384,
       metric: 'cosine',
       M: 16,
       efConstruction: 200,
@@ -419,12 +419,9 @@ describe('API Backward Compatibility', () => {
         const results = await skillLibrary.searchSkills(query);
 
         expect(Array.isArray(results)).toBe(true);
-        // With mock embeddings, vector backends may return 0 results due to
-        // low similarity scores. Validate structure only when results exist.
-        if (results.length > 0) {
-          expect(results[0]).toHaveProperty('id');
-          expect(results[0]).toHaveProperty('name');
-        }
+        expect(results.length).toBeGreaterThan(0);
+        expect(results[0]).toHaveProperty('id');
+        expect(results[0]).toHaveProperty('name');
       });
 
       it('should support minSuccessRate filter', async () => {
@@ -490,7 +487,7 @@ describe('API Backward Compatibility', () => {
         skillLibrary.updateSkillStats(skillId, true, 0.9, 90);
 
         // Verify update
-        const updated = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as { uses: number };
+        const updated = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
         expect(updated.uses).toBe(11);
       });
     });
@@ -559,7 +556,7 @@ describe('API Backward Compatibility', () => {
     describe('Constructor - v1 signature', () => {
       it('should accept v1 config object', () => {
         const config: Partial<HNSWConfig> = {
-          dimension: 384,
+          dimensions: 384,
           metric: 'cosine',
           M: 16,
           efConstruction: 200,
@@ -574,7 +571,7 @@ describe('API Backward Compatibility', () => {
 
       it('should work with minimal config', () => {
         const index = new HNSWIndex(db, {
-          dimension: 384,
+          dimensions: 384,
           metric: 'cosine',
         });
 
@@ -586,7 +583,7 @@ describe('API Backward Compatibility', () => {
 
         metrics.forEach(metric => {
           const index = new HNSWIndex(db, {
-            dimension: 384,
+            dimensions: 384,
             metric,
           });
 
@@ -696,7 +693,7 @@ describe('API Backward Compatibility', () => {
 
     describe('removeVector - v1 signature', () => {
       beforeEach(async () => {
-        await reasoningBank.storePattern({
+        const patternId = await reasoningBank.storePattern({
           taskType: 'to_remove',
           approach: 'Pattern to remove',
           successRate: 0.8,
@@ -877,7 +874,7 @@ describe('API Backward Compatibility', () => {
     });
 
     it('should throw when searching unbuilt index', async () => {
-      const newIndex = new HNSWIndex(db, { dimension: 384, metric: 'cosine' });
+      const newIndex = new HNSWIndex(db, { dimensions: 384, metric: 'cosine' });
       const query = new Float32Array(384);
 
       await expect(newIndex.search(query, 5)).rejects.toThrow('Index not built');

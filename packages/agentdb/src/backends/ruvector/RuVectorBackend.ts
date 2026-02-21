@@ -33,6 +33,8 @@ export const MAX_BATCH_SIZE = 10000;
 export const DEFAULT_CACHE_SIZE = 10000;
 
 /** @inline Small epsilon for numerical stability */
+const EPSILON = 1e-10;
+
 /** @inline Maximum metadata entries to prevent memory exhaustion */
 const MAX_METADATA_ENTRIES = 10_000_000;
 
@@ -219,10 +221,9 @@ export interface RuVectorConfig extends VectorConfig {
 
 export class RuVectorBackend implements VectorBackend {
   readonly name = 'ruvector' as const;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private db: any; // VectorDB from @ruvector/core - FFI boundary
+  private db: any; // VectorDB from @ruvector/core
   private config: RuVectorConfig;
-  private metadata: Map<string, Record<string, unknown>> = new Map();
+  private metadata: Map<string, Record<string, any>> = new Map();
   private initialized = false;
 
   // Concurrency control
@@ -459,7 +460,7 @@ export class RuVectorBackend implements VectorBackend {
   /**
    * Insert single vector with optional metadata
    */
-  insert(id: string, embedding: Float32Array, metadata?: Record<string, unknown>): void {
+  insert(id: string, embedding: Float32Array, metadata?: Record<string, any>): void {
     this.ensureInitialized();
 
     // Validate id
@@ -504,7 +505,7 @@ export class RuVectorBackend implements VectorBackend {
   /**
    * Batch insert for optimal performance (sequential)
    */
-  insertBatch(items: Array<{ id: string; embedding: Float32Array; metadata?: Record<string, unknown> }>): void {
+  insertBatch(items: Array<{ id: string; embedding: Float32Array; metadata?: Record<string, any> }>): void {
     this.ensureInitialized();
 
     for (const item of items) {
@@ -525,7 +526,7 @@ export class RuVectorBackend implements VectorBackend {
    * @returns Promise that resolves when all items are inserted
    */
   async insertBatchParallel(
-    items: Array<{ id: string; embedding: Float32Array; metadata?: Record<string, unknown> }>,
+    items: Array<{ id: string; embedding: Float32Array; metadata?: Record<string, any> }>,
     options?: { batchSize?: number; concurrency?: number }
   ): Promise<void> {
     this.ensureInitialized();
@@ -537,7 +538,7 @@ export class RuVectorBackend implements VectorBackend {
     const semaphore = new Semaphore(concurrency);
 
     // Split items into batches
-    const batches: Array<Array<{ id: string; embedding: Float32Array; metadata?: Record<string, unknown> }>> = [];
+    const batches: Array<Array<{ id: string; embedding: Float32Array; metadata?: Record<string, any> }>> = [];
     for (let i = 0; i < items.length; i += batchSize) {
       batches.push(items.slice(i, i + batchSize));
     }
@@ -570,7 +571,7 @@ export class RuVectorBackend implements VectorBackend {
   insertWithPooledBuffer(
     id: string,
     embedding: number[] | Float32Array,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, any>
   ): void {
     this.ensureInitialized();
 
@@ -861,7 +862,7 @@ export class RuVectorBackend implements VectorBackend {
         }
       }
 
-      this.metadata = new Map(Object.entries(parsed as Record<string, Record<string, unknown>>));
+      this.metadata = new Map(Object.entries(parsed as Record<string, Record<string, any>>));
 
       // Enforce size limit
       if (this.metadata.size > MAX_METADATA_ENTRIES) {

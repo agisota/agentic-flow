@@ -2,55 +2,66 @@
  * @test Attention Mechanism Integration Tests
  * @description Comprehensive end-to-end tests for all attention mechanisms
  * @prerequisites
- *   - MemoryController initialized with attention controllers
+ *   - AgentDB initialized
  *   - RuVector native bindings available
+ *   - Test database created
  * @coverage
  *   - Self-attention mechanisms
  *   - Cross-attention mechanisms
  *   - Multi-head attention
  *   - Memory controller integrations
- *
- * NOTE: AgentDB.getController() does not expose attention controllers
- * ('self-attention', 'cross-attention', 'multi-head-attention') and
- * getController('memory') returns ReflexionMemory, not MemoryController.
- * These tests use MemoryController directly as a standalone class.
+ *   - CLI commands
+ *   - MCP tools
+ *   - Browser WASM loading
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import AgentDB from '../../src/index.js';
 import { MemoryController } from '../../src/controllers/MemoryController.js';
+import { SelfAttentionController } from '../../src/controllers/attention/SelfAttentionController.js';
+import { CrossAttentionController } from '../../src/controllers/attention/CrossAttentionController.js';
+import { MultiHeadAttentionController } from '../../src/controllers/attention/MultiHeadAttentionController.js';
+import fs from 'fs';
+import path from 'path';
 
-// Check if ruvector native bindings actually load (not just installed)
-let ruvectorAvailable = false;
-try {
-  await import('ruvector');
-  ruvectorAvailable = true;
-} catch {
-  try {
-    await import('@ruvector/core');
-    ruvectorAvailable = true;
-  } catch {
-    /* native bindings not functional */
-  }
-}
-
-// Use MemoryController directly since AgentDB.getController does not expose
-// attention controllers or MemoryController instances.
-describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
+// Attention controllers (MemoryController, SelfAttentionController, etc.) are now implemented
+describe('Attention Mechanism Integration', () => {
+  let db: AgentDB;
   let memoryController: MemoryController;
+  const testDbPath = path.join(__dirname, '../fixtures/test-attention.db');
 
-  beforeEach(() => {
-    // Create a standalone MemoryController with attention enabled
-    memoryController = new MemoryController(null, {
+  beforeEach(async () => {
+    // Clean up test database
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+
+    // Initialize AgentDB
+    db = new AgentDB({
+      dbPath: testDbPath,
+      namespace: 'test-attention',
       enableAttention: true,
-      numHeads: 8,
-      defaultTopK: 10,
-      defaultThreshold: 0.0,
+      attentionConfig: {
+        selfAttention: { enabled: true },
+        crossAttention: { enabled: true },
+        multiHeadAttention: { enabled: true, numHeads: 8 }
+      }
     });
+
+    await db.initialize();
+    memoryController = db.getController('memory') as MemoryController;
+  });
+
+  afterEach(async () => {
+    await db.close();
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
   });
 
   describe('Self-Attention Mechanism', () => {
     it('should compute self-attention scores for memory entries', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       // Store test memories
       const memories = [
@@ -79,8 +90,9 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should apply softmax normalization to attention scores', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
+      // Store test data
       await memoryController.store({
         id: 'test1',
         content: 'Test content',
@@ -96,8 +108,9 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should filter results by minimum attention score', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
+      // Store memories with varying similarity
       await memoryController.store({ id: 'm1', content: 'High similarity', embedding: [0.9, 0.1, 0.0] });
       await memoryController.store({ id: 'm2', content: 'Low similarity', embedding: [0.0, 0.1, 0.9] });
 
@@ -114,7 +127,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should handle empty memory gracefully', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       const query = [0.1, 0.2, 0.3];
       const result = await controller.computeAttention(query);
@@ -124,10 +137,10 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should scale with large memory sets efficiently', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       // Store 1000 memories
-      const promises: Promise<unknown>[] = [];
+      const promises = [];
       for (let i = 0; i < 1000; i++) {
         promises.push(memoryController.store({
           id: `mem${i}`,
@@ -149,9 +162,9 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
 
   describe('Cross-Attention Mechanism', () => {
     it('should compute cross-attention between query and memory', async () => {
-      const controller = memoryController.getCrossAttentionController();
+      const controller = db.getController('cross-attention') as CrossAttentionController;
 
-      // Store memory context - uses default namespace
+      // Store memory context
       const context = [
         { id: 'ctx1', embedding: [0.1, 0.2, 0.3] },
         { id: 'ctx2', embedding: [0.4, 0.5, 0.6] }
@@ -161,9 +174,9 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
         await memoryController.store(ctx);
       }
 
-      // Compute cross-attention against the default namespace
+      // Compute cross-attention
       const query = [0.2, 0.3, 0.4];
-      const result = await controller.computeCrossAttention(query, 'default');
+      const result = await controller.computeCrossAttention(query, 'memory');
 
       expect(result).toBeDefined();
       expect(result.scores).toHaveLength(2);
@@ -171,7 +184,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should integrate query and context via attention', async () => {
-      const controller = memoryController.getCrossAttentionController();
+      const controller = db.getController('cross-attention') as CrossAttentionController;
 
       await memoryController.store({
         id: 'context1',
@@ -179,7 +192,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
       });
 
       const query = [0.0, 1.0, 0.0];
-      const result = await controller.computeCrossAttention(query, 'default');
+      const result = await controller.computeCrossAttention(query, 'memory');
 
       // Attended output should be a blend of query and context
       expect(result.attended).toBeDefined();
@@ -188,7 +201,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should support multiple context sources', async () => {
-      const controller = memoryController.getCrossAttentionController();
+      const controller = db.getController('cross-attention') as CrossAttentionController;
 
       // Store in different namespaces
       await memoryController.store({ id: 'mem1', embedding: [0.1, 0.2, 0.3] }, 'episodic');
@@ -204,7 +217,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
 
   describe('Multi-Head Attention Mechanism', () => {
     it('should compute multi-head attention with configured heads', async () => {
-      const controller = memoryController.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
       // Store test data
       for (let i = 0; i < 5; i++) {
@@ -227,34 +240,27 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should aggregate attention from multiple heads', async () => {
-      // Use a new MemoryController with dimension that's divisible by numHeads
-      const mc = new MemoryController(null, { enableAttention: true, numHeads: 4 });
-      const controller = mc.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
-      // Use 8-dimensional embeddings for 4 heads (headDim = 2)
-      const dim = 8;
-      await mc.store({ id: 'mh-test-1', embedding: Array.from({ length: dim }, () => Math.random()) });
-      await mc.store({ id: 'mh-test-2', embedding: Array.from({ length: dim }, () => Math.random()) });
-      await mc.store({ id: 'mh-test-3', embedding: Array.from({ length: dim }, () => Math.random()) });
-
-      const query = Array.from({ length: dim }, () => Math.random());
-      const result = await controller.computeMultiHeadAttention(query, {
-        numHeads: 4
+      await memoryController.store({
+        id: 'multi-head-test',
+        embedding: [0.1, 0.2, 0.3]
       });
 
-      // All heads should produce valid attention output
-      expect(result.heads.length).toBe(4);
-      expect(result.attended).toBeDefined();
-      expect(result.attended.length).toBe(query.length);
+      const query = [0.1, 0.2, 0.3];
+      const result = await controller.computeMultiHeadAttention(query, {
+        numHeads: 8
+      });
+
+      // Each head should produce different attention patterns
+      const uniqueHeads = new Set(result.heads.map(h => JSON.stringify(h.attended)));
+      expect(uniqueHeads.size).toBeGreaterThan(1);
     });
 
     it('should support different aggregation strategies', async () => {
-      const controller = memoryController.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
-      // Store diverse memories so aggregation strategies can produce different results
-      await memoryController.store({ id: 'agg-1', embedding: [0.9, 0.1, 0.0] });
-      await memoryController.store({ id: 'agg-2', embedding: [0.0, 0.9, 0.1] });
-      await memoryController.store({ id: 'agg-3', embedding: [0.1, 0.0, 0.9] });
+      await memoryController.store({ id: 'agg-test', embedding: [0.5, 0.5, 0.5] });
 
       const query = [0.5, 0.5, 0.5];
 
@@ -266,15 +272,11 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
         aggregation: 'max'
       });
 
-      // Both strategies should produce valid attended vectors
-      expect(avgResult.attended).toBeDefined();
-      expect(avgResult.attended.length).toBe(query.length);
-      expect(maxResult.attended).toBeDefined();
-      expect(maxResult.attended.length).toBe(query.length);
+      expect(avgResult.attended).not.toEqual(maxResult.attended);
     });
 
     it('should handle varying head dimensions', async () => {
-      const controller = memoryController.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
       await memoryController.store({ id: 'dim-test', embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6] });
 
@@ -315,7 +317,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
 
       expect(results).toHaveLength(2);
       expect(results[0]).toHaveProperty('attentionScore');
-      expect(results[0].attentionScore).toBeGreaterThanOrEqual(0);
+      expect(results[0].attentionScore).toBeGreaterThan(0);
     });
 
     it('should prioritize important memories via attention', async () => {
@@ -366,7 +368,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
 
   describe('Performance Tests', () => {
     it('should process attention in real-time (<100ms)', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       // Store 100 memories
       for (let i = 0; i < 100; i++) {
@@ -385,7 +387,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should handle concurrent attention requests', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       // Store test data
       for (let i = 0; i < 50; i++) {
@@ -409,7 +411,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should maintain memory efficiency with attention computation', async () => {
-      const controller = memoryController.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
       const initialMemory = process.memoryUsage().heapUsed;
 
@@ -438,7 +440,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
 
   describe('Error Handling', () => {
     it('should handle invalid query dimensions', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       await memoryController.store({
         id: 'test',
@@ -446,43 +448,63 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
       });
 
       const invalidQuery = [0.1, 0.2]; // Wrong dimension
-      // SelfAttentionController validates dimensions and throws
       await expect(
         controller.computeAttention(invalidQuery)
-      ).rejects.toThrow('Query dimension mismatch');
+      ).rejects.toThrow();
     });
 
     it('should handle null/undefined inputs gracefully', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
-      // These may throw or return empty results depending on implementation
-      try {
-        await controller.computeAttention(null as unknown as number[]);
-        // If it doesn't throw, that's acceptable
-      } catch {
-        // Expected - null input should cause an error
-      }
+      await expect(
+        controller.computeAttention(null as any)
+      ).rejects.toThrow();
 
-      try {
-        await controller.computeAttention(undefined as unknown as number[]);
-      } catch {
-        // Expected - undefined input should cause an error
-      }
+      await expect(
+        controller.computeAttention(undefined as any)
+      ).rejects.toThrow();
     });
 
-    it.skip('should validate attention configuration - AgentDB does not validate attention config on initialize', async () => {
-      // AgentDB.initialize() does not throw on invalid attention config
-      // because attentionConfig is passed through but not validated
+    it('should validate attention configuration', async () => {
+      await expect(
+        new AgentDB({
+          dbPath: ':memory:',
+          enableAttention: true,
+          attentionConfig: {
+            multiHeadAttention: {
+              enabled: true,
+              numHeads: 0 // Invalid
+            }
+          }
+        }).initialize()
+      ).rejects.toThrow();
     });
 
-    it.skip('should recover from attention computation errors - requires internal computeScores method mock', async () => {
-      // SelfAttentionController does not expose computeScores for mocking
+    it('should recover from attention computation errors', async () => {
+      const controller = db.getController('self-attention') as SelfAttentionController;
+
+      // Mock a computation error
+      vi.spyOn(controller as any, 'computeScores').mockRejectedValueOnce(
+        new Error('Computation failed')
+      );
+
+      const query = [0.1, 0.2, 0.3];
+      await expect(
+        controller.computeAttention(query)
+      ).rejects.toThrow('Computation failed');
+
+      // Should recover on next attempt
+      (controller as any).computeScores.mockRestore();
+      await memoryController.store({ id: 'recovery', embedding: query });
+
+      const result = await controller.computeAttention(query);
+      expect(result).toBeDefined();
     });
   });
 
   describe('Edge Cases', () => {
     it('should handle zero vectors in attention', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       await memoryController.store({
         id: 'zero',
@@ -497,7 +519,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should handle very large attention scores', async () => {
-      const controller = memoryController.getSelfAttentionController();
+      const controller = db.getController('self-attention') as SelfAttentionController;
 
       await memoryController.store({
         id: 'large',
@@ -513,7 +535,7 @@ describe.skipIf(!ruvectorAvailable)('Attention Mechanism Integration', () => {
     });
 
     it('should handle high-dimensional embeddings', async () => {
-      const controller = memoryController.getMultiHeadAttentionController();
+      const controller = db.getController('multi-head-attention') as MultiHeadAttentionController;
 
       const dim = 1024;
       const embedding = Array(dim).fill(0).map(() => Math.random());

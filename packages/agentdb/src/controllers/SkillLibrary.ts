@@ -15,8 +15,6 @@ import { VectorBackend } from '../backends/VectorBackend.js';
 import type { GraphDatabaseAdapter } from '../backends/graph/GraphDatabaseAdapter.js';
 import { NodeIdMapper } from '../utils/NodeIdMapper.js';
 import { QueryCache, type QueryCacheConfig } from '../core/QueryCache.js';
-import { cosineSimilarity } from '../utils/similarity.js';
-import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface Skill {
   id?: number;
@@ -24,8 +22,8 @@ export interface Skill {
   description?: string;
   signature?: {
     // v1 API: optional
-    inputs: Record<string, unknown>;
-    outputs: Record<string, unknown>;
+    inputs: Record<string, any>;
+    outputs: Record<string, any>;
   };
   code?: string;
   successRate: number;
@@ -33,7 +31,7 @@ export interface Skill {
   avgReward?: number; // v1 API: optional (defaults to 0)
   avgLatencyMs?: number; // v1 API: optional (defaults to 0)
   createdFromEpisode?: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface SkillLink {
@@ -41,7 +39,7 @@ export interface SkillLink {
   childSkillId: number;
   relationship: 'prerequisite' | 'alternative' | 'refinement' | 'composition';
   weight: number;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface SkillQuery {
@@ -58,26 +56,21 @@ export class SkillLibrary {
   private db: IDatabaseConnection;
   private embedder: EmbeddingService;
   private vectorBackend: VectorBackend | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- may be GraphBackend or GraphDatabaseAdapter
-  private graphBackend?: any;
+  private graphBackend?: any; // GraphBackend or GraphDatabaseAdapter
   private queryCache: QueryCache;
-  private bandit: SolverBandit | null = null;
 
   constructor(
     db: IDatabaseConnection,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- may be GraphBackend or GraphDatabaseAdapter
     graphBackend?: any,
-    cacheConfig?: QueryCacheConfig,
-    bandit?: SolverBandit
+    cacheConfig?: QueryCacheConfig
   ) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend || null;
     this.graphBackend = graphBackend;
     this.queryCache = new QueryCache(cacheConfig);
-    this.bandit = bandit || null;
   }
 
   /**
@@ -89,7 +82,7 @@ export class SkillLibrary {
     this.queryCache.invalidateCategory('skills');
     // Use GraphDatabaseAdapter if available (AgentDB v2)
     if (this.graphBackend && 'storeSkill' in this.graphBackend) {
-      const graphAdapter = this.graphBackend as unknown as GraphDatabaseAdapter;
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
 
       const text = this.buildSkillText(skill);
       const embedding = await this.embedder.embed(text);
@@ -215,14 +208,14 @@ export class SkillLibrary {
 
     // Use GraphDatabaseAdapter if available (AgentDB v2)
     if (this.graphBackend && 'searchSkills' in this.graphBackend) {
-      const graphAdapter = this.graphBackend as unknown as GraphDatabaseAdapter;
+      const graphAdapter = this.graphBackend as any as GraphDatabaseAdapter;
 
       const searchResults = await graphAdapter.searchSkills(queryEmbedding, k);
 
-      let results = searchResults
+      const results = searchResults
         .map((result) => {
           // Handle metadata/tags parsing
-          let metadata: Record<string, unknown> | undefined = undefined;
+          let metadata: any = undefined;
           if (result.tags) {
             if (typeof result.tags === 'string') {
               // Skip parsing if it's a String object representation
@@ -252,9 +245,6 @@ export class SkillLibrary {
           };
         })
         .filter((skill) => skill.successRate >= minSuccessRate);
-
-      // ADR-010: Bandit-guided skill reranking
-      results = this.banditRerank(task, results);
 
       // Cache the results
       this.queryCache.set(cacheKey, results);
@@ -306,10 +296,7 @@ export class SkillLibrary {
         return scoreB - scoreA;
       });
 
-      let results = skillsWithSimilarity.slice(0, k);
-
-      // ADR-010: Bandit-guided skill reranking
-      results = this.banditRerank(task, results);
+      const results = skillsWithSimilarity.slice(0, k);
 
       // Cache the results
       this.queryCache.set(cacheKey, results);
@@ -373,9 +360,7 @@ export class SkillLibrary {
       return scoreB - scoreA;
     });
 
-    // ADR-010: Bandit-guided skill reranking
-    const results = this.banditRerank(task, skillsWithSimilarity.slice(0, k));
-    return results;
+    return skillsWithSimilarity.slice(0, k);
   }
 
   /**
@@ -395,7 +380,17 @@ export class SkillLibrary {
    * Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   /**
@@ -437,8 +432,7 @@ export class SkillLibrary {
       WHERE sl.parent_skill_id = ? AND sl.relationship = 'prerequisite'
       ORDER BY sl.weight DESC
     `);
-    type SkillRow = Parameters<typeof this.rowToSkill>[0];
-    const prerequisites = (prereqStmt.all(skillId) as SkillRow[]).map(this.rowToSkill);
+    const prerequisites = prereqStmt.all(skillId).map(this.rowToSkill);
 
     // Get alternatives
     const altStmt = this.db.prepare(`
@@ -447,7 +441,7 @@ export class SkillLibrary {
       WHERE sl.parent_skill_id = ? AND sl.relationship = 'alternative'
       ORDER BY sl.weight DESC, s.success_rate DESC
     `);
-    const alternatives = (altStmt.all(skillId) as SkillRow[]).map(this.rowToSkill);
+    const alternatives = altStmt.all(skillId).map(this.rowToSkill);
 
     // Get refinements
     const refStmt = this.db.prepare(`
@@ -456,7 +450,7 @@ export class SkillLibrary {
       WHERE sl.parent_skill_id = ? AND sl.relationship = 'refinement'
       ORDER BY sl.weight DESC, s.created_at DESC
     `);
-    const refinements = (refStmt.all(skillId) as SkillRow[]).map(this.rowToSkill);
+    const refinements = refStmt.all(skillId).map(this.rowToSkill);
 
     return { skill, prerequisites, alternatives, refinements };
   }
@@ -578,7 +572,7 @@ export class SkillLibrary {
       } else {
         // Update existing skill stats
         this.updateSkillStats(
-          (existing as { id: number }).id,
+          (existing as any).id,
           candidate.success_rate > 0.5,
           candidate.avg_reward,
           candidate.avg_latency ?? 0
@@ -607,7 +601,7 @@ export class SkillLibrary {
       AND success = 1
     `
       )
-      .all(...episodeIds) as Array<{ id: number; task: string; input: string; output: string; critique: string; reward: number; success: number; metadata: string }>;
+      .all(...episodeIds) as any[];
 
     if (episodes.length === 0) {
       return { commonPatterns: [], successIndicators: [] };
@@ -737,16 +731,16 @@ export class SkillLibrary {
     return Array.from(frequency.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, n)
-      .filter(([_word, count]) => count >= 2) // Only keywords appearing at least twice
-      .map(([word]) => word);
+      .filter(([_, count]) => count >= 2) // Only keywords appearing at least twice
+      .map(([word, _]) => word);
   }
 
   /**
    * Extract common patterns from episode metadata
    */
-  private extractMetadataPatterns(episodes: Array<{ metadata?: string | Record<string, unknown>; [key: string]: unknown }>): string[] {
+  private extractMetadataPatterns(episodes: any[]): string[] {
     const patterns: string[] = [];
-    const metadataFields = new Map<string, Set<unknown>>();
+    const metadataFields = new Map<string, Set<any>>();
 
     for (const episode of episodes) {
       if (episode.metadata) {
@@ -781,7 +775,7 @@ export class SkillLibrary {
   /**
    * Analyze learning trend across episodes
    */
-  private analyzeLearningTrend(episodes: Array<{ id: number; reward: number; [key: string]: unknown }>): string | null {
+  private analyzeLearningTrend(episodes: any[]): string | null {
     if (episodes.length < 3) return null;
 
     // Sort by episode ID (temporal order)
@@ -869,7 +863,7 @@ export class SkillLibrary {
    * Warm cache with common skill queries
    */
   async warmCache(commonTasks: string[]): Promise<void> {
-    await this.queryCache.warm(async (_cache) => {
+    await this.queryCache.warm(async (cache) => {
       // Pre-load common skill queries
       for (const task of commonTasks) {
         await this.retrieveSkills({ task, k: 5 });
@@ -877,35 +871,18 @@ export class SkillLibrary {
     });
   }
 
-  /** ADR-010: Record skill execution outcome for bandit learning */
-  recordSkillOutcome(taskType: string, skillName: string, reward: number, latencyMs?: number): void {
-    if (this.bandit) {
-      this.bandit.recordReward(taskType, skillName, reward, latencyMs);
-    }
-  }
-
   // ========================================================================
   // Private Helper Methods
   // ========================================================================
 
-  /** ADR-010: Rerank results using Thompson Sampling bandit */
-  private banditRerank<T extends Skill>(task: string, results: T[]): T[] {
-    if (!this.bandit || results.length <= 1) return results;
-    const taskType = task.split(/\s+/)[0] || 'general';
-    const armKeys = results.map(s => s.name);
-    const ranked = this.bandit.rerank(taskType, armKeys);
-    const byName = new Map(results.map(s => [s.name, s]));
-    return ranked.map(name => byName.get(name)!).filter(Boolean);
-  }
-
   private getSkillById(id: number): Skill {
     const stmt = this.db.prepare('SELECT * FROM skills WHERE id = ?');
-    const row = stmt.get(id) as { id: number; name: string; description: string; signature: string; code: string; success_rate: number; uses: number; avg_reward: number; avg_latency_ms: number; created_from_episode: number | null; metadata: string | null } | undefined;
+    const row = stmt.get(id);
     if (!row) throw new Error(`Skill ${id} not found`);
     return this.rowToSkill(row);
   }
 
-  private rowToSkill(row: { id: number; name: string; description: string; signature: string; code: string; success_rate: number; uses: number; avg_reward: number; avg_latency_ms: number; created_from_episode: number | null; metadata: string | null }): Skill {
+  private rowToSkill(row: any): Skill {
     return {
       id: row.id,
       name: row.name,
@@ -916,7 +893,7 @@ export class SkillLibrary {
       uses: row.uses,
       avgReward: row.avg_reward,
       avgLatencyMs: row.avg_latency_ms,
-      createdFromEpisode: row.created_from_episode ?? undefined,
+      createdFromEpisode: row.created_from_episode,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
     };
   }

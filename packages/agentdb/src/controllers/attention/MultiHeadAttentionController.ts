@@ -66,7 +66,7 @@ export interface MemoryEntry {
   id: string;
   embedding: number[];
   content?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -383,8 +383,10 @@ export class MultiHeadAttentionController {
 
     const dimension = query.length;
     const numHeads = heads.length;
+    const headDim = heads[0]?.attended.length || Math.floor(dimension / numHeads);
+
     switch (strategy) {
-      case 'concat': {
+      case 'concat':
         // Concatenate all head outputs (may change dimension)
         const concatResult: number[] = [];
         for (const head of heads) {
@@ -395,9 +397,8 @@ export class MultiHeadAttentionController {
           return [...concatResult, ...new Array(dimension - concatResult.length).fill(0)];
         }
         return concatResult.slice(0, dimension);
-      }
 
-      case 'max': {
+      case 'max':
         // Take element-wise max across reconstructed head outputs
         const maxResult = new Array(dimension).fill(-Infinity);
         for (const head of heads) {
@@ -407,9 +408,8 @@ export class MultiHeadAttentionController {
           }
         }
         return maxResult.map(v => isFinite(v) ? v : 0);
-      }
 
-      case 'weighted': {
+      case 'weighted':
         // Weight by average attention scores
         const weightedResult = new Array(dimension).fill(0);
         const weights: number[] = [];
@@ -430,10 +430,9 @@ export class MultiHeadAttentionController {
           }
         }
         return weightedResult;
-      }
 
       case 'average':
-      default: {
+      default:
         // Average across reconstructed head outputs
         const avgResult = new Array(dimension).fill(0);
         for (const head of heads) {
@@ -443,7 +442,6 @@ export class MultiHeadAttentionController {
           }
         }
         return avgResult;
-      }
     }
   }
 

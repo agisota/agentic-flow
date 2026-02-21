@@ -10,8 +10,6 @@
  * @module browser/AttentionBrowser
  */
 
-import { cosineSimilarity } from '../utils/similarity.js';
-
 export interface AttentionConfig {
   dimension?: number;
   numHeads?: number;
@@ -32,8 +30,7 @@ export type LoadingState = 'idle' | 'loading' | 'loaded' | 'error';
  * Browser-compatible attention class with WASM support
  */
 export class AttentionBrowser {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private wasmModule: any = null; // WASM module loaded at runtime - FFI boundary
+  private wasmModule: any = null;
   private loadingState: LoadingState = 'idle';
   private loadError: Error | null = null;
   private config: AttentionConfig;
@@ -85,8 +82,9 @@ export class AttentionBrowser {
         return;
       }
 
-      // Dynamic import of WASM loader (generated during build)
-      const wasmLoader = await import('../../dist/agentdb.wasm-loader.js' as string);
+      // Dynamic import of WASM loader
+      // @ts-ignore - WASM loader generated during build
+      const wasmLoader = await import('../../dist/agentdb.wasm-loader.js');
       this.wasmModule = await wasmLoader.initWASM();
       this.loadingState = 'loaded';
     } catch (error) {
@@ -343,7 +341,18 @@ export class AttentionBrowser {
   }
 
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denominator = Math.sqrt(normA * normB);
+    return denominator > 0 ? dot / denominator : 0;
   }
 }
 

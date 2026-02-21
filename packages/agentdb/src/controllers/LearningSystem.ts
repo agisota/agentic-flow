@@ -19,10 +19,9 @@
  * - Model-Based RL
  */
 
-import type { IDatabaseConnection } from '../types/database.types.js';
+// Database type from db-fallback
+type Database = any;
 import { EmbeddingService } from './EmbeddingService.js';
-import { cosineSimilarity } from '../utils/similarity.js';
-import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface LearningSession {
   id: string;
@@ -32,7 +31,7 @@ export interface LearningSession {
   startTime: number;
   endTime?: number;
   status: 'active' | 'completed' | 'failed';
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface LearningConfig {
@@ -69,15 +68,13 @@ export interface TrainingResult {
 }
 
 export class LearningSystem {
-  private db: IDatabaseConnection;
+  private db: Database;
   private embedder: EmbeddingService;
   private activeSessions: Map<string, LearningSession> = new Map();
-  private bandit: SolverBandit | null = null;
 
-  constructor(db: IDatabaseConnection, embedder: EmbeddingService, bandit?: SolverBandit) {
+  constructor(db: Database, embedder: EmbeddingService) {
     this.db = db;
     this.embedder = embedder;
-    this.bandit = bandit || null;
     this.initializeSchema();
   }
 
@@ -327,7 +324,7 @@ export class LearningSystem {
       SELECT * FROM learning_experiences
       WHERE session_id = ?
       ORDER BY timestamp ASC
-    `).all(sessionId) as Array<{ id: number; session_id: string; state: string; action: string; reward: number; next_state: string | null; success: number; timestamp: number; metadata: string | null }>;
+    `).all(sessionId) as any[];
 
     if (experiences.length === 0) {
       throw new Error(`No training data available for session: ${sessionId}`);
@@ -382,25 +379,6 @@ export class LearningSystem {
     };
   }
 
-  /** ADR-010: Recommend best RL algorithm for a task based on learned outcomes */
-  recommendAlgorithm(taskDescription: string): LearningSession['sessionType'] {
-    const algorithms: LearningSession['sessionType'][] = [
-      'q-learning', 'sarsa', 'dqn', 'policy-gradient',
-      'actor-critic', 'ppo', 'decision-transformer', 'mcts', 'model-based',
-    ];
-    if (!this.bandit) return 'ppo'; // default
-    const ctx = taskDescription.split(/\s+/).slice(0, 3).join('_') || 'general';
-    return this.bandit.selectArm(ctx, algorithms) as LearningSession['sessionType'];
-  }
-
-  /** ADR-010: Record session outcome for algorithm meta-selection */
-  recordAlgorithmOutcome(taskDescription: string, algorithm: LearningSession['sessionType'], reward: number, timeMs?: number): void {
-    if (this.bandit) {
-      const ctx = taskDescription.split(/\s+/).slice(0, 3).join('_') || 'general';
-      this.bandit.recordReward(ctx, algorithm, reward, timeMs);
-    }
-  }
-
   // ============================================================================
   // Private Helper Methods
   // ============================================================================
@@ -411,18 +389,18 @@ export class LearningSystem {
   private getSession(sessionId: string): LearningSession | null {
     const row = this.db.prepare(`
       SELECT * FROM learning_sessions WHERE id = ?
-    `).get(sessionId) as { id: string; user_id: string; session_type: string; config: string; start_time: number; end_time: number; status: string; metadata: string | null } | undefined;
+    `).get(sessionId) as any;
 
     if (!row) return null;
 
     return {
       id: row.id,
       userId: row.user_id,
-      sessionType: row.session_type as LearningSession['sessionType'],
+      sessionType: row.session_type,
       config: JSON.parse(row.config),
       startTime: row.start_time,
       endTime: row.end_time,
-      status: row.status as LearningSession['status'],
+      status: row.status,
       metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
     };
   }
@@ -435,7 +413,7 @@ export class LearningSystem {
     const existing = this.db.prepare(`
       SELECT embedding FROM learning_state_embeddings
       WHERE session_id = ? AND state = ?
-    `).get(sessionId, state) as { embedding: Buffer } | undefined;
+    `).get(sessionId, state) as any;
 
     if (existing) {
       return new Float32Array(existing.embedding.buffer);
@@ -456,13 +434,13 @@ export class LearningSystem {
   /**
    * Get latest policy for session
    */
-  private getLatestPolicy(sessionId: string): { stateActionPairs: Record<string, number>; qValues: Record<string, number>; visitCounts: Record<string, number>; avgRewards: Record<string, number> } {
+  private getLatestPolicy(sessionId: string): any {
     const policy = this.db.prepare(`
       SELECT * FROM learning_policies
       WHERE session_id = ?
       ORDER BY version DESC
       LIMIT 1
-    `).get(sessionId) as { state_action_pairs: string; q_values: string; visit_counts: string; avg_rewards: string } | undefined;
+    `).get(sessionId) as any;
 
     if (!policy) {
       // Return empty policy
@@ -488,14 +466,14 @@ export class LearningSystem {
   private async calculateActionScores(
     session: LearningSession,
     state: string,
-    _stateEmbedding: Float32Array,
-    policy: { stateActionPairs: Record<string, number>; qValues: Record<string, number>; visitCounts: Record<string, number>; avgRewards: Record<string, number> }
+    stateEmbedding: Float32Array,
+    policy: any
   ): Promise<Array<{ action: string; score: number }>> {
     // Get possible actions from past experiences
-    const actions = (this.db.prepare(`
+    const actions = this.db.prepare(`
       SELECT DISTINCT action FROM learning_experiences
       WHERE session_id = ?
-    `).all(session.id) as Array<{ action: string }>).map((row) => row.action);
+    `).all(session.id).map((row: any) => row.action);
 
     if (actions.length === 0) {
       // Default actions if none exist
@@ -601,12 +579,11 @@ export class LearningSystem {
         break;
       }
 
-      default: {
+      default:
         // Default: simple average
         policy.visitCounts[key]++;
         const n = policy.visitCounts[key];
         policy.avgRewards[key] += (feedback.reward - policy.avgRewards[key]) / n;
-      }
     }
   }
 
@@ -615,7 +592,7 @@ export class LearningSystem {
    */
   private async trainBatch(
     session: LearningSession,
-    batch: Array<{ state: string; action: string; reward: number; next_state: string | null; success: number }>,
+    batch: any[],
     learningRate: number
   ): Promise<number> {
     let totalLoss = 0;
@@ -662,7 +639,7 @@ export class LearningSystem {
     const currentVersion = this.db.prepare(`
       SELECT MAX(version) as max_version FROM learning_policies
       WHERE session_id = ?
-    `).get(sessionId) as { max_version: number | null } | undefined;
+    `).get(sessionId) as any;
 
     const version = (currentVersion?.max_version || 0) + 1;
 
@@ -690,7 +667,7 @@ export class LearningSystem {
       WHERE session_id = ?
       ORDER BY version DESC
       LIMIT 10
-    `).all(sessionId) as Array<{ version: number; q_values: string }>;
+    `).all(sessionId) as any[];
 
     if (versions.length < 2) return 0;
 
@@ -715,21 +692,21 @@ export class LearningSystem {
   }
 
   // Algorithm-specific scoring methods
-  private calculateTransformerScore(state: string, action: string, policy: { avgRewards: Record<string, number> }): number {
+  private calculateTransformerScore(state: string, action: string, policy: any): number {
     const key = `${state}|${action}`;
     return policy.avgRewards[key] || 0;
   }
 
-  private calculateUCB1(state: string, action: string, policy: { avgRewards: Record<string, number>; visitCounts: Record<string, number> }): number {
+  private calculateUCB1(state: string, action: string, policy: any): number {
     const key = `${state}|${action}`;
     const q = policy.avgRewards[key] || 0;
     const n = policy.visitCounts[key] || 1;
-    const N = (Object.values(policy.visitCounts) as number[]).reduce((sum: number, val: number) => sum + val, 0) || 1;
+    const N = Object.values(policy.visitCounts).reduce((sum: number, val: any) => sum + val, 0) || 1;
     const exploration = Math.sqrt(2 * Math.log(N) / n);
     return q + exploration;
   }
 
-  private calculateModelScore(state: string, action: string, policy: { avgRewards: Record<string, number> }): number {
+  private calculateModelScore(state: string, action: string, policy: any): number {
     const key = `${state}|${action}`;
     return policy.avgRewards[key] || 0;
   }
@@ -755,20 +732,14 @@ export class LearningSystem {
     timeWindowDays?: number;
     includeTrends?: boolean;
     groupBy?: 'task' | 'session' | 'skill';
-  }): Promise<{
-    timeWindow: { days: number; startTimestamp: number; endTimestamp: number };
-    overall: { totalEpisodes: number; avgReward: number; successRate: number; minReward: number; maxReward: number; avgLatencyMs: number };
-    groupedMetrics: Array<{ key: string; count: number; avgReward: number; successRate: number }>;
-    trends: Array<{ date: string; count: number; avgReward: number; successRate: number }>;
-    policyImprovement: { versions: number; qValueImprovement: number };
-  }> {
+  }): Promise<any> {
     const { sessionId, timeWindowDays = 7, includeTrends = true, groupBy = 'task' } = options;
 
     const cutoffTimestamp = Date.now() - (timeWindowDays * 24 * 60 * 60 * 1000);
 
     // Base query filters
     let whereClause = 'WHERE timestamp >= ?';
-    const params: Array<string | number> = [cutoffTimestamp];
+    const params: any[] = [cutoffTimestamp];
 
     if (sessionId) {
       whereClause += ' AND session_id = ?';
@@ -786,10 +757,10 @@ export class LearningSystem {
         AVG(CASE WHEN metadata IS NOT NULL THEN json_extract(metadata, '$.latency_ms') END) as avg_latency_ms
       FROM learning_experiences
       ${whereClause}
-    `).get(...params) as { total_episodes: number; avg_reward: number; success_rate: number; min_reward: number; max_reward: number; avg_latency_ms: number } | undefined;
+    `).get(...params) as any;
 
     // Group by metrics
-    let groupedMetrics: Array<{ group_key: string; count: number; avg_reward: number; success_rate: number }> = [];
+    let groupedMetrics: any[] = [];
     if (groupBy === 'task') {
       groupedMetrics = this.db.prepare(`
         SELECT
@@ -802,7 +773,7 @@ export class LearningSystem {
         GROUP BY state
         ORDER BY count DESC
         LIMIT 20
-      `).all(...params) as Array<{ group_key: string; count: number; avg_reward: number; success_rate: number }>;
+      `).all(...params) as any[];
     } else if (groupBy === 'session') {
       groupedMetrics = this.db.prepare(`
         SELECT
@@ -815,11 +786,11 @@ export class LearningSystem {
         GROUP BY session_id
         ORDER BY count DESC
         LIMIT 20
-      `).all(...params) as Array<{ group_key: string; count: number; avg_reward: number; success_rate: number }>;
+      `).all(...params) as any[];
     }
 
     // Trend analysis
-    let trends: Array<{ date: string; count: number; avg_reward: number; success_rate: number }> = [];
+    let trends: any[] = [];
     if (includeTrends) {
       trends = this.db.prepare(`
         SELECT
@@ -831,7 +802,7 @@ export class LearningSystem {
         ${whereClause}
         GROUP BY date
         ORDER BY date ASC
-      `).all(...params) as Array<{ date: string; count: number; avg_reward: number; success_rate: number }>;
+      `).all(...params) as any[];
     }
 
     // Policy improvement metrics
@@ -843,7 +814,7 @@ export class LearningSystem {
       FROM learning_policies
       WHERE session_id = ?
       ORDER BY version ASC
-    `).all(sessionId) as Array<{ version: number; created_at: number; q_values: string }> : [];
+    `).all(sessionId) as any[] : [];
 
     let policyImprovement = 0;
     if (policyVersions.length >= 2) {
@@ -865,12 +836,12 @@ export class LearningSystem {
         endTimestamp: Date.now(),
       },
       overall: {
-        totalEpisodes: overallStats?.total_episodes || 0,
-        avgReward: overallStats?.avg_reward || 0,
-        successRate: overallStats?.success_rate || 0,
-        minReward: overallStats?.min_reward || 0,
-        maxReward: overallStats?.max_reward || 0,
-        avgLatencyMs: overallStats?.avg_latency_ms || 0,
+        totalEpisodes: overallStats.total_episodes || 0,
+        avgReward: overallStats.avg_reward || 0,
+        successRate: overallStats.success_rate || 0,
+        minReward: overallStats.min_reward || 0,
+        maxReward: overallStats.max_reward || 0,
+        avgLatencyMs: overallStats.avg_latency_ms || 0,
       },
       groupedMetrics: groupedMetrics.map(g => ({
         key: g.group_key,
@@ -902,14 +873,7 @@ export class LearningSystem {
     minSimilarity?: number;
     transferType?: 'episodes' | 'skills' | 'causal_edges' | 'all';
     maxTransfers?: number;
-  }): Promise<{
-    success: boolean;
-    transferred: { episodes: number; skills: number; causalEdges: number; details: Array<{ type: string; id: number; similarity: number }> };
-    source: { session?: string; task?: string };
-    target: { session?: string; task?: string };
-    minSimilarity: number;
-    transferType: string;
-  }> {
+  }): Promise<any> {
     const {
       sourceSession,
       targetSession,
@@ -928,7 +892,7 @@ export class LearningSystem {
       throw new Error('Must specify either targetSession or targetTask');
     }
 
-    const transferred: { episodes: number; skills: number; causalEdges: number; details: Array<{ type: string; id: number; similarity: number }> } = {
+    const transferred: any = {
       episodes: 0,
       skills: 0,
       causalEdges: 0,
@@ -942,7 +906,7 @@ export class LearningSystem {
         WHERE ${sourceSession ? 'session_id = ?' : 'state LIKE ?'}
         ORDER BY reward DESC
         LIMIT ?
-      `).all(sourceSession || `%${sourceTask}%`, maxTransfers) as Array<{ id: number; session_id: string; state: string; action: string; reward: number; next_state: string | null; success: number; timestamp: number; metadata: string | null }>;
+      `).all(sourceSession || `%${sourceTask}%`, maxTransfers) as any[];
 
       for (const episode of sourceEpisodes) {
         // Check similarity if transferring between tasks
@@ -1010,7 +974,7 @@ export class LearningSystem {
         // Save updated target policy
         const version = (this.db.prepare(`
           SELECT MAX(version) as max_version FROM learning_policies WHERE session_id = ?
-        `).get(targetSession) as { max_version: number | null } | undefined)?.max_version || 0;
+        `).get(targetSession) as any)?.max_version || 0;
 
         this.db.prepare(`
           INSERT INTO learning_policies (
@@ -1049,18 +1013,12 @@ export class LearningSystem {
     includeConfidence?: boolean;
     includeEvidence?: boolean;
     includeCausal?: boolean;
-  }): Promise<{
-    query: string;
-    recommendations: Array<{ action: string; confidence: number; avgReward: number; successRate: number; supportingExamples: number; evidence?: Array<{ episodeId: number; state: string; reward: number; success: number; similarity: number; timestamp: number }> }>;
-    explainDepth: string;
-    reasoning?: { similarExperiencesFound: number; avgSimilarity: number; uniqueActions: number };
-    causalChains?: Array<{ from_memory_id: number; to_memory_id: number; uplift: number }>;
-    allEvidence?: Array<{ id: number; session_id: string; state: string; action: string; reward: number; success: number; timestamp: number; similarity: number }>;
-  }> {
+  }): Promise<any> {
     const {
       query,
       k = 5,
       explainDepth = 'detailed',
+      includeConfidence = true,
       includeEvidence = true,
       includeCausal = true,
     } = options;
@@ -1073,9 +1031,9 @@ export class LearningSystem {
       SELECT * FROM learning_experiences
       ORDER BY timestamp DESC
       LIMIT 100
-    `).all() as Array<{ id: number; session_id: string; state: string; action: string; reward: number; success: number; timestamp: number; metadata: string | null }>;
+    `).all() as any[];
 
-    const rankedExperiences: Array<{ id: number; session_id: string; state: string; action: string; reward: number; success: number; timestamp: number; metadata: string | null; similarity: number }> = [];
+    const rankedExperiences: any[] = [];
     for (const exp of allExperiences) {
       const stateEmbed = await this.getStateEmbedding(exp.session_id, exp.state);
       const similarity = this.cosineSimilarity(queryEmbed, stateEmbed);
@@ -1090,7 +1048,7 @@ export class LearningSystem {
     const topExperiences = rankedExperiences.slice(0, k);
 
     // Aggregate recommendations
-    const actionScores: Record<string, { count: number; avgReward: number; successRate: number; evidence: Array<{ episodeId: number; state: string; reward: number; success: number; similarity: number; timestamp: number }> }> = {};
+    const actionScores: Record<string, { count: number; avgReward: number; successRate: number; evidence: any[] }> = {};
 
     for (const exp of topExperiences) {
       if (!actionScores[exp.action]) {
@@ -1132,23 +1090,16 @@ export class LearningSystem {
     recommendations.sort((a, b) => b.confidence - a.confidence);
 
     // Causal reasoning chains (if enabled)
-    let causalChains: Array<{ from_memory_id: number; to_memory_id: number; uplift: number }> = [];
+    let causalChains: any[] = [];
     if (includeCausal) {
       causalChains = this.db.prepare(`
         SELECT * FROM causal_edges
         ORDER BY uplift DESC
         LIMIT 5
-      `).all() as Array<{ from_memory_id: number; to_memory_id: number; uplift: number }>;
+      `).all() as any[];
     }
 
-    const response: {
-      query: string;
-      recommendations: typeof recommendations;
-      explainDepth: string;
-      reasoning?: { similarExperiencesFound: number; avgSimilarity: number; uniqueActions: number };
-      causalChains?: typeof causalChains;
-      allEvidence?: typeof topExperiences;
-    } = {
+    const response: any = {
       query,
       recommendations: recommendations.slice(0, k),
       explainDepth,
@@ -1177,13 +1128,13 @@ export class LearningSystem {
     sessionId: string;
     toolName: string;
     action: string;
-    stateBefore?: unknown;
-    stateAfter?: unknown;
+    stateBefore?: any;
+    stateAfter?: any;
     outcome: string;
     reward: number;
     success: boolean;
     latencyMs?: number;
-    metadata?: Record<string, unknown>;
+    metadata?: any;
   }): Promise<number> {
     const {
       sessionId,
@@ -1304,7 +1255,7 @@ export class LearningSystem {
         SELECT AVG(uplift) as avg_uplift
         FROM causal_edges
         WHERE from_memory_id = ? OR to_memory_id = ?
-      `).get(episodeId, episodeId) as { avg_uplift: number | null } | undefined;
+      `).get(episodeId, episodeId) as any;
 
       if (causalEdges?.avg_uplift) {
         reward += causalEdges.avg_uplift * 0.1; // 10% weight for causal impact
@@ -1317,6 +1268,20 @@ export class LearningSystem {
 
   // Helper method for cosine similarity
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    if (a.length !== b.length) {
+      throw new Error('Vectors must have same length');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 }

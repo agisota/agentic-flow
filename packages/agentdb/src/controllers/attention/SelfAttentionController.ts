@@ -59,7 +59,7 @@ export interface MemoryEntry {
   id: string;
   embedding: number[];
   content?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 /**

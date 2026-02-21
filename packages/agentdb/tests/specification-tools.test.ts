@@ -30,11 +30,8 @@ let causalGraph: CausalMemoryGraph;
 let reflexion: ReflexionMemory;
 let skills: SkillLibrary;
 let causalRecall: CausalRecall;
+let learner: NightlyLearner;
 let batchOps: BatchOperations;
-
-interface CountResult { count: number }
-interface AvgResult { avg: number }
-interface StatsResult { avg_reward: number; success_rate: number; avg_latency: number; count: number; error_rate: number; accuracy: number }
 
 // Initialize test database schema
 function initializeTestSchema(database: Database.Database): void {
@@ -183,7 +180,7 @@ beforeAll(async () => {
   reflexion = new ReflexionMemory(db, embeddingService);
   skills = new SkillLibrary(db, embeddingService);
   causalRecall = new CausalRecall(db, embeddingService);
-  void new NightlyLearner(db, embeddingService);
+  learner = new NightlyLearner(db, embeddingService);
   batchOps = new BatchOperations(db, embeddingService);
 });
 
@@ -213,7 +210,7 @@ beforeEach(() => {
 describe('AgentDB Core Vector Operations', () => {
   describe('agentdb_init', () => {
     it('should initialize database with default configuration', () => {
-      const tableCount = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get() as CountResult;
+      const tableCount = db.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get() as any;
       expect(tableCount.count).toBeGreaterThan(0);
     });
 
@@ -222,7 +219,7 @@ describe('AgentDB Core Vector Operations', () => {
       const customDb = new Database(customPath);
       initializeTestSchema(customDb);
 
-      const tableCount = customDb.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get() as CountResult;
+      const tableCount = customDb.prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'").get() as any;
       expect(tableCount.count).toBeGreaterThan(0);
 
       customDb.close();
@@ -234,12 +231,12 @@ describe('AgentDB Core Vector Operations', () => {
       db.prepare('INSERT INTO episodes (session_id, task, reward, success) VALUES (?, ?, ?, ?)').run('test', 'task', 1.0, 1);
 
       // Verify data exists
-      let count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult).count;
+      let count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any).count;
       expect(count).toBe(1);
 
       // Reset database
       db.prepare('DELETE FROM episodes').run();
-      count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult).count;
+      count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any).count;
       expect(count).toBe(0);
     });
   });
@@ -260,7 +257,7 @@ describe('AgentDB Core Vector Operations', () => {
 
       expect(episodeId).toBeGreaterThan(0);
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode).toBeDefined();
       expect(episode.task).toBe('Test task for vector insertion');
     });
@@ -280,7 +277,7 @@ describe('AgentDB Core Vector Operations', () => {
         metadata: { key: 'value', nested: { data: 123 } },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.tags).toContain('tag1');
       expect(episode.metadata).toBeDefined();
     });
@@ -320,7 +317,7 @@ describe('AgentDB Core Vector Operations', () => {
       const inserted = await batchOps.insertEpisodes(episodes);
       expect(inserted).toBe(10);
 
-      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult).count;
+      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any).count;
       expect(count).toBe(10);
     });
 
@@ -489,7 +486,7 @@ describe('AgentDB Core Vector Operations', () => {
 
       expect(result.changes).toBe(5);
 
-      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('delete-test') as CountResult).count;
+      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('delete-test') as any).count;
       expect(count).toBe(0);
     });
 
@@ -518,10 +515,10 @@ describe('AgentDB Core Vector Operations', () => {
       });
 
       const stats = {
-        episodes: (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult).count,
-        episode_embeddings: (db.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get() as CountResult).count,
-        skills: (db.prepare('SELECT COUNT(*) as count FROM skills').get() as CountResult).count,
-        causal_edges: (db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as CountResult).count,
+        episodes: (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any).count,
+        episode_embeddings: (db.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get() as any).count,
+        skills: (db.prepare('SELECT COUNT(*) as count FROM skills').get() as any).count,
+        causal_edges: (db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as any).count,
       };
 
       expect(stats.episodes).toBeGreaterThan(0);
@@ -546,7 +543,7 @@ describe('AgentDB Core Vector Operations', () => {
         });
       }
 
-      const episodeCount = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult).count;
+      const episodeCount = (db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any).count;
       expect(episodeCount).toBe(3);
     });
 
@@ -563,7 +560,7 @@ describe('AgentDB Core Vector Operations', () => {
         evidenceIds: [],
       });
 
-      const count = (db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as CountResult).count;
+      const count = (db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as any).count;
       expect(count).toBe(1);
     });
   });
@@ -583,7 +580,7 @@ describe('AgentDB Core Vector Operations', () => {
 
       expect(skillId).toBeGreaterThan(0);
 
-      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as Record<string, unknown>;
+      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
       expect(skill.name).toBe('test-pattern');
     });
 
@@ -598,9 +595,9 @@ describe('AgentDB Core Vector Operations', () => {
         avgReward: 0.7,
         avgLatencyMs: 0,
         tags: ['optimization', 'performance'],
-      } as unknown as Parameters<typeof skills.createSkill>[0]);
+      });
 
-      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as Record<string, unknown>;
+      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
       expect(skill.tags).toBeDefined();
     });
 
@@ -699,7 +696,7 @@ describe('AgentDB Core Vector Operations', () => {
         avgLatencyMs: 75,
       });
 
-      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as Record<string, unknown>;
+      const skill = db.prepare('SELECT * FROM skills WHERE id = ?').get(skillId) as any;
       expect(skill.uses).toBe(100);
       expect(skill.success_rate).toBeCloseTo(0.9);
       expect(skill.avg_reward).toBeCloseTo(0.85);
@@ -717,7 +714,7 @@ describe('AgentDB Core Vector Operations', () => {
         avgLatencyMs: 0,
       });
 
-      const skillStats = db.prepare('SELECT AVG(success_rate) as avg FROM skills').get() as AvgResult;
+      const skillStats = db.prepare('SELECT AVG(success_rate) as avg FROM skills').get() as any;
       expect(skillStats.avg).toBeGreaterThan(0);
     });
 
@@ -733,7 +730,7 @@ describe('AgentDB Core Vector Operations', () => {
         avgLatencyMs: 10,
       });
 
-      const skill = db.prepare('SELECT * FROM skills WHERE name = ?').get('fast-skill') as Record<string, unknown>;
+      const skill = db.prepare('SELECT * FROM skills WHERE name = ?').get('fast-skill') as any;
       expect(skill.avg_latency_ms).toBeLessThan(100);
     });
   });
@@ -762,8 +759,9 @@ describe('AgentDB Core Vector Operations', () => {
 
     it('should clear query cache', () => {
       // Simulate cache clear
+      const beforeCount = (db.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get() as any).count;
       db.prepare('DELETE FROM episode_embeddings').run();
-      const afterCount = (db.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get() as CountResult).count;
+      const afterCount = (db.prepare('SELECT COUNT(*) as count FROM episode_embeddings').get() as any).count;
 
       expect(afterCount).toBe(0);
     });
@@ -833,7 +831,7 @@ describe('AgentDB Learning System', () => {
         metadata: { learning_rate: 0.01 },
       });
 
-      const stored = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episode) as Record<string, unknown>;
+      const stored = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episode) as any;
       expect(stored.metadata).toContain('learning_rate');
     });
 
@@ -912,7 +910,7 @@ describe('AgentDB Learning System', () => {
           AVG(latency_ms) as avg_latency
         FROM episodes
         WHERE session_id = ?
-      `).get(sessionId) as StatsResult;
+      `).get(sessionId) as any;
 
       expect(stats.avg_reward).toBeCloseTo(0.5);
       expect(stats.success_rate).toBeCloseTo(0.5);
@@ -1000,7 +998,7 @@ describe('AgentDB Learning System', () => {
         tokensUsed: 0,
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.critique).toBe('Good performance');
       expect(episode.success).toBe(1);
     });
@@ -1018,7 +1016,7 @@ describe('AgentDB Learning System', () => {
         tokensUsed: 0,
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.success).toBe(0);
       expect(episode.reward).toBeLessThan(0.5);
     });
@@ -1037,7 +1035,7 @@ describe('AgentDB Learning System', () => {
         metadata: { adjusted_lr: 0.005 },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.metadata).toContain('adjusted_lr');
     });
   });
@@ -1059,7 +1057,7 @@ describe('AgentDB Learning System', () => {
       const inserted = await batchOps.insertEpisodes(episodes);
       expect(inserted).toBe(20);
 
-      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('training-batch') as CountResult).count;
+      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('training-batch') as any).count;
       expect(count).toBe(20);
     });
 
@@ -1104,7 +1102,7 @@ describe('AgentDB Learning System', () => {
         metadata: { loss: 0.15 },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.metadata).toContain('loss');
     });
   });
@@ -1133,7 +1131,7 @@ describe('AgentDB Learning System', () => {
           AVG(reward) as avg_reward
         FROM episodes
         WHERE session_id = ?
-      `).get('metrics-session') as StatsResult;
+      `).get('metrics-session') as any;
 
       expect(stats.accuracy).toBeDefined();
       expect(stats.accuracy).toBeGreaterThanOrEqual(0);
@@ -1146,7 +1144,7 @@ describe('AgentDB Learning System', () => {
           AVG(CASE WHEN success = 0 THEN 1 ELSE 0 END) as error_rate
         FROM episodes
         WHERE session_id = ?
-      `).get('metrics-session') as StatsResult;
+      `).get('metrics-session') as any;
 
       expect(stats.error_rate).toBeDefined();
     });
@@ -1158,7 +1156,7 @@ describe('AgentDB Learning System', () => {
         WHERE session_id = ?
         ORDER BY id DESC
         LIMIT 5
-      `).all('metrics-session') as Record<string, unknown>[];
+      `).all('metrics-session') as any[];
 
       expect(recentRewards.length).toBeGreaterThan(0);
     });
@@ -1236,7 +1234,7 @@ describe('AgentDB Learning System', () => {
         tokensUsed: 0,
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.critique).toContain('optimal');
     });
 
@@ -1254,7 +1252,7 @@ describe('AgentDB Learning System', () => {
         metadata: { feature_scores: { feature1: 0.8, feature2: 0.6 } },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.metadata).toContain('feature_scores');
     });
 
@@ -1282,7 +1280,7 @@ describe('AgentDB Learning System', () => {
         tokensUsed: 0,
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.input).toBe('Current state');
       expect(episode.output).toBe('Selected action');
       expect(episode.reward).toBeCloseTo(0.8);
@@ -1306,7 +1304,7 @@ describe('AgentDB Learning System', () => {
         },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.metadata).toContain('environment');
     });
 
@@ -1327,7 +1325,7 @@ describe('AgentDB Learning System', () => {
         });
       }
 
-      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('buffer-test') as CountResult).count;
+      const count = (db.prepare('SELECT COUNT(*) as count FROM episodes WHERE session_id = ?').get('buffer-test') as any).count;
       expect(count).toBe(bufferSize);
     });
   });
@@ -1346,7 +1344,7 @@ describe('AgentDB Learning System', () => {
         tokensUsed: 0,
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.reward).toBeCloseTo(0.9);
     });
 
@@ -1380,7 +1378,7 @@ describe('AgentDB Learning System', () => {
         metadata: { base_reward: baseReward, shaping_bonus: 0.2 },
       });
 
-      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as Record<string, unknown>;
+      const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(episodeId) as any;
       expect(episode.reward).toBeCloseTo(shapedReward);
     });
   });
@@ -1433,7 +1431,7 @@ describe('AgentDB Integration Workflows', () => {
       const finalStats = db.prepare(`
         SELECT AVG(reward) as avg_reward, COUNT(*) as count
         FROM episodes WHERE session_id = ?
-      `).get(sessionId) as StatsResult;
+      `).get(sessionId) as any;
 
       expect(finalStats.count).toBe(2);
       expect(finalStats.avg_reward).toBeGreaterThan(0);
@@ -1527,7 +1525,7 @@ describe('AgentDB Integration Workflows', () => {
 
     it('should perform causal recall with evidence', async () => {
       // Add test data
-      await reflexion.storeEpisode({
+      const episode = await reflexion.storeEpisode({
         sessionId: 'recall-test',
         task: 'Causal task',
         reward: 0.85,
@@ -1822,7 +1820,7 @@ describe('Error Handling and Edge Cases', () => {
 
     it('should handle transaction rollback', () => {
       const countBefore = (
-        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult
+        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any
       ).count;
 
       try {
@@ -1838,7 +1836,7 @@ describe('Error Handling and Edge Cases', () => {
       }
 
       const countAfter = (
-        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult
+        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any
       ).count;
 
       expect(countAfter).toBe(countBefore);
@@ -1925,7 +1923,7 @@ describe('Error Handling and Edge Cases', () => {
       }
 
       const finalCount = (
-        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult
+        db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any
       ).count;
 
       expect(finalCount).toBeLessThan(iterations);
@@ -2135,9 +2133,9 @@ describe('Performance Benchmarks', () => {
     it('should benchmark database size vs performance', () => {
       const counts = [100, 500, 1000];
 
-      for (let i = 0; i < counts.length; i++) {
+      for (const targetCount of counts) {
         const currentCount = (
-          db.prepare('SELECT COUNT(*) as count FROM episodes').get() as CountResult
+          db.prepare('SELECT COUNT(*) as count FROM episodes').get() as any
         ).count;
 
         const pageSizeInfo = db.pragma('page_size', { simple: true });

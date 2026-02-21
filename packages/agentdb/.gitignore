@@ -25,16 +25,6 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Package archives
-*.tgz
-
-# RVF/RuVector data
-*.rvf
-*.rvf.lock
-
-# SQLite memory artifacts
-:memory:
-
 # Temporary files
 *.tmp
 *~

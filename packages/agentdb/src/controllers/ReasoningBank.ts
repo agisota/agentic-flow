@@ -12,7 +12,6 @@
  * - metadata: Additional contextual information
  *
  * AgentDB v2 Migration:
- * - Uses shared cosineSimilarity from utils/similarity
  * - Uses VectorBackend abstraction for 8x faster search (RuVector/hnswlib)
  * - Optional GNN enhancement via LearningBackend
  * - 100% backward compatible with v1 API
@@ -23,8 +22,6 @@ import type { IDatabaseConnection, DatabaseRows } from '../types/database.types.
 import { normalizeRowId } from '../types/database.types.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend, SearchResult } from '../backends/VectorBackend.js';
-import { cosineSimilarity } from '../utils/similarity.js';
-import type { SolverBandit } from '../backends/rvf/SolverBandit.js';
 
 export interface ReasoningPattern {
   id?: number;
@@ -35,7 +32,7 @@ export interface ReasoningPattern {
   uses?: number;
   avgReward?: number;
   tags?: string[];
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
   createdAt?: number;
   similarity?: number; // Cosine similarity score (for search results)
 }
@@ -91,14 +88,11 @@ export interface LearningBackend {
 export class ReasoningBank {
   private db: IDatabaseConnection;
   private embedder: EmbeddingService;
-  private cache: Map<string, unknown>;
+  private cache: Map<string, any>;
 
   // v2: Optional vector backend (uses legacy if not provided)
   private vectorBackend?: VectorBackend;
   private learningBackend?: LearningBackend;
-
-  // ADR-010: Optional SolverBandit for adaptive pattern routing
-  private bandit: SolverBandit | null = null;
 
   // Maps pattern ID (number) to vector backend ID (string) for hybrid mode
   private idMapping: Map<number, string> = new Map();
@@ -117,14 +111,12 @@ export class ReasoningBank {
     db: IDatabaseConnection,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
-    learningBackend?: LearningBackend,
-    bandit?: SolverBandit
+    learningBackend?: LearningBackend
   ) {
     this.db = db;
     this.embedder = embedder;
     this.vectorBackend = vectorBackend;
     this.learningBackend = learningBackend;
-    this.bandit = bandit || null;
     this.cache = new Map();
     this.initializeSchema();
   }
@@ -237,6 +229,9 @@ export class ReasoningBank {
    * v2 + GNN: Optionally enhances query with learned patterns
    */
   async searchPatterns(query: PatternSearchQuery): Promise<ReasoningPattern[]> {
+    const k = query.k || 10;
+    const threshold = query.threshold || 0.0;
+
     // Generate embedding if task string provided (v1 API compatibility)
     let queryEmbedding: Float32Array;
     if (query.task && !query.taskEmbedding) {
@@ -255,11 +250,11 @@ export class ReasoningBank {
 
     // Use VectorBackend if available (v2 mode)
     if (this.vectorBackend) {
-      return this.banditRerankPatterns(query, await this.searchPatternsV2(enrichedQuery));
+      return this.searchPatternsV2(enrichedQuery);
     }
 
     // Legacy v1 search (100% backward compatible)
-    return this.banditRerankPatterns(query, await this.searchPatternsLegacy(enrichedQuery));
+    return this.searchPatternsLegacy(enrichedQuery);
   }
 
   /**
@@ -303,7 +298,7 @@ export class ReasoningBank {
 
     // Build WHERE clause for filters
     const conditions: string[] = [];
-    const params: Array<string | number> = [];
+    const params: any[] = [];
 
     if (query.filters?.taskType) {
       conditions.push('rp.task_type = ?');
@@ -397,7 +392,7 @@ export class ReasoningBank {
         throw new Error(`VectorBackend result missing patternId: ${result.id}`);
       }
 
-      const row = stmt.get(patternId) as { id: number; ts: number; task_type: string; approach: string; success_rate: number; uses: number; avg_reward: number; tags: string | null; metadata: string | null } | undefined;
+      const row = stmt.get(patternId) as any;
 
       if (!row) {
         throw new Error(`Pattern ${patternId} not found in database`);
@@ -450,23 +445,6 @@ export class ReasoningBank {
     return embeddings;
   }
 
-  /** ADR-010: Rerank patterns using Thompson Sampling bandit */
-  private banditRerankPatterns(query: PatternSearchQuery, results: ReasoningPattern[]): ReasoningPattern[] {
-    if (!this.bandit || results.length <= 1) return results;
-    const ctx = query.filters?.taskType || query.task?.split(/\s+/)[0] || 'general';
-    const armKeys = results.map((p, i) => p.taskType || `pattern-${i}`);
-    const ranked = this.bandit.rerank(ctx, armKeys);
-    const byKey = new Map(results.map((p, i) => [p.taskType || `pattern-${i}`, p]));
-    return ranked.map(k => byKey.get(k)!).filter(Boolean);
-  }
-
-  /** ADR-010: Record pattern outcome for bandit learning */
-  recordPatternOutcome(taskType: string, patternTaskType: string, reward: number): void {
-    if (this.bandit) {
-      this.bandit.recordReward(taskType, patternTaskType, reward);
-    }
-  }
-
   /**
    * Get pattern statistics
    */
@@ -474,7 +452,7 @@ export class ReasoningBank {
     // Check cache first
     const cacheKey = 'pattern_stats';
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey) as PatternStats;
+      return this.cache.get(cacheKey);
     }
 
     // Total patterns
@@ -499,21 +477,21 @@ export class ReasoningBank {
       GROUP BY task_type
       ORDER BY count DESC
       LIMIT 10
-    `).all() as Array<{ task_type: string; count: number }>;
+    `).all() as any[];
 
     // Recent patterns (last 7 days)
     const recentRow = this.db.prepare(`
       SELECT COUNT(*) as count
       FROM reasoning_patterns
       WHERE ts >= strftime('%s', 'now', '-7 days')
-    `).get() as { count: number } | undefined;
+    `).get() as any;
 
     // High performing patterns (success_rate >= 0.8)
     const highPerfRow = this.db.prepare(`
       SELECT COUNT(*) as count
       FROM reasoning_patterns
       WHERE success_rate >= 0.8
-    `).get() as { count: number } | undefined;
+    `).get() as any;
 
     const stats: PatternStats = {
       totalPatterns: totalRow?.count ?? 0,
@@ -630,7 +608,7 @@ export class ReasoningBank {
       WHERE rp.id = ?
     `);
 
-    const row = stmt.get(patternId) as { id: number; ts: number; task_type: string; approach: string; success_rate: number; uses: number; avg_reward: number; tags: string | null; metadata: string | null; embedding: Buffer | null } | undefined;
+    const row = stmt.get(patternId) as any;
     if (!row) return null;
 
     return {
@@ -677,6 +655,21 @@ export class ReasoningBank {
    * Calculate cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    if (a.length !== b.length) {
+      throw new Error('Vectors must have same length');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom === 0 ? 0 : dotProduct / denom;
   }
 }

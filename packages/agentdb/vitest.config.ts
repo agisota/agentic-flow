@@ -1,4 +1,3 @@
-/* eslint-disable -- vitest config not in tsconfig project */
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
@@ -29,8 +28,6 @@ export default defineConfig({
     },
     testTimeout: 30000,
     hookTimeout: 30000,
-    include: ['tests/**/*.test.ts', 'src/tests/**/*.test.ts'],
-    exclude: ['dist/**', 'node_modules/**', 'simulation/**'],
     setupFiles: ['./tests/setup.ts'],
     mockReset: true,
     restoreMocks: true,
@@ -39,12 +36,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-    },
-  },
-  server: {
-    deps: {
-      // Externalize WASM-loading packages so vitest doesn't transform them
-      external: [/@ruvector\//, /ruvector/, /ruvector-attention-wasm/],
     },
   },
 });

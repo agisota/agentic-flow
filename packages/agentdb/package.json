@@ -46,6 +46,7 @@
     "./controllers/SyncCoordinator": "./dist/src/controllers/SyncCoordinator.js",
     "./controllers/HNSWIndex": "./dist/src/controllers/HNSWIndex.js",
     "./controllers/AttentionService": "./dist/src/controllers/AttentionService.js",
+    "./services/federated-learning": "./dist/src/services/federated-learning.js",
     "./model": "./dist/src/model/ModelCacheLoader.js"
   },
   "scripts": {

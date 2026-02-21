@@ -13,12 +13,12 @@
  * - Policy compliance
  */
 
-import type { IDatabaseConnection } from '../types/database.types.js';
+// Database type from db-fallback
+type Database = any;
 import { CausalMemoryGraph, CausalEdge } from './CausalMemoryGraph.js';
 import { ExplainableRecall, RecallCertificate } from './ExplainableRecall.js';
 import { EmbeddingService } from './EmbeddingService.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
-import { cosineSimilarity } from '../utils/similarity.js';
 
 export interface RerankConfig {
   alpha: number; // Similarity weight (default: 0.7)
@@ -53,14 +53,14 @@ export interface CausalRecallResult {
 }
 
 export class CausalRecall {
-  private db: IDatabaseConnection;
+  private db: Database;
   private causalGraph: CausalMemoryGraph;
   private explainableRecall: ExplainableRecall;
   private embedder: EmbeddingService;
   private vectorBackend?: VectorBackend;
 
   constructor(
-    db: IDatabaseConnection,
+    db: Database,
     embedder: EmbeddingService,
     vectorBackend?: VectorBackend,
     private config: RerankConfig = {
@@ -168,9 +168,9 @@ export class CausalRecall {
           latency_ms
         FROM episodes
         WHERE id IN (${placeholders})
-      `).all(...episodeIds) as Array<{ id: number; content: string; latency_ms: number }>;
+      `).all(...episodeIds) as any[];
 
-      const episodeMap = new Map(episodes.map((e) => [String(e.id), e]));
+      const episodeMap = new Map(episodes.map((e: any) => [e.id, e]));
 
       return searchResults.map(result => {
         const ep = episodeMap.get(result.id);
@@ -185,7 +185,7 @@ export class CausalRecall {
     }
 
     // Fallback to SQL-based similarity search
-    const results: Array<{ id: string; type: string; content: string; similarity: number; latencyMs: number }> = [];
+    const results: any[] = [];
     const episodes = this.db.prepare(`
       SELECT
         e.id,
@@ -200,7 +200,7 @@ export class CausalRecall {
     `).all(k * 2);
 
     for (const ep of episodes) {
-      const episodeRow = ep as { id: number; type: string; content: string; embedding: Buffer; latency_ms: number };
+      const episodeRow = ep as any;
       const embedding = this.deserializeEmbedding(episodeRow.embedding);
       const similarity = this.cosineSimilarity(queryEmbedding, embedding);
       results.push({
@@ -232,7 +232,7 @@ export class CausalRecall {
       SELECT * FROM causal_edges
       WHERE from_memory_id IN (${placeholders})
         AND confidence >= ?
-    `).all(...candidateIds.map(id => parseInt(id)), this.config.minConfidence || 0.6) as Array<{ id: number; from_memory_id: number; from_memory_type: string; to_memory_id: number; to_memory_type: string; similarity: number; uplift: number; confidence: number; sample_size: number; evidence_ids: string | null; mechanism: string }>;
+    `).all(...candidateIds.map(id => parseInt(id)), this.config.minConfidence || 0.6) as any[];
 
     for (const edge of edges) {
       const fromId = edge.from_memory_id.toString();
@@ -242,9 +242,9 @@ export class CausalRecall {
       edgeMap.get(fromId)!.push({
         id: edge.id,
         fromMemoryId: edge.from_memory_id,
-        fromMemoryType: edge.from_memory_type as CausalEdge['fromMemoryType'],
+        fromMemoryType: edge.from_memory_type,
         toMemoryId: edge.to_memory_id,
-        toMemoryType: edge.to_memory_type as CausalEdge['toMemoryType'],
+        toMemoryType: edge.to_memory_type,
         similarity: edge.similarity,
         uplift: edge.uplift,
         confidence: edge.confidence,
@@ -285,7 +285,7 @@ export class CausalRecall {
 
       return {
         id: candidate.id,
-        type: candidate.type as RerankCandidate['type'],
+        type: candidate.type as any,
         content: candidate.content,
         similarity: candidate.similarity,
         uplift: avgUplift,
@@ -363,7 +363,22 @@ export class CausalRecall {
    * Cosine similarity between two vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
-    return cosineSimilarity(a, b);
+    if (a.length !== b.length) {
+      throw new Error('Vector dimensions must match');
+    }
+
+    let dotProduct = 0;
+    let magnitudeA = 0;
+    let magnitudeB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      magnitudeA += a[i] * a[i];
+      magnitudeB += b[i] * b[i];
+    }
+
+    const magnitude = Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
   }
 
   /**
@@ -399,21 +414,21 @@ export class CausalRecall {
     avgRedundancyRatio: number;
     avgCompletenessScore: number;
   } {
-    const causalEdges = this.db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as { count: number } | undefined;
-    const certificates = this.db.prepare('SELECT COUNT(*) as count FROM recall_certificates').get() as { count: number } | undefined;
+    const causalEdges = this.db.prepare('SELECT COUNT(*) as count FROM causal_edges').get() as any;
+    const certificates = this.db.prepare('SELECT COUNT(*) as count FROM recall_certificates').get() as any;
 
     const avgStats = this.db.prepare(`
       SELECT
         AVG(redundancy_ratio) as avg_redundancy,
         AVG(completeness_score) as avg_completeness
       FROM recall_certificates
-    `).get() as { avg_redundancy: number | null; avg_completeness: number | null } | undefined;
+    `).get() as any;
 
     return {
-      totalCausalEdges: causalEdges?.count ?? 0,
-      totalCertificates: certificates?.count ?? 0,
-      avgRedundancyRatio: avgStats?.avg_redundancy ?? 0,
-      avgCompletenessScore: avgStats?.avg_completeness ?? 0
+      totalCausalEdges: causalEdges.count,
+      totalCertificates: certificates.count,
+      avgRedundancyRatio: avgStats?.avg_redundancy || 0,
+      avgCompletenessScore: avgStats?.avg_completeness || 0
     };
   }
 
@@ -448,6 +463,7 @@ export class CausalRecall {
     const {
       query,
       k = 12,
+      includeEvidence = false,
       alpha = this.config.alpha,
       beta = this.config.beta,
       gamma = this.config.gamma

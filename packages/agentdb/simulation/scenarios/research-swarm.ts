@@ -11,7 +11,7 @@
  * - Knowledge synthesis
  */
 
-import { createDatabase } from '../../src/db-fallback.js';
+import { createUnifiedDatabase } from '../../src/db-unified.js';
 import { ReflexionMemory } from '../../src/controllers/ReflexionMemory.js';
 import { CausalMemoryGraph } from '../../src/controllers/CausalMemoryGraph.js';
 import { SkillLibrary } from '../../src/controllers/SkillLibrary.js';
@@ -21,9 +21,8 @@ import * as path from 'path';
 export default {
   description: 'Research-swarm distributed research with collaborative agents',
 
-  async run(config: Record<string, unknown>) {
-    const verbosity = (config.verbosity ?? 2) as number;
-    const researchers = (config.researchers ?? 5) as number;
+  async run(config: any) {
+    const { verbosity = 2, researchers = 5 } = config;
 
     if (verbosity >= 2) {
       console.log(`   🔬 Initializing Research-Swarm (${researchers} researchers)`);
@@ -37,29 +36,30 @@ export default {
     });
     await embedder.initialize();
 
-    const db = await createDatabase(
+    const db = await createUnifiedDatabase(
       path.join(process.cwd(), 'simulation', 'data', 'advanced', 'research-swarm.graph'),
-      { embedder, forceMode: 'graph' }
+      embedder,
+      { forceMode: 'graph' }
     );
 
     const reflexion = new ReflexionMemory(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
     const causal = new CausalMemoryGraph(
-      db.getGraphDatabase(),
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any,
+      db.getGraphDatabase() as any
     );
 
     const skills = new SkillLibrary(
-      db.getGraphDatabase(),
+      db.getGraphDatabase() as any,
       embedder,
       undefined,
-      db.getGraphDatabase()
+      db.getGraphDatabase() as any
     );
 
     const results = {
