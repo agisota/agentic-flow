@@ -53,7 +53,7 @@
     "build": "npm run build:ts && npm run copy:schemas && npm run build:browser",
     "build:ts": "tsc",
     "copy:schemas": "mkdir -p dist/schemas && cp src/schemas/*.sql dist/schemas/",
-    "build:browser": "node scripts/build-browser.js",
+    "build:browser": "node scripts/build-browser.js && node scripts/build-browser-v2.js",
     "build:napi": "bash scripts/optimize-napi.sh",
     "build:wasm": "bash scripts/optimize-wasm.sh",
     "build:optimized": "npm run build:napi && npm run build:wasm && npm run build",
