@@ -21,6 +21,11 @@ export class RuVectorBackend implements VectorBackend {
   private metadata: Map<string, Record<string, any>> = new Map();
   private initialized = false;
 
+  // String ID <-> Numeric Label mappings (N-API layer requires numeric IDs)
+  private idToLabel: Map<string, number> = new Map();
+  private labelToId: Map<number, string> = new Map();
+  private nextLabel: number = 1; // RuVector uses 1-based labels
+
   constructor(config: VectorConfig) {
     // Handle both dimension and dimensions for backward compatibility
     const dimension = config.dimension ?? config.dimensions;
@@ -94,12 +99,24 @@ export class RuVectorBackend implements VectorBackend {
 
   /**
    * Insert single vector with optional metadata
+   *
+   * Maps string IDs to numeric labels before passing to the N-API layer,
+   * which internally requires i64 IDs. Without this mapping, non-numeric
+   * string IDs (e.g. UUIDs) would be silently dropped.
    */
   insert(id: string, embedding: Float32Array, metadata?: Record<string, any>): void {
     this.ensureInitialized();
 
-    // RuVector expects regular arrays
-    this.db.insert(id, Array.from(embedding));
+    // Assign or reuse a numeric label for this string ID
+    let label = this.idToLabel.get(id);
+    if (label === undefined) {
+      label = this.nextLabel++;
+      this.idToLabel.set(id, label);
+      this.labelToId.set(label, id);
+    }
+
+    // Pass numeric label (as string) to the N-API layer
+    this.db.insert(String(label), Array.from(embedding));
 
     if (metadata) {
       this.metadata.set(id, metadata);
@@ -131,14 +148,18 @@ export class RuVectorBackend implements VectorBackend {
     // Perform vector search
     const results = this.db.search(Array.from(query), k);
 
-    // Convert results and apply filtering
+    // Convert results: map numeric labels back to original string IDs
     return results
-      .map((r: { id: string; distance: number }) => ({
-        id: r.id,
-        distance: r.distance,
-        similarity: this.distanceToSimilarity(r.distance),
-        metadata: this.metadata.get(r.id)
-      }))
+      .map((r: { id: string; distance: number }) => {
+        const numericLabel = Number(r.id);
+        const originalId = this.labelToId.get(numericLabel) ?? r.id;
+        return {
+          id: originalId,
+          distance: r.distance,
+          similarity: this.distanceToSimilarity(r.distance),
+          metadata: this.metadata.get(originalId)
+        };
+      })
       .filter((r: SearchResult) => {
         // Apply similarity threshold
         if (options?.threshold && r.similarity < options.threshold) {
@@ -162,10 +183,17 @@ export class RuVectorBackend implements VectorBackend {
   remove(id: string): boolean {
     this.ensureInitialized();
 
+    const label = this.idToLabel.get(id);
+    if (label === undefined) {
+      return false;
+    }
+
     this.metadata.delete(id);
+    this.idToLabel.delete(id);
+    this.labelToId.delete(label);
 
     try {
-      return this.db.remove(id);
+      return this.db.remove(String(label));
     } catch {
       return false;
     }
@@ -187,7 +215,7 @@ export class RuVectorBackend implements VectorBackend {
   }
 
   /**
-   * Save index and metadata to disk
+   * Save index, metadata, and ID mappings to disk
    */
   async save(path: string): Promise<void> {
     this.ensureInitialized();
@@ -195,17 +223,22 @@ export class RuVectorBackend implements VectorBackend {
     // Save vector index
     this.db.save(path);
 
-    // Save metadata separately as JSON
+    // Save metadata and ID mappings as a single sidecar JSON file
     const metadataPath = path + '.meta.json';
     const fs = await import('fs/promises');
-    await fs.writeFile(
-      metadataPath,
-      JSON.stringify(Object.fromEntries(this.metadata), null, 2)
-    );
+    const savedData = {
+      metadata: Object.fromEntries(this.metadata),
+      idToLabel: Object.fromEntries(this.idToLabel),
+      labelToId: Object.fromEntries(
+        Array.from(this.labelToId.entries()).map(([k, v]) => [String(k), v])
+      ),
+      nextLabel: this.nextLabel,
+    };
+    await fs.writeFile(metadataPath, JSON.stringify(savedData, null, 2));
   }
 
   /**
-   * Load index and metadata from disk
+   * Load index, metadata, and ID mappings from disk
    */
   async load(path: string): Promise<void> {
     this.ensureInitialized();
@@ -213,12 +246,29 @@ export class RuVectorBackend implements VectorBackend {
     // Load vector index
     this.db.load(path);
 
-    // Load metadata
+    // Load metadata and ID mappings
     const metadataPath = path + '.meta.json';
     try {
       const fs = await import('fs/promises');
-      const data = await fs.readFile(metadataPath, 'utf-8');
-      this.metadata = new Map(Object.entries(JSON.parse(data)));
+      const raw = await fs.readFile(metadataPath, 'utf-8');
+      const data = JSON.parse(raw);
+
+      // Support both new format (with mappings) and legacy format (metadata-only)
+      if (data.idToLabel) {
+        // New format: includes ID mappings
+        this.metadata = new Map(Object.entries(data.metadata || {}));
+        this.idToLabel = new Map(Object.entries(data.idToLabel).map(
+          ([k, v]) => [k, v as number]
+        ));
+        this.labelToId = new Map(Object.entries(data.labelToId).map(
+          ([k, v]) => [Number(k), v as string]
+        ));
+        this.nextLabel = data.nextLabel || 1;
+      } else {
+        // Legacy format: only metadata, no mappings
+        this.metadata = new Map(Object.entries(data));
+        console.debug('[RuVectorBackend] Loaded legacy metadata format (no ID mappings)');
+      }
     } catch {
       // No metadata file - this is okay for backward compatibility
       console.debug(`[RuVectorBackend] No metadata file found at ${metadataPath}`);
@@ -229,8 +279,10 @@ export class RuVectorBackend implements VectorBackend {
    * Close and cleanup resources
    */
   close(): void {
-    // RuVector cleanup if needed
     this.metadata.clear();
+    this.idToLabel.clear();
+    this.labelToId.clear();
+    this.nextLabel = 1;
   }
 
   /**
