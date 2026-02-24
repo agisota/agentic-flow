@@ -120,3 +120,13 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+
+# SQLite memory artifacts
+:memory:
+
+# Build artifacts
+*.tgz
+*.db-shm
+
+# Agentic-flow runtime
+.agentic-flow/

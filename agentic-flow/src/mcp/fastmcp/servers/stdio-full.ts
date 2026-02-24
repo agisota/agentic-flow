@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// Full FastMCP server with stdio transport - All 11 claude-flow-sdk tools
+// Full FastMCP server with stdio transport - All 23 claude-flow-sdk tools
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
+import { AgentDBService } from '../../../services/agentdb-service.js';
+import type {
+  EpisodeData, SkillData, PatternData, TrajectoryStep,
+} from '../../../services/agentdb-service.js';
 
-console.error('🚀 Starting FastMCP Full Server (stdio transport)...');
-console.error('📦 Loading 11 tools: memory (3), swarm (3), agent (5)');
+console.error('Starting FastMCP Full Server (stdio transport)...');
+console.error('Loading 23 tools: memory (3), swarm (3), agent (5), agentdb (12)');
 
 // Create server
 const server = new FastMCP({
@@ -432,13 +436,279 @@ ${examples && examples.length > 0 ? `## Examples\n\n${examples.map((ex, i) => `#
   }
 });
 
-console.error('✅ Registered 11 tools successfully');
-console.error('🔌 Starting stdio transport...');
+// ---------------------------------------------------------------------------
+// AgentDB-powered tools (12 new tools using agentdb-service singleton)
+// ---------------------------------------------------------------------------
+
+// Tool 12: memory_episode_store
+server.addTool({
+  name: 'memory_episode_store',
+  description: 'Store an agent episode via ReflexionMemory for experience replay',
+  parameters: z.object({
+    sessionId: z.string().min(1).describe('Session identifier'),
+    task: z.string().min(1).describe('Task description'),
+    input: z.string().optional().describe('Input provided to the agent'),
+    output: z.string().optional().describe('Agent output/response'),
+    critique: z.string().optional().describe('Self-critique or reflection'),
+    reward: z.number().min(-1).max(1).describe('Reward signal (-1 to 1)'),
+    success: z.boolean().describe('Whether the episode was successful'),
+    tags: z.array(z.string()).optional().describe('Tags for categorization'),
+  }),
+  execute: async (params) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const id = await svc.storeEpisode(params as EpisodeData);
+      return JSON.stringify({ success: true, data: { id }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 13: memory_episode_recall
+server.addTool({
+  name: 'memory_episode_recall',
+  description: 'Recall similar past episodes using semantic search',
+  parameters: z.object({
+    query: z.string().min(1).describe('Search query describing the task'),
+    limit: z.number().positive().optional().default(5).describe('Max results (1-50)'),
+  }),
+  execute: async ({ query, limit }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const episodes = await svc.recallEpisodes(query, limit);
+      return JSON.stringify({ success: true, data: { episodes, count: episodes.length }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 14: skill_publish
+server.addTool({
+  name: 'skill_publish',
+  description: 'Publish a reusable agent skill to the SkillLibrary',
+  parameters: z.object({
+    name: z.string().min(1).describe('Skill name'),
+    description: z.string().optional().describe('Skill description'),
+    code: z.string().optional().describe('Skill implementation code'),
+    successRate: z.number().min(0).max(1).describe('Success rate (0 to 1)'),
+    metadata: z.record(z.unknown()).optional().describe('Additional metadata'),
+  }),
+  execute: async (params) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const id = await svc.publishSkill(params as SkillData);
+      return JSON.stringify({ success: true, data: { id, name: params.name }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 15: skill_find
+server.addTool({
+  name: 'skill_find',
+  description: 'Find applicable skills by description via semantic search',
+  parameters: z.object({
+    description: z.string().min(1).describe('Task description to match skills against'),
+    limit: z.number().positive().optional().default(5).describe('Max results'),
+  }),
+  execute: async ({ description, limit }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const skills = await svc.findSkills(description, limit);
+      return JSON.stringify({ success: true, data: { skills, count: skills.length }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 16: route_semantic
+server.addTool({
+  name: 'route_semantic',
+  description: 'Route a task to the optimal handler tier using semantic analysis (ADR-026)',
+  parameters: z.object({
+    taskDescription: z.string().min(1).describe('Task description to analyze for routing'),
+  }),
+  execute: async ({ taskDescription }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const route = await svc.routeSemantic(taskDescription);
+      return JSON.stringify({ success: true, data: route, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 17: route_causal
+server.addTool({
+  name: 'route_causal',
+  description: 'Causal routing via CausalMemoryGraph to find optimal agent path',
+  parameters: z.object({
+    taskType: z.string().min(1).describe('Type of task to route'),
+    agentTypes: z.array(z.string()).min(1).describe('Candidate agent types to consider'),
+  }),
+  execute: async ({ taskType, agentTypes }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const patterns = await svc.searchPatterns(taskType, 10);
+      const ranked = agentTypes.map((agent) => {
+        const matching = patterns.filter((p) => p.approach.toLowerCase().includes(agent.toLowerCase()));
+        const avgSuccess = matching.length > 0
+          ? matching.reduce((sum, p) => sum + p.successRate, 0) / matching.length
+          : 0.5;
+        return { agent, score: avgSuccess, matchCount: matching.length };
+      }).sort((a, b) => b.score - a.score);
+      return JSON.stringify({ success: true, data: { taskType, ranked }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 18: attention_coordinate
+server.addTool({
+  name: 'attention_coordinate',
+  description: 'Coordinate agents using attention-weighted task assignment',
+  parameters: z.object({
+    agents: z.array(z.string()).min(1).describe('Agent names to coordinate'),
+    task: z.string().min(1).describe('Task to assign'),
+    mechanism: z.enum(['softmax', 'uniform', 'priority']).optional().default('softmax')
+      .describe('Attention mechanism: softmax, uniform, or priority'),
+  }),
+  execute: async ({ agents, task, mechanism }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const skills = await svc.findSkills(task, agents.length);
+      const weights = agents.map((agent, i) => {
+        const skill = skills[i];
+        if (mechanism === 'uniform') return 1 / agents.length;
+        if (mechanism === 'priority') return 1 / (i + 1);
+        return skill ? skill.successRate : 1 / agents.length;
+      });
+      const sum = weights.reduce((a, b) => a + b, 0) || 1;
+      const assignments = agents.map((agent, i) => ({
+        agent, weight: weights[i] / sum, task,
+      }));
+      return JSON.stringify({ success: true, data: { mechanism, assignments }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 19: graph_query
+server.addTool({
+  name: 'graph_query',
+  description: 'Query the agent knowledge graph',
+  parameters: z.object({
+    query: z.string().min(1).describe('Graph query string (natural language or keyword)'),
+    limit: z.number().positive().optional().default(10).describe('Max results'),
+  }),
+  execute: async ({ query, limit }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const results = await svc.queryGraph(query);
+      return JSON.stringify({ success: true, data: { results: results.slice(0, limit), count: results.length }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 20: graph_store
+server.addTool({
+  name: 'graph_store',
+  description: 'Store nodes and edges in the agent knowledge graph',
+  parameters: z.object({
+    nodes: z.array(z.object({
+      id: z.string(), type: z.string(), label: z.string().optional(),
+    })).describe('Graph nodes'),
+    edges: z.array(z.object({
+      from: z.string(), to: z.string(),
+      fromType: z.string().optional(), toType: z.string().optional(),
+      similarity: z.number().optional(), confidence: z.number().optional(),
+    })).describe('Graph edges'),
+  }),
+  execute: async ({ nodes, edges }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      await svc.storeGraphState(nodes, edges);
+      return JSON.stringify({ success: true, data: { nodesStored: nodes.length, edgesStored: edges.length }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 21: learning_trajectory
+server.addTool({
+  name: 'learning_trajectory',
+  description: 'Record a learning trajectory (state-action-reward sequence)',
+  parameters: z.object({
+    steps: z.array(z.object({
+      state: z.string(), action: z.string(), reward: z.number(),
+      nextState: z.string().optional(),
+    })).min(1).describe('Trajectory steps'),
+    reward: z.number().describe('Total trajectory reward'),
+  }),
+  execute: async ({ steps, reward }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      await svc.recordTrajectory(steps as TrajectoryStep[], reward);
+      return JSON.stringify({ success: true, data: { stepsRecorded: steps.length, totalReward: reward }, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 22: learning_predict
+server.addTool({
+  name: 'learning_predict',
+  description: 'Predict the optimal action for a given state using learned policy',
+  parameters: z.object({
+    state: z.string().min(1).describe('Current state description'),
+  }),
+  execute: async ({ state }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const prediction = await svc.predictAction(state);
+      return JSON.stringify({ success: true, data: prediction, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+// Tool 23: explain_decision
+server.addTool({
+  name: 'explain_decision',
+  description: 'Get an explainable Merkle proof for a recall decision',
+  parameters: z.object({
+    decisionId: z.string().min(1).describe('Decision/query ID to explain'),
+  }),
+  execute: async ({ decisionId }) => {
+    try {
+      const svc = await AgentDBService.getInstance();
+      const explanation = await svc.explainDecision(decisionId);
+      return JSON.stringify({ success: true, data: explanation, timestamp: new Date().toISOString() }, null, 2);
+    } catch (error: any) {
+      return JSON.stringify({ success: false, error: error.message, timestamp: new Date().toISOString() }, null, 2);
+    }
+  }
+});
+
+console.error('Registered 23 tools successfully');
+console.error('Starting stdio transport...');
 
 // Start with stdio transport
 server.start({ transportType: 'stdio' }).then(() => {
-  console.error('✅ FastMCP Full Server running on stdio');
+  console.error('FastMCP Full Server running on stdio');
 }).catch((error) => {
-  console.error('❌ Failed to start server:', error);
+  console.error('Failed to start server:', error);
   process.exit(1);
 });

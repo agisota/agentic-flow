@@ -24,7 +24,7 @@ import { CausalMemoryGraph, CausalEdge } from './CausalMemoryGraph.js';
 import { ReflexionMemory } from './ReflexionMemory.js';
 import { SkillLibrary } from './SkillLibrary.js';
 import { EmbeddingService } from './EmbeddingService.js';
-import { AttentionService, type FlashAttentionConfig } from '../services/AttentionService.js';
+import { AttentionService, type FlashAttentionConfig } from '../utils/LegacyAttentionAdapter.js';
 
 export interface LearnerConfig {
   minSimilarity: number; // Min similarity to consider for causal edge (default: 0.7)
