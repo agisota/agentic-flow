@@ -52,5 +52,15 @@ export {
   ValidationError
 } from './security/input-validation.js';
 
+// Services - RuVector package integrations
+export { SemanticRouter } from './services/SemanticRouter.js';
+export { SonaTrajectoryService } from './services/SonaTrajectoryService.js';
+export { LLMRouter } from './services/LLMRouter.js';
+
+// Re-export service types for convenience
+export type { RouteResult, RouteConfig } from './services/SemanticRouter.js';
+export type { TrajectoryStep, StoredTrajectory, PredictionResult, SonaStats } from './services/SonaTrajectoryService.js';
+export type { LLMConfig, LLMResponse } from './services/LLMRouter.js';
+
 // Re-export all controllers for convenience
 export * from './controllers/index.js';

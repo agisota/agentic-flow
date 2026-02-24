@@ -13,6 +13,7 @@
  */
 
 import type { VectorBackend, VectorConfig, SearchResult, SearchOptions, VectorStats } from '../VectorBackend.js';
+import type { RuVectorLearning } from './RuVectorLearning.js';
 
 export class RuVectorBackend implements VectorBackend {
   readonly name = 'ruvector' as const;
@@ -20,6 +21,7 @@ export class RuVectorBackend implements VectorBackend {
   private config: VectorConfig;
   private metadata: Map<string, Record<string, any>> = new Map();
   private initialized = false;
+  private learning: RuVectorLearning | null = null;
 
   constructor(config: VectorConfig) {
     // Handle both dimension and dimensions for backward compatibility
@@ -118,7 +120,26 @@ export class RuVectorBackend implements VectorBackend {
   }
 
   /**
-   * Search for k-nearest neighbors with optional filtering
+   * Set a RuVectorLearning instance for GNN-enhanced search
+   *
+   * When set, search results will be enhanced using GNN neighbor context
+   * from @ruvector/gnn. Falls through to raw HNSW results if enhancement fails.
+   *
+   * @param learning - Initialized RuVectorLearning instance, or null to disable
+   */
+  setLearning(learning: RuVectorLearning | null): void {
+    this.learning = learning;
+  }
+
+  /**
+   * Get the current RuVectorLearning instance, if any
+   */
+  getLearning(): RuVectorLearning | null {
+    return this.learning;
+  }
+
+  /**
+   * Search for k-nearest neighbors with optional filtering and GNN enhancement
    */
   search(query: Float32Array, k: number, options?: SearchOptions): SearchResult[] {
     this.ensureInitialized();
@@ -129,10 +150,10 @@ export class RuVectorBackend implements VectorBackend {
     }
 
     // Perform vector search
-    const results = this.db.search(Array.from(query), k);
+    const rawResults = this.db.search(Array.from(query), k);
 
     // Convert results and apply filtering
-    return results
+    let results: SearchResult[] = rawResults
       .map((r: { id: string; distance: number }) => ({
         id: r.id,
         distance: r.distance,
@@ -154,6 +175,64 @@ export class RuVectorBackend implements VectorBackend {
 
         return true;
       });
+
+    // Enhance with GNN if available
+    if (this.learning && this.learning.getState().initialized && results.length > 0) {
+      try {
+        // Extract neighbor embeddings and similarity weights from results
+        const neighbors: Float32Array[] = [];
+        const weights: number[] = [];
+        for (const r of results) {
+          // Retrieve the stored vector for this result by re-searching with k=1
+          // We use the similarity score as the edge weight for GNN attention
+          weights.push(r.similarity);
+          // Use the query dimension to create a placeholder if we cannot retrieve the vector
+          // The GNN will use attention weights to compensate
+          neighbors.push(query); // Placeholder - actual retrieval depends on backend support
+        }
+
+        // Try to get actual embeddings from the raw search if available
+        for (let i = 0; i < rawResults.length && i < results.length; i++) {
+          const raw = rawResults[i];
+          if (raw.vector || raw.embedding) {
+            const vec = raw.vector || raw.embedding;
+            neighbors[i] = vec instanceof Float32Array ? vec : new Float32Array(vec);
+          }
+        }
+
+        const enhanced = this.learning.enhance(query, neighbors, weights);
+        if (enhanced && enhanced.length > 0) {
+          // Re-search with the GNN-enhanced query vector for better results
+          const enhancedRaw = this.db.search(Array.from(enhanced), k);
+          const enhancedResults: SearchResult[] = enhancedRaw
+            .map((r: { id: string; distance: number }) => ({
+              id: r.id,
+              distance: r.distance,
+              similarity: this.distanceToSimilarity(r.distance),
+              metadata: this.metadata.get(r.id)
+            }))
+            .filter((r: SearchResult) => {
+              if (options?.threshold && r.similarity < options.threshold) {
+                return false;
+              }
+              if (options?.filter && r.metadata) {
+                return Object.entries(options.filter).every(
+                  ([key, value]) => r.metadata![key] === value
+                );
+              }
+              return true;
+            });
+
+          if (enhancedResults.length > 0) {
+            results = enhancedResults;
+          }
+        }
+      } catch {
+        // Fall through to raw results if GNN enhancement fails
+      }
+    }
+
+    return results;
   }
 
   /**

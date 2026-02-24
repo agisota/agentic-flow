@@ -393,6 +393,10 @@ New MCP tools for `stdio-full.ts`:
 - **ADR-054**: AgentDB V3 Architecture Review (controller inventory)
 - **ADR-056**: RVF/RuVector Integration Roadmap (package-level integration)
 
+## Progress
+
+Phase 6 (MCP tools) complete. Phases 1-5 integration wiring implemented.
+
 ## References
 
 - AgentDB Controllers: `packages/agentdb/src/controllers/` (21 files)

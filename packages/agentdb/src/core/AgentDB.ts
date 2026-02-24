@@ -30,6 +30,7 @@ export class AgentDB {
   private causalGraph!: CausalMemoryGraph;
   private embedder!: EmbeddingService;
   private vectorBackend!: VectorBackend;
+  private graphAdapter: any = null; // GraphDatabaseAdapter (optional)
   private initialized = false;
   private config: AgentDBConfig;
 
@@ -78,6 +79,26 @@ export class AgentDB {
     this.skills = new SkillLibrary(this.db, this.embedder);
     this.causalGraph = new CausalMemoryGraph(this.db);
 
+    // Initialize optional graph database adapter
+    // Uses @ruvector/graph-node if available, otherwise skipped
+    try {
+      const { GraphDatabaseAdapter } = await import('../backends/graph/GraphDatabaseAdapter.js');
+      const storagePath = this.config.dbPath && this.config.dbPath !== ':memory:'
+        ? this.config.dbPath.replace(/\.db$/, '') + '.graph'
+        : null;
+
+      if (storagePath) {
+        this.graphAdapter = new GraphDatabaseAdapter(
+          { storagePath, dimensions: 384 },
+          this.embedder
+        );
+        await this.graphAdapter.initialize();
+      }
+    } catch {
+      // Graph DB is optional - continue without it
+      this.graphAdapter = null;
+    }
+
     this.initialized = true;
   }
 
@@ -95,9 +116,22 @@ export class AgentDB {
       case 'causal':
       case 'causalGraph':
         return this.causalGraph;
+      case 'graph':
+      case 'graphAdapter':
+        return this.graphAdapter;
       default:
         throw new Error(`Unknown controller: ${name}`);
     }
+  }
+
+  /**
+   * Get the optional graph database adapter
+   *
+   * Returns the GraphDatabaseAdapter instance if @ruvector/graph-node
+   * was available during initialization, or null otherwise.
+   */
+  getGraphAdapter(): any {
+    return this.graphAdapter;
   }
 
   async close(): Promise<void> {

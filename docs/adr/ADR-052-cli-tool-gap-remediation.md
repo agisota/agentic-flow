@@ -203,6 +203,10 @@ Dynamic imports keep cli-proxy.ts manageable. Each handler calls the same underl
 - New commands are additive
 - `npx agentdb` remains available as shortcut
 
+## Progress
+
+All 8 CLI command modules implemented. Package name fixed in CLAUDE.md.
+
 ## References
 
 - CLI Entry: `agentic-flow/src/cli-proxy.ts`

@@ -2,7 +2,10 @@
 
 ## Behavioral Rules (Always Enforced)
 
-- Do what has been asked; nothing more, nothing less
+- ALWAYS implement fully — continue working until the task is 100% complete with zero remaining items
+- NEVER leave partial implementations, stubs, or TODOs — finish everything before stopping
+- When implementing a plan or ADR, complete ALL items end-to-end; do not stop at "phase 1" or "partial"
+- If a task has multiple phases, implement ALL phases in sequence without waiting for user prompts
 - NEVER create files unless they're absolutely necessary for achieving your goal
 - ALWAYS prefer editing an existing file to creating a new one
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested
@@ -60,7 +63,7 @@ npm run lint
 - NEVER commit .env files or any file containing secrets
 - Always validate user input at system boundaries
 - Always sanitize file paths to prevent directory traversal
-- Run `npx @claude-flow/cli@latest security scan` after security-related changes
+- Run `npx agentic-flow security scan` after security-related changes
 
 ## Concurrency: 1 MESSAGE = ALL RELATED OPERATIONS
 
@@ -99,7 +102,7 @@ npm run lint
 - Keep shared memory namespace for all agents
 
 ```bash
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --strategy specialized
+npx agentic-flow swarm init --topology hierarchical --max-agents 8 --strategy specialized
 ```
 
 ## Swarm Execution Rules
@@ -114,25 +117,27 @@ npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --
 
 ### Core Commands
 
-| Command | Subcommands | Description |
-|---------|-------------|-------------|
-| `init` | 4 | Project initialization |
-| `agent` | 8 | Agent lifecycle management |
-| `swarm` | 6 | Multi-agent swarm coordination |
-| `memory` | 11 | AgentDB memory with HNSW search |
-| `task` | 6 | Task creation and lifecycle |
-| `session` | 7 | Session state management |
-| `hooks` | 17 | Self-learning hooks + 12 workers |
-| `hive-mind` | 6 | Byzantine fault-tolerant consensus |
+| Command | Subcommands | Status |
+|---------|-------------|--------|
+| `init` | 4 | [STABLE] CLI: config wizard |
+| `agent` | 8 | [STABLE] CLI: 4 commands (list, create, info, conflicts) |
+| `swarm` | 6 | [STABLE] CLI + MCP |
+| `memory` | 11 | [STABLE] CLI + MCP |
+| `task` | 6 | [STABLE] CLI + MCP |
+| `session` | 7 | [STABLE] CLI + MCP |
+| `hooks` | 17 | [STABLE] CLI + settings |
+| `hive-mind` | 6 | [STABLE] CLI + MCP |
+| `daemon` | 5 | [STABLE] CLI |
+| `doctor` | 2 | [STABLE] CLI |
 
 ### Quick CLI Examples
 
 ```bash
-npx @claude-flow/cli@latest init --wizard
-npx @claude-flow/cli@latest agent spawn -t coder --name my-coder
-npx @claude-flow/cli@latest swarm init --v3-mode
-npx @claude-flow/cli@latest memory search --query "authentication patterns"
-npx @claude-flow/cli@latest doctor --fix
+npx agentic-flow init --wizard
+npx agentic-flow agent spawn -t coder --name my-coder
+npx agentic-flow swarm init --v3-mode
+npx agentic-flow memory search --query "authentication patterns"
+npx agentic-flow doctor --fix
 ```
 
 ## Available Agents (60+ Types)
@@ -156,24 +161,24 @@ npx @claude-flow/cli@latest doctor --fix
 
 ```bash
 # Store (REQUIRED: --key, --value; OPTIONAL: --namespace, --ttl, --tags)
-npx @claude-flow/cli@latest memory store --key "pattern-auth" --value "JWT with refresh" --namespace patterns
+npx agentic-flow memory store --key "pattern-auth" --value "JWT with refresh" --namespace patterns
 
 # Search (REQUIRED: --query; OPTIONAL: --namespace, --limit, --threshold)
-npx @claude-flow/cli@latest memory search --query "authentication patterns"
+npx agentic-flow memory search --query "authentication patterns"
 
 # List (OPTIONAL: --namespace, --limit)
-npx @claude-flow/cli@latest memory list --namespace patterns --limit 10
+npx agentic-flow memory list --namespace patterns --limit 10
 
 # Retrieve (REQUIRED: --key; OPTIONAL: --namespace)
-npx @claude-flow/cli@latest memory retrieve --key "pattern-auth" --namespace patterns
+npx agentic-flow memory retrieve --key "pattern-auth" --namespace patterns
 ```
 
 ## Quick Setup
 
 ```bash
-claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
-npx @claude-flow/cli@latest daemon start
-npx @claude-flow/cli@latest doctor --fix
+claude mcp add claude-flow -- npx -y claude-flow@alpha mcp start
+npx agentic-flow doctor --fix
+npx agentic-flow daemon start
 ```
 
 ## Claude Code vs CLI Tools

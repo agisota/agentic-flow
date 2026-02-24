@@ -254,6 +254,10 @@ The services version should be removed to prevent confusion.
 - **ADR-054**: AgentDB V3 Architecture Review (controller inventory)
 - **ADR-057**: AgentDB/RuVector V2 Integration (agentic-flow integration plan)
 
+## Progress
+
+MCP tools created for all RuVector packages. Service layer implemented. Deep wiring in progress.
+
 ## References
 
 - RuVector Backend: `packages/agentdb/src/backends/ruvector/RuVectorBackend.ts` (264 lines)

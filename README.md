@@ -16,7 +16,7 @@
 | Get Started | Core Features | Enterprise | Documentation |
 |-------------|---------------|------------|---------------|
 | [Quick Start](#-quick-start) | [Agent Booster](#-core-components) | [Kubernetes GitOps](#-kubernetes-gitops-controller) | [Agent List](#-agent-types) |
-| [Deployment Options](#-deployment-options) | [ReasoningBank](#-core-components) | [Billing System](#-billing--economic-system) | [MCP Tools](#-mcp-tools-213-total) |
+| [Deployment Options](#-deployment-options) | [ReasoningBank](#-core-components) | [Billing System](#-billing--economic-system) | [MCP Tools](#-mcp-tools-75-total) |
 | [Model Optimization](#-model-optimization) | [Multi-Model Router](#-using-the-multi-model-router) | [Deployment Patterns](#-deployment-patterns) | [Complete Docs](https://github.com/ruvnet/agentic-flow/tree/main/docs) |
 | | | [agentic-jujutsu](#-agentic-jujutsu-native-rust-package) | |
 
@@ -57,7 +57,7 @@ Most AI coding agents are **painfully slow** and **frustratingly forgetful**. Th
 | **AgentDB v2** 🆕 | RuVector-powered graph database with vector search, GNN learning, and comprehensive diagnostics | 150x faster than SQLite, sub-ms latency | [Docs](./packages/agentdb/README.md) |
 | **ReasoningBank** | Persistent learning memory system with semantic search | 46% faster, 100% success | [Docs](https://github.com/ruvnet/agentic-flow/tree/main/agentic-flow/src/reasoningbank) |
 | **Multi-Model Router** | Intelligent cost optimization across 100+ LLMs | 85-99% cost savings | [Docs](https://github.com/ruvnet/agentic-flow/tree/main/agentic-flow/src/router) |
-| **QUIC Transport** | Ultra-low latency agent communication via Rust/WASM QUIC protocol | 50-70% faster than TCP, 0-RTT | [Docs](https://github.com/ruvnet/agentic-flow/tree/main/crates/agentic-flow-quic) |
+| **QUIC Transport** | Ultra-low latency agent communication via Rust/WASM QUIC protocol [PLANNED] | 50-70% faster than TCP, 0-RTT | [Docs](https://github.com/ruvnet/agentic-flow/tree/main/crates/agentic-flow-quic) |
 | **Federation Hub** 🆕 | Ephemeral agents (5s-15min lifetime) with persistent cross-agent memory | Infinite scale, 0 waste | [Docs](./agentic-flow/src/federation) |
 | **Swarm Optimization** 🆕 | Self-learning parallel execution with AI topology selection | 3-5x speedup, auto-optimizes | [Docs](./docs/swarm-optimization-report.md) |
 
@@ -410,7 +410,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ### Your First Agent (Local Execution)
 
 ```bash
-# Run locally with full 213 MCP tool access (Claude)
+# Run locally with full 75+ MCP tool access (Claude)
 npx agentic-flow \
   --agent researcher \
   --task "Analyze microservices architecture trends in 2025"
@@ -517,7 +517,7 @@ npx agentic-flow --agent coder --task "Code cleanup" --optimize --max-cost 0.001
 - Llama 3.1 8B - $0.055/$0.055 per 1M tokens (ultra-low cost)
 
 **Tier 5: Local/Privacy**
-- **ONNX Phi-4** - FREE (offline, private, no API)
+- **ONNX Phi-4** - FREE (offline, private, no API) [PLANNED]
 
 ### Cost Savings Examples
 
@@ -714,9 +714,9 @@ const results = await reasoningbank.queryMemories('search query', { namespace: '
 
 ---
 
-## 🔧 MCP Tools (213 Total)
+## 🔧 MCP Tools (75+ Total)
 
-Agentic Flow integrates with **four MCP servers** providing 213 tools total:
+Agentic Flow provides **75+ MCP tools** across local and external servers:
 
 ### Core Orchestration (claude-flow - 101 tools)
 
@@ -749,7 +749,7 @@ Agentic Flow integrates with **four MCP servers** providing 213 tools total:
 ### 💻 Local Execution (Best for Development)
 
 **Benefits:**
-- ✅ All 213 MCP tools work (full subprocess support)
+- ✅ All 75+ MCP tools work (full subprocess support)
 - ✅ Fast iteration and debugging
 - ✅ No cloud costs during development
 - ✅ Full access to local filesystem and resources
@@ -757,7 +757,7 @@ Agentic Flow integrates with **four MCP servers** providing 213 tools total:
 ### 🐳 Docker Containers (Best for Production)
 
 **Benefits:**
-- ✅ All 213 MCP tools work (full subprocess support)
+- ✅ All 75+ MCP tools work (full subprocess support)
 - ✅ Production ready (Kubernetes, ECS, Cloud Run, Fargate)
 - ✅ Reproducible builds and deployments
 - ✅ Process isolation and security
@@ -765,7 +765,7 @@ Agentic Flow integrates with **four MCP servers** providing 213 tools total:
 ### ☁️ Flow Nexus Cloud Sandboxes (Best for Scale)
 
 **Benefits:**
-- ✅ Full 213 MCP tool support
+- ✅ Full 75+ MCP tool support
 - ✅ Persistent memory across sandbox instances
 - ✅ Multi-language templates (Node.js, Python, React, Next.js)
 - ✅ Pay-per-use pricing (10 credits/hour ≈ $1/hour)
@@ -782,14 +782,14 @@ Agentic Flow integrates with **four MCP servers** providing 213 tools total:
 
 ## 📈 Performance & Scaling
 
-### Benchmarks
+### Benchmarks (from benchmark infrastructure)
 
 | Metric | Result |
 |--------|--------|
 | **Cold Start** | <2s (including MCP initialization) |
 | **Warm Start** | <500ms (cached MCP servers) |
 | **Agent Spawn** | 150+ agents loaded in <2s |
-| **Tool Discovery** | 213 tools accessible in <1s |
+| **Tool Discovery** | 75+ tools accessible in <1s |
 | **Memory Footprint** | 100-200MB per agent process |
 | **Concurrent Agents** | 10+ on t3.small, 100+ on c6a.xlarge |
 | **Token Efficiency** | 32% reduction via swarm coordination |

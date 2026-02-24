@@ -68,7 +68,7 @@ class AgenticFlowCLI {
     }
 
     // If no mode and no agent specified, show help
-    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation'].includes(options.mode)) {
+    if (!options.agent && options.mode !== 'list' && !['config', 'agent-manager', 'mcp-manager', 'proxy', 'quic', 'claude-code', 'mcp', 'reasoningbank', 'federation', 'daemon', 'hive-mind', 'hivemind', 'hooks', 'session', 'swarm', 'memory', 'task', 'doctor'].includes(options.mode)) {
       this.printHelp();
       process.exit(0);
     }
@@ -184,6 +184,54 @@ class AgenticFlowCLI {
       // Handle Federation commands
       const federationArgs = process.argv.slice(3); // Skip 'node', 'cli-proxy.js', 'federation'
       await handleFederationCommand(federationArgs);
+      process.exit(0);
+    }
+
+    if (options.mode === 'daemon') {
+      const { handleDaemonCommand } = await import('./cli/daemon-cli.js');
+      await handleDaemonCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'hive-mind' || options.mode === 'hivemind') {
+      const { handleHiveMindCommand } = await import('./cli/hivemind-cli.js');
+      await handleHiveMindCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'hooks') {
+      const { handleHooksCommand } = await import('./cli/hooks-cli.js');
+      await handleHooksCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'session') {
+      const { handleSessionCommand } = await import('./cli/session-cli.js');
+      await handleSessionCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'swarm') {
+      const { handleSwarmCommand } = await import('./cli/swarm-cli.js');
+      await handleSwarmCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'memory') {
+      const { handleMemoryCommand } = await import('./cli/memory-cli.js');
+      await handleMemoryCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'task') {
+      const { handleTaskCommand } = await import('./cli/task-cli.js');
+      await handleTaskCommand(process.argv.slice(3));
+      process.exit(0);
+    }
+
+    if (options.mode === 'doctor') {
+      const { handleDoctorCommand } = await import('./cli/doctor-cli.js');
+      await handleDoctorCommand(process.argv.slice(3));
       process.exit(0);
     }
 

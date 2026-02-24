@@ -189,6 +189,10 @@ AgentDB's 6 RuVector packages provide capabilities not exposed via MCP:
 - **ADR-056**: RVF/RuVector Integration Roadmap (RuVector-specific MCP tools)
 - **ADR-057**: AgentDB/RuVector V2 Integration (deep integration plan)
 
+## Progress
+
+Phase 1-5 complete (75 MCP tools). DAA and Flow-Nexus tools remain as external packages.
+
 ## References
 
 - MCP Server: `agentic-flow/src/mcp/fastmcp/servers/stdio-full.ts`

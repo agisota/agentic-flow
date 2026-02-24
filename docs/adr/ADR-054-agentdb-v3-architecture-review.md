@@ -249,6 +249,10 @@ Progressive enablement:
 - **ADR-055**: Documentation-Implementation Parity (doc accuracy)
 - **ADR-056**: RVF/RuVector Integration Roadmap (RuVector-specific gaps)
 
+## Progress
+
+CausalMemoryGraph test fixes done. moduleResolution fix done. TypeScript strict mode partially enabled.
+
 ## References
 
 - Core: `packages/agentdb/src/core/AgentDB.ts`

@@ -16,7 +16,7 @@ A comprehensive review of the agentic-flow codebase reveals systematic gaps betw
 
 | Area | Documented | Implemented | Parity |
 |------|-----------|-------------|--------|
-| MCP Tools | 213+ | 18 | 8.5% |
+| MCP Tools | 213+ (documented) | 75 (implemented) | 35% |
 | CLI Commands | 8 core + 45 sub | 3 core + ~15 sub | ~33% |
 | Agent Types | 60+ | 28+ definitions | ~47% |
 | Hook Events | 17 types | 10 types | ~59% |
@@ -37,7 +37,7 @@ This single mismatch invalidates dozens of documented examples.
 **2. Feature Claims Without Implementation**
 
 The root README.md and package.json claim:
-- "213+ MCP tools" (18 implemented)
+- "213+ MCP tools" (75 implemented)
 - "Full daemon management" (not implemented)
 - "17 hook types with 12 workers" (10 hook types, no workers CLI)
 - "Hive-mind consensus" (not in CLI, partial MCP)
@@ -50,7 +50,7 @@ The root README.md and package.json claim:
 | CLAUDE.md V3 CLI table | 8 commands, 45+ subcommands | 3 commands implemented |
 | CLAUDE.md Memory Reference | `memory store/search/list/retrieve` | MCP only, not CLI |
 | README.md performance | "150x-12,500x search improvement" | Benchmark infrastructure exists, not all claims verified |
-| README.md tools count | "213+ MCP tools" | 18 in stdio-full.ts |
+| README.md tools count | "213+ MCP tools" | 75 in stdio-full.ts |
 
 ### Root Causes
 
@@ -147,6 +147,10 @@ docs/
 - Feature development must include documentation updates
 - PRs that add docs for unimplemented features must use `[PLANNED]` tag
 - Release notes must reference actual capability changes
+
+## Progress
+
+CLAUDE.md updated with accurate CLI table, package names, tool counts. README reconciled.
 
 ## References
 

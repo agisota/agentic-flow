@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Full FastMCP server with stdio transport - All 23 claude-flow-sdk tools
+// Full FastMCP server with stdio transport - All 75 claude-flow-sdk tools
 import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import { execSync } from 'child_process';
@@ -7,9 +7,15 @@ import { AgentDBService } from '../../../services/agentdb-service.js';
 import type {
   EpisodeData, SkillData, PatternData, TrajectoryStep,
 } from '../../../services/agentdb-service.js';
+import { registerSessionTools } from '../tools/session-tools.js';
+import { registerGitHubTools } from '../tools/github-tools.js';
+import { registerNeuralTools } from '../tools/neural-tools.js';
+import { registerRuVectorTools } from '../tools/ruvector-tools.js';
+import { registerSonaRvfTools } from '../tools/sona-rvf-tools.js';
+import { registerInfrastructureTools } from '../tools/infrastructure-tools.js';
 
 console.error('Starting FastMCP Full Server (stdio transport)...');
-console.error('Loading 23 tools: memory (3), swarm (3), agent (5), agentdb (12)');
+console.error('Loading 75 tools: core (11), agentdb (12), session (8), github (8), neural (6), ruvector (6), sona-rvf (11), infrastructure (13)');
 
 // Create server
 const server = new FastMCP({
@@ -702,7 +708,15 @@ server.addTool({
   }
 });
 
-console.error('Registered 23 tools successfully');
+// Register modular tool sets (52 additional tools)
+registerSessionTools(server);
+registerGitHubTools(server);
+registerNeuralTools(server);
+registerRuVectorTools(server);
+registerSonaRvfTools(server);
+registerInfrastructureTools(server);
+
+console.error('Registered 75 tools successfully');
 console.error('Starting stdio transport...');
 
 // Start with stdio transport

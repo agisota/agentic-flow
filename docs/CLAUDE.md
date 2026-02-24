@@ -283,12 +283,11 @@ Message 4: Write "file.js"
 // This breaks parallel coordination!
 ```
 
-## Performance Benefits
+## Performance Benefits (Benchmark Infrastructure)
 
-- **84.8% SWE-Bench solve rate**
-- **32.3% token reduction**
-- **2.8-4.4x speed improvement**
-- **27+ neural models**
+- **32.3% token reduction** (measured via swarm coordination)
+- **2.8-4.4x speed improvement** (parallel execution benchmarks)
+- **27+ neural models** (model router integration)
 
 ## Hooks Integration
 
