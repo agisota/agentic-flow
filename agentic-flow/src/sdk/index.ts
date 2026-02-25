@@ -1,7 +1,7 @@
 /**
  * SDK Integration Module
  *
- * Re-exports all SDK integration components for easy importing
+ * Re-exports all SDK integration components for easy importing.
  */
 
 // Hooks bridge
@@ -168,3 +168,29 @@ export {
   type AuditLogEntry,
   type SecurityContext
 } from './security.js';
+
+// Orchestration runtime API (stable programmatic API)
+export {
+  createOrchestrator,
+  getRunStatus,
+  cancelRun,
+  getRunArtifacts,
+  type Orchestrator,
+  type OrchestratorConfig,
+  type OrchestratorBackend,
+  type RunHandle,
+  type RunStatus,
+  type RunPhase,
+  type RunArtifacts,
+  type OrchestrateTaskInput,
+  type LoopPolicy,
+  type SuccessCriteria,
+  type RetryPolicy,
+  type BudgetLimits,
+  seedMemory,
+  recordLearning,
+  searchMemory,
+  type MemoryEntry,
+  type MemorySearchResult,
+  type MemorySearchScope
+} from '../orchestration/index.js';
