@@ -1,6 +1,6 @@
 {
   "name": "agentdb",
-  "version": "3.0.0-alpha.5",
+  "version": "3.0.0-alpha.6",
   "description": "AgentDB v3 — Proof-gated graph intelligence for AI agents. Every state mutation requires cryptographic proof. Native Rust performance via @ruvector/graph-transformer with 8 verified graph modules, HNSW search, causal reasoning, and reflexion memory.",
   "type": "module",
   "main": "dist/src/index.js",
@@ -114,10 +114,18 @@
     "zod": "^3.25.76"
   },
   "peerDependencies": {
-    "@xenova/transformers": "^2.17.2"
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^11.8.1",
+    "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
     "@xenova/transformers": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "sqlite3": {
       "optional": true
     }
   },
@@ -127,7 +135,6 @@
     "@ruvector/graph-node": "^0.1.15",
     "@ruvector/graph-transformer": "^2.0.4",
     "@ruvector/router": "^0.1.15",
-    "better-sqlite3": "^11.8.1",
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.0",
     "commander": "^12.1.0",
@@ -139,8 +146,7 @@
     "ruvector": "^0.1.99",
     "ruvector-attention-wasm": "^0.1.0",
     "ruvector-graph-transformer-wasm": "^2.0.4",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite": "^5.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
