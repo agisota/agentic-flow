@@ -1,15 +1,24 @@
 /**
- * AgentDB - Main database wrapper class
- * 
- * Provides a unified interface to all AgentDB controllers
+ * AgentDB v3 - Main database wrapper class
+ *
+ * Provides a unified interface to all AgentDB controllers with
+ * proof-gated mutations via MutationGuard and @ruvector/graph-transformer.
  */
-import Database from 'better-sqlite3';
 import { ReflexionMemory } from '../controllers/ReflexionMemory.js';
 import { SkillLibrary } from '../controllers/SkillLibrary.js';
+import { ReasoningBank } from '../controllers/ReasoningBank.js';
 import { CausalMemoryGraph } from '../controllers/CausalMemoryGraph.js';
+import { CausalRecall } from '../controllers/CausalRecall.js';
+import { LearningSystem } from '../controllers/LearningSystem.js';
+import { ExplainableRecall } from '../controllers/ExplainableRecall.js';
+import { NightlyLearner } from '../controllers/NightlyLearner.js';
 import { EmbeddingService } from '../controllers/EmbeddingService.js';
-import { createBackend } from '../backends/factory.js';
+import { createGuardedBackend } from '../backends/factory.js';
 import type { VectorBackend } from '../backends/VectorBackend.js';
+import type { GuardedVectorBackend } from '../backends/ruvector/GuardedVectorBackend.js';
+import type { MutationGuard } from '../security/MutationGuard.js';
+import type { AttestationLog } from '../security/AttestationLog.js';
+import { GraphTransformerService } from '../services/GraphTransformerService.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,34 +28,57 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface AgentDBConfig {
   dbPath?: string;
   namespace?: string;
+  dimension?: number;
+  maxElements?: number;
   enableAttention?: boolean;
   attentionConfig?: Record<string, any>;
 }
 
 export class AgentDB {
-  private db: Database.Database;
+  private db: any;
   private reflexion!: ReflexionMemory;
   private skills!: SkillLibrary;
+  private reasoning!: ReasoningBank;
   private causalGraph!: CausalMemoryGraph;
+  private causalRecall!: CausalRecall;
+  private learningSystem!: LearningSystem;
+  private explainableRecall!: ExplainableRecall;
+  private nightlyLearner!: NightlyLearner;
   private embedder!: EmbeddingService;
   private vectorBackend!: VectorBackend;
-  private graphAdapter: any = null; // GraphDatabaseAdapter (optional)
+  private guardedBackend: GuardedVectorBackend | null = null;
+  private mutationGuard: MutationGuard | null = null;
+  private attestationLog: AttestationLog | null = null;
+  private graphTransformer!: GraphTransformerService;
+  private graphAdapter: any = null;
   private initialized = false;
   private config: AgentDBConfig;
 
   constructor(config: AgentDBConfig = {}) {
     this.config = config;
-    const dbPath = config.dbPath || ':memory:';
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
+    // db initialized in initialize() after dynamic import
   }
 
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Dynamic import: try better-sqlite3 (native), fallback to sql.js (WASM)
+    const dbPath = this.config.dbPath || ':memory:';
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      this.db = new Database(dbPath);
+      this.db.pragma('journal_mode = WAL');
+      console.log('✅ Using better-sqlite3 (native performance)');
+    } catch {
+      console.log('⚠️  better-sqlite3 unavailable, using sql.js (WASM fallback)');
+      const { getDatabaseImplementation } = await import('../db-fallback.js');
+      const DatabaseImpl = await getDatabaseImplementation();
+      this.db = new DatabaseImpl(dbPath);
+    }
+
+    const dim = this.config.dimension ?? 384;
+
     // Load schemas
-    // When compiled, this file is at dist/src/core/AgentDB.js
-    // Schemas are at dist/schemas/, so we need ../../schemas/
     const schemaPath = path.join(__dirname, '../../schemas/schema.sql');
     if (fs.existsSync(schemaPath)) {
       const schema = fs.readFileSync(schemaPath, 'utf-8');
@@ -59,28 +91,48 @@ export class AgentDB {
       this.db.exec(frontierSchema);
     }
 
-    // Initialize embedder with default Xenova model
-    // Falls back to mock embeddings if @xenova/transformers is not available
+    // Initialize embedder
     this.embedder = new EmbeddingService({
       model: 'Xenova/all-MiniLM-L6-v2',
-      dimension: 384,
+      dimension: dim,
       provider: 'transformers'
     });
     await this.embedder.initialize();
 
-    // Initialize vector backend
-    this.vectorBackend = await createBackend('auto', {
-      dimensions: 384,
-      metric: 'cosine'
-    });
+    // Initialize GraphTransformerService (8 verified modules)
+    this.graphTransformer = new GraphTransformerService();
+    await this.graphTransformer.initialize();
 
-    // Initialize controllers
-    this.reflexion = new ReflexionMemory(this.db, this.embedder);
-    this.skills = new SkillLibrary(this.db, this.embedder);
+    // Initialize proof-gated vector backend (ADR-060)
+    let controllerVB: VectorBackend | null = null;
+    try {
+      const { backend, guard, log } = await createGuardedBackend('auto', {
+        dimensions: dim,
+        metric: 'cosine',
+        maxElements: this.config.maxElements ?? 10000,
+        database: this.db,
+      });
+      this.guardedBackend = backend;
+      this.mutationGuard = guard;
+      this.attestationLog = log;
+      this.vectorBackend = backend;
+      controllerVB = backend;
+    } catch {
+      // Guarded backend unavailable — controllers work without vectorBackend
+      controllerVB = null;
+    }
+
+    // Initialize controllers — wire vectorBackend where supported
+    this.reflexion = new ReflexionMemory(this.db, this.embedder, controllerVB ?? undefined);
+    this.skills = new SkillLibrary(this.db, this.embedder, controllerVB ?? undefined);
+    this.reasoning = new ReasoningBank(this.db, this.embedder, controllerVB ?? undefined);
     this.causalGraph = new CausalMemoryGraph(this.db);
+    this.causalRecall = new CausalRecall(this.db, this.embedder);
+    this.learningSystem = new LearningSystem(this.db, this.embedder);
+    this.explainableRecall = new ExplainableRecall(this.db, this.embedder);
+    this.nightlyLearner = new NightlyLearner(this.db, this.embedder);
 
     // Initialize optional graph database adapter
-    // Uses @ruvector/graph-node if available, otherwise skipped
     try {
       const { GraphDatabaseAdapter } = await import('../backends/graph/GraphDatabaseAdapter.js');
       const storagePath = this.config.dbPath && this.config.dbPath !== ':memory:'
@@ -89,13 +141,12 @@ export class AgentDB {
 
       if (storagePath) {
         this.graphAdapter = new GraphDatabaseAdapter(
-          { storagePath, dimensions: 384 },
+          { storagePath, dimensions: dim },
           this.embedder
         );
         await this.graphAdapter.initialize();
       }
     } catch {
-      // Graph DB is optional - continue without it
       this.graphAdapter = null;
     }
 
@@ -113,35 +164,59 @@ export class AgentDB {
         return this.reflexion;
       case 'skills':
         return this.skills;
+      case 'reasoning':
+      case 'reasoningBank':
+        return this.reasoning;
       case 'causal':
       case 'causalGraph':
         return this.causalGraph;
+      case 'causalRecall':
+        return this.causalRecall;
+      case 'learning':
+      case 'learningSystem':
+        return this.learningSystem;
+      case 'explainableRecall':
+        return this.explainableRecall;
+      case 'nightlyLearner':
+        return this.nightlyLearner;
       case 'graph':
       case 'graphAdapter':
         return this.graphAdapter;
+      case 'graphTransformer':
+        return this.graphTransformer;
+      case 'mutationGuard':
+        return this.mutationGuard;
+      case 'attestationLog':
+        return this.attestationLog;
+      case 'vectorBackend':
+        return this.vectorBackend;
       default:
         throw new Error(`Unknown controller: ${name}`);
     }
   }
 
-  /**
-   * Get the optional graph database adapter
-   *
-   * Returns the GraphDatabaseAdapter instance if @ruvector/graph-node
-   * was available during initialization, or null otherwise.
-   */
   getGraphAdapter(): any {
     return this.graphAdapter;
   }
 
+  getGraphTransformer(): GraphTransformerService {
+    return this.graphTransformer;
+  }
+
+  getMutationGuard(): MutationGuard | null {
+    return this.mutationGuard;
+  }
+
   async close(): Promise<void> {
+    if (this.vectorBackend) {
+      try { this.vectorBackend.close(); } catch { /* ignore */ }
+    }
     if (this.db) {
       this.db.close();
     }
   }
 
-  // Expose database for advanced usage
-  get database(): Database.Database {
+  get database(): any {
     return this.db;
   }
 }
